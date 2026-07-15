@@ -7,8 +7,8 @@ server:
 
 spring:
   application:
-    name: interview-mentor-ai
-  # H2???
+    name: interview-mentor-ai-java
+  # H2数据库配置
   datasource:
     driver-class-name: org.h2.Driver
     url: jdbc:h2:file:./data/interview_db
@@ -18,18 +18,21 @@ spring:
     console:
       enabled: true
       path: /h2-console
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
 
-# ????????????????SpringAI???
-llm:
-  api-key: ${LLM_API_KEY:sk-xxx}
-  base-url: ${LLM_BASE_URL:https://api.deepseek.com/v1}
-  model-name: deepseek-chat
-  temperature: 0.3
+# Python AI 后端配置
+python:
+  ai:
+    backend:
+      url: ${PYTHON_AI_BACKEND_URL:http://localhost:8000}
 
-# Whisper???????OpenAI?????
-asr:
-  api-key: ${ASR_API_KEY:sk-xxx}
-  base-url: ${ASR_BASE_URL:https://api.openai.com/v1}
+# 音频文件存储配置
+audio:
+  storage:
+    path: ./data/audio
 
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml

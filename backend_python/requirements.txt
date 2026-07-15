@@ -1,0 +1,14 @@
+# InterviewMentorAI Python AI Backend Dependencies
+
+# FastAPI 框架
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# OpenAI 兼容接口（调用阿里云百炼 qwen3.5-omni-plus）
+openai>=1.0.0
+
+# HTTP 客户端（用于调用 Java 后端）
+httpx>=0.25.0
+
+# 环境变量管理
+python-dotenv>=1.0.0
