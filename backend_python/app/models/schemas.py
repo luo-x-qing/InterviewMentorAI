@@ -77,3 +77,20 @@ class AnalysisResponse:
     report: Optional[str] = None
     evaluations: Optional[List[EvaluationResult]] = None
     error: Optional[str] = None
+
+
+# RAG相关数据结构
+@dataclass
+class RagDoc:
+    """检索单条文档结构体｜0003向量存储元数据设计"""
+    doc_id: int
+    title: str       # 文档片段标题（如Java集合面试题片段1）
+    content: str      # 知识库原文参考
+    source: str       # 来源文件名，用于溯源（解决LLM无出处幻觉）
+    score: float      # 向量相似度 0~1
+
+@dataclass
+class RagRetrievalResult:
+    """单道面试题检索返回包｜0004检索结果封装"""
+    question: str
+    docs: List[RagDoc]

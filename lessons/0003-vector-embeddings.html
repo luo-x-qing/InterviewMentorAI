@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>向量嵌入技术 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+    <h1>向量嵌入技术</h1>
+    
+    <div class="callout info">
+        <strong>学习目标：</strong> 理解向量嵌入的原理、主流嵌入模型的选择，以及如何在RAG系统中应用向量嵌入。
+    </div>
+    
+    <h2>什么是向量嵌入？</h2>
+    <p>向量嵌入（Vector Embedding）是将文本转换为高维向量空间中的点的过程。核心思想是：语义相似的文本在向量空间中距离更近。</p>
+    
+    <p>例如：</p>
+    <ul>
+        <li>"如何退款" 和 "退货流程" 字面上几乎不重合，但在向量空间中距离很近</li>
+        <li>"Python编程" 和 "Java开发" 在向量空间中距离较近</li>
+        <li>"Python编程" 和 "烹饪食谱" 在向量空间中距离很远</li>
+    </ul>
+    
+    <h2>向量嵌入的工作原理</h2>
+    
+    <h3>1. 嵌入模型</h3>
+    <p>嵌入模型是专门用于将文本转换为向量的神经网络。常见的嵌入模型包括：</p>
+    
+    <ul>
+        <li><strong>OpenAI Embeddings：</strong> text-embedding-3-small, text-embedding-3-large</li>
+        <li><strong>Hugging Face模型：</strong> BAAI/bge-large-zh-v1.5, sentence-transformers/all-MiniLM-L6-v2</li>
+        <li><strong>本地模型：</strong> 通过Ollama等工具运行的本地嵌入模型</li>
+    </ul>
+    
+    <h3>2. 向量空间</h3>
+    <p>嵌入模型将文本转换为固定长度的向量（如768维或1536维）。这个向量空间具有以下特性：</p>
+    
+    <ul>
+        <li><strong>语义相似性：</strong> 语义相似的文本在向量空间中距离更近</li>
+        <li><strong>线性关系：</strong> 向量之间可以进行数学运算，捕捉语义关系</li>
+        <li><strong>聚类特性：</strong> 相似主题的文本会聚集在一起</li>
+    </ul>
+    
+    <h3>3. 相似度计算</h3>
+    <p>在RAG系统中，常用的相似度计算方法有三种：</p>
+    
+    <h4>3.1 余弦相似度（Cosine Similarity）</h4>
+    <p>计算两个向量之间的夹角余弦值，最常用的相似度度量：</p>
+    <pre><code># 余弦相似度公式
+similarity = (A · B) / (||A|| * ||B||)
+
+# 其中：
+# A 和 B 是两个向量
+# A · B 是向量点积
+# ||A|| 和 ||B|| 是向量的模长
+
+# 值范围：[-1, 1]
+# 1 表示完全相同，0 表示无关，-1 表示完全相反</code></pre>
+    
+    <h4>3.2 欧氏距离（Euclidean Distance）</h4>
+    <p>计算两个向量在空间中的直线距离，距离越小表示越相似：</p>
+    <pre><code># 欧氏距离公式
+distance = sqrt(Σ(Ai - Bi)²)
+
+# 其中：
+# A 和 B 是两个向量
+# Ai 和 Bi 是向量的第i个维度
+
+# 值范围：[0, +∞)
+# 距离越小，相似度越高</code></pre>
+    
+    <h4>3.3 点积（Dot Product）</h4>
+    <p>计算两个向量的点积，需要向量已经归一化（模长为1）：</p>
+    <pre><code># 点积公式
+similarity = Σ(Ai × Bi)
+
+# 当向量已归一化时，点积等价于余弦相似度
+# 值范围：(-∞, +∞)
+# 值越大，相似度越高</code></pre>
+    
+    <div class="callout info">
+        <strong>方法选择建议：</strong>
+        <ul>
+            <li><strong>余弦相似度：</strong> 最常用，对向量模长不敏感，适合大多数场景</li>
+            <li><strong>欧式距离：</strong> 对向量模长敏感，适合需要考虑向量长度的场景</li>
+            <li><strong>点积：</strong> 计算效率高，适合向量已归一化的场景</li>
+        </ul>
+    </div>
+    
+    <h2>主流嵌入模型对比</h2>
+    
+    <table style="width:100%; border-collapse: collapse; margin: 1rem 0;">
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">模型</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">维度</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">特点</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">适用场景</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">text-embedding-3-small</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1536</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">性价比高，速度快</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">通用场景，成本敏感</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">text-embedding-3-large</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">3072</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">精度最高，成本较高</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">高精度需求，不限成本</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">BAAI/bge-large-zh-v1.5</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1024</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">中文优化，本地部署</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">中文场景，隐私要求</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">all-MiniLM-L6-v2</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">384</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">轻量级，速度快</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">资源受限环境</td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <h2>向量数据库</h2>
+    <p>向量数据库是专门用于存储和检索向量的数据库。向量数据库的核心特点是：</p>
+    
+    <div class="callout info">
+        <strong>重要概念：</strong> 向量数据库中存储的不是单纯的向量，而是<strong>文本+向量</strong>的组合。这样在检索时既能找到相似的向量，又能获取对应的原始文本内容。
+    </div>
+    
+    <p><strong>向量数据库存储结构：</strong></p>
+    <pre><code># 向量数据库中的每条记录包含：
+{
+    "id": "doc_chunk_001",           # 唯一标识符
+    "text": "如何申请退款...",        # 原始文本内容
+    "embedding": [0.1, 0.2, ...],   # 向量嵌入
+    "metadata": {                   # 元数据
+        "source": "help_center",
+        "category": "refund",
+        "created_at": "2026-01-15"
+    }
+}</code></pre>
+    
+    <h3>1. ChromaDB</h3>
+    <p>轻量级、易于使用的向量数据库，适合快速原型开发。</p>
+    
+    <pre><code># ChromaDB示例代码
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import HuggingFaceEmbeddings
+
+# 初始化嵌入模型
+embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-large-zh-v1.5")
+
+# 创建向量数据库
+vectorstore = Chroma.from_documents(
+    documents=chunks,
+    embedding=embeddings,
+    persist_directory="./chroma_db"
+)
+
+# 检索相似文档
+results = vectorstore.similarity_search("如何退款", k=3)</code></pre>
+    
+    <h3>2. Pinecone</h3>
+    <p>全托管的向量数据库服务，适合生产环境。</p>
+    
+    <h3>3. Milvus</h3>
+    <p>开源的分布式向量数据库，适合大规模数据。</p>
+    
+    <h3>4. FAISS</h3>
+    <p>Facebook开源的向量检索库，适合高性能检索。</p>
+    
+    <h2>在InterviewMentorAI中的应用</h2>
+    
+    <div class="callout success">
+        <strong>项目特定考虑：</strong>
+        <ul>
+            <li><strong>中文优化：</strong> 选择对中文支持好的嵌入模型，如BAAI/bge-large-zh-v1.5</li>
+            <li><strong>本地部署：</strong> 考虑隐私和成本，使用本地嵌入模型</li>
+            <li><strong>混合检索：</strong> 结合向量检索和关键词检索，提高检索效果</li>
+            <li><strong>实时更新：</strong> 支持知识库的动态更新和增量索引</li>
+        </ul>
+    </div>
+    
+    <h3>推荐技术栈</h3>
+    <ol>
+        <li><strong>嵌入模型：</strong> BAAI/bge-large-zh-v1.5（中文优化，本地部署）</li>
+        <li><strong>向量数据库：</strong> ChromaDB（轻量级，易于集成）</li>
+        <li><strong>检索策略：</strong> 混合检索（向量检索 + BM25关键词检索）</li>
+        <li><strong>重排序：</strong> 使用交叉编码器对检索结果进行重排序</li>
+    </ol>
+    
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>在以下场景中，应该选择哪个嵌入模型？</p>
+        <p><em>场景：为InterviewMentorAI项目构建中文面试知识库，需要本地部署以保护隐私</em></p>
+        <option onclick="checkAnswer(this, false)">A. text-embedding-3-small（OpenAI）</option>
+        <option onclick="checkAnswer(this, false)">B. text-embedding-3-large（OpenAI）</option>
+        <option onclick="checkAnswer(this, true)">C. BAAI/bge-large-zh-v1.5（Hugging Face）</option>
+        <option onclick="checkAnswer(this, false)">D. all-MiniLM-L6-v2（Hugging Face）</option>
+    </div>
+    
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了向量嵌入技术后，我们将探讨RAG系统的检索策略和优化方法。请阅读<a href="https://github.com/vivy-yi/rag-tutorial">RAG完整教程</a>作为补充材料。
+    </div>
+    
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <div class="navigation">
+            <a href="0002-document-chunking.html">上一课：文档分块策略</a>
+            <a href="0004-retrieval-strategies.html">下一课：检索策略与优化</a>
+        </div>
+    </div>
+    
+    <script>
+        function checkAnswer(element, isCorrect) {
+            // 移除所有选项的样式
+            const options = element.parentElement.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+                opt.style.pointerEvents = 'none';
+            });
+            
+            // 添加对应的样式
+            if (isCorrect) {
+                element.classList.add('correct');
+                element.innerHTML += ' ✓ 正确！BAAI/bge-large-zh-v1.5对中文优化良好，支持本地部署。';
+            } else {
+                element.classList.add('incorrect');
+                element.innerHTML += ' ✗ 不正确。对于中文本地部署场景，BAAI/bge-large-zh-v1.5是最佳选择。';
+            }
+        }
+    </script>
+</body>
+</html>

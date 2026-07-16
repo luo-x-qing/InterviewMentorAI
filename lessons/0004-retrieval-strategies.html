@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>检索策略与优化 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+    <h1>检索策略与优化</h1>
+    
+    <div class="callout info">
+        <strong>学习目标：</strong> 掌握RAG系统中的各种检索策略，理解如何优化检索效果，以及如何在InterviewMentorAI项目中应用这些策略。
+    </div>
+    
+    <h2>检索策略概述</h2>
+    <p>检索质量是RAG系统效果的上限。如果检索不到相关文档，生成器再强大也无法给出准确答案。因此，选择合适的检索策略至关重要。</p>
+    
+    <h2>1. 稀疏检索（Sparse Retrieval）</h2>
+    
+    <h3>BM25算法</h3>
+    <p>BM25是一种基于关键词匹配的检索算法，是传统信息检索的经典方法。</p>
+    
+    <pre><code># BM25算法核心思想
+# 1. 词频（TF）：词在文档中出现的频率越高，相关性越强
+# 2. 逆文档频率（IDF）：词在所有文档中出现的频率越低，区分度越高
+# 3. 文档长度归一化：考虑文档长度对词频的影响</code></pre>
+    
+    <p><strong>优点：</strong></p>
+    <ul>
+        <li>计算速度快，资源消耗低</li>
+        <li>对精确术语匹配效果好</li>
+        <li>可解释性强，易于调试</li>
+    </ul>
+    
+    <p><strong>缺点：</strong></p>
+    <ul>
+        <li>无法理解语义，只能进行字面匹配</li>
+        <li>对同义词、近义词处理能力差</li>
+        <li>需要分词处理，对中文支持需要额外配置</li>
+    </ul>
+    
+    <h2>2. 密集检索（Dense Retrieval）</h2>
+    
+    <h3>向量检索</h3>
+    <p>使用嵌入模型将文本转换为向量，然后通过向量相似度进行检索。</p>
+    
+    <pre><code># 向量检索示例
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import HuggingFaceEmbeddings
+
+# 初始化嵌入模型和向量数据库
+embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-large-zh-v1.5")
+vectorstore = Chroma.from_documents(chunks, embeddings)
+
+# 向量检索
+results = vectorstore.similarity_search("如何退款", k=3)</code></pre>
+    
+    <p><strong>优点：</strong></p>
+    <ul>
+        <li>能够理解语义，支持同义词、近义词匹配</li>
+        <li>不需要分词，对多语言支持好</li>
+        <li>能够捕捉文本的深层含义</li>
+    </ul>
+    
+    <p><strong>缺点：</strong></p>
+    <ul>
+        <li>计算成本高，需要GPU支持</li>
+        <li>对精确术语匹配可能不如BM25</li>
+        <li>需要训练或选择合适的嵌入模型</li>
+    </ul>
+    
+    <h2>3. 混合检索（Hybrid Retrieval）</h2>
+    
+    <p>结合稀疏检索和密集检索的优点，是目前生产环境中最常用的方法。</p>
+    
+    <pre><code># 混合检索示例
+from langchain.retrievers import EnsembleRetriever
+from langchain_community.retrievers import BM25Retriever
+
+# 创建BM25检索器
+bm25_retriever = BM25Retriever.from_documents(chunks)
+bm25_retriever.k = 5
+
+# 创建向量检索器
+vector_retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+
+# 混合检索（加权融合）
+ensemble_retriever = EnsembleRetriever(
+    retrievers=[bm25_retriever, vector_retriever],
+    weights=[0.3, 0.7]  # 向量检索权重更高
+)
+
+# 执行检索
+results = ensemble_retriever.get_relevant_documents("如何退款")</code></pre>
+    
+    <p><strong>权重设置建议：</strong></p>
+    <ul>
+        <li><strong>通用场景：</strong> BM25: 0.3, 向量检索: 0.7</li>
+        <li><strong>术语精确场景：</strong> BM25: 0.5, 向量检索: 0.5</li>
+        <li><strong>语义理解场景：</strong> BM25: 0.2, 向量检索: 0.8</li>
+    </ul>
+    
+    <h2>4. 重排序（Reranking）</h2>
+    
+    <p>对初步检索的结果进行重新排序，提高最终结果的相关性。</p>
+    
+    <pre><code># 重排序示例
+from langchain.retrievers.document_compressors import CrossEncoderReranker
+from langchain_community.document_compressors import CrossEncoder
+from langchain.retrievers import ContextualCompressionRetriever
+
+# 初始化重排序模型
+reranker = CrossEncoder(model="BAAI/bge-reranker-large")
+
+# 创建压缩检索器
+compressor = CrossEncoderReranker(model=reranker, top_n=3)
+compression_retriever = ContextualCompressionRetriever(
+    base_compressor=compressor,
+    base_retriever=ensemble_retriever
+)
+
+# 执行检索和重排序
+results = compression_retriever.get_relevant_documents("如何退款")</code></pre>
+    
+    <p><strong>重排序模型选择：</strong></p>
+    <ul>
+        <li><strong>Cross-Encoder：</strong> 精度高，但速度慢</li>
+        <li><strong>Bi-Encoder：</strong> 速度快，但精度略低</li>
+        <li><strong>ColBERT：</strong> 平衡速度和精度</li>
+    </ul>
+    
+    <h2>5. 查询增强（Query Enhancement）</h2>
+    
+    <p>通过改写或扩展用户查询，提高检索效果。</p>
+    
+    <h3>5.1 查询改写（Query Rewriting）</h3>
+    <pre><code># 查询改写示例
+def rewrite_query(original_query):
+    prompt = f"""
+    请将以下用户问题改写为更精确的搜索查询：
+    原问题：{original_query}
+    
+    要求：
+    1. 保持原意
+    2. 使用更专业的术语
+    3. 补充必要的上下文
+    """
+    return llm.invoke(prompt).content</code></pre>
+    
+    <h3>5.2 多查询检索（Multi-Query Retrieval）</h3>
+    <pre><code># 多查询检索示例
+def multi_query_retrieval(query, vectorstore, llm, k=3):
+    # 生成多个查询变体
+    queries = [
+        query,
+        f"如何{query}",
+        f"{query}的方法",
+        f"{query}的步骤"
+    ]
+    
+    # 对每个查询进行检索
+    all_results = []
+    for q in queries:
+        results = vectorstore.similarity_search(q, k=k)
+        all_results.extend(results)
+    
+    # 去重并返回最相关的结果
+    unique_results = list({doc.page_content: doc for doc in all_results}.values())
+    return unique_results[:k]</code></pre>
+    
+    <h3>5.3 HyDE（假设文档嵌入）</h3>
+    <pre><code># HyDE示例
+def hyde_retrieval(query, llm, vectorstore, k=3):
+    # 生成假设性答案
+    prompt = f"""
+    请基于以下问题，生成一个可能的答案：
+    问题：{query}
+    
+    要求：
+    1. 答案要详细
+    2. 包含相关术语
+    3. 假设这是一个真实文档的内容
+    """
+    hypothetical_answer = llm.invoke(prompt).content
+    
+    # 使用假设性答案进行检索
+    results = vectorstore.similarity_search(hypothetical_answer, k=k)
+    return results</code></pre>
+    
+    <h2>在InterviewMentorAI中的应用</h2>
+    
+    <div class="callout success">
+        <strong>项目特定优化策略：</strong>
+        <ul>
+            <li><strong>对话轮次检索：</strong> 以问题-回答对为单位进行检索，保持对话连贯性</li>
+            <li><strong>说话人过滤：</strong> 支持按面试官或应聘者进行过滤检索</li>
+            <li><strong>时间范围检索：</strong> 支持按面试时间范围进行检索</li>
+            <li><strong>评估结果检索：</strong> 支持按评估分数或评估维度进行检索</li>
+        </ul>
+    </div>
+    
+    <h3>推荐检索架构</h3>
+    <ol>
+        <li><strong>第一层：</strong> 混合检索（BM25 + 向量检索），召回Top 10结果</li>
+        <li><strong>第二层：</strong> 重排序（Cross-Encoder），精选Top 3结果</li>
+        <li><strong>第三层：</strong> 查询增强，根据用户反馈优化查询</li>
+    </ol>
+    
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>在以下场景中，应该优先使用哪种检索策略？</p>
+        <p><em>场景：用户询问"应聘者在回答技术问题时的表现如何？"，需要同时理解语义和精确匹配技术术语</em></p>
+        <option onclick="checkAnswer(this, false)">A. 仅使用BM25检索</option>
+        <option onclick="checkAnswer(this, false)">B. 仅使用向量检索</option>
+        <option onclick="checkAnswer(this, true)">C. 混合检索（BM25 + 向量检索）</option>
+        <option onclick="checkAnswer(this, false)">D. 仅使用查询改写</option>
+    </div>
+    
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了检索策略后，我们将探讨RAG系统的评估方法。请阅读<a href="https://blog.csdn.net/qq_31142761/article/details/161788018">RAG 2026实战</a>作为补充材料。
+    </div>
+    
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <div class="navigation">
+            <a href="0003-vector-embeddings.html">上一课：向量嵌入技术</a>
+            <a href="0005-rag-evaluation.html">下一课：RAG系统评估</a>
+        </div>
+    </div>
+    
+    <script>
+        function checkAnswer(element, isCorrect) {
+            // 移除所有选项的样式
+            const options = element.parentElement.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+                opt.style.pointerEvents = 'none';
+            });
+            
+            // 添加对应的样式
+            if (isCorrect) {
+                element.classList.add('correct');
+                element.innerHTML += ' ✓ 正确！混合检索能同时利用语义理解和精确匹配的优势。';
+            } else {
+                element.classList.add('incorrect');
+                element.innerHTML += ' ✗ 不正确。这个场景需要同时理解语义和精确匹配技术术语，混合检索是最佳选择。';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InterviewMentorAI集成 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+    <h1>InterviewMentorAI集成</h1>
+    
+    <div class="callout info">
+        <strong>学习目标：</strong> 掌握如何将RAG技术集成到InterviewMentorAI项目中，理解项目特定的架构设计和实现策略。
+    </div>
+    
+    <h2>项目现状分析</h2>
+    <p>根据对InterviewMentorAI代码库的分析，当前项目存在以下特点：</p>
+    
+    <ul>
+        <li><strong>纯LLM推理模式：</strong> 当前AI分析流程完全依赖LLM，没有外部知识库支持</li>
+        <li><strong>双后端架构：</strong> Java业务后端 + Python AI后端，职责清晰</li>
+        <li><strong>实时通信：</strong> 支持WebSocket实时推送AI处理进度</li>
+        <li><strong>数据存储：</strong> H2内存/文件数据库，适合原型开发</li>
+    </ul>
+    
+    <div class="callout warning">
+        <strong>集成挑战：</strong>
+        <ul>
+            <li>需要在不破坏现有架构的前提下添加RAG功能</li>
+            <li>需要考虑中文面试场景的特殊需求</li>
+            <li>需要支持实时性和准确性的平衡</li>
+            <li>需要与现有的LLM服务（千问/DeepSeek）集成</li>
+        </ul>
+    </div>
+    
+    <h2>RAG集成架构设计</h2>
+    
+    <h3>1. 数据流重构</h3>
+    <p>在现有数据流中添加RAG组件：</p>
+    
+    <pre><code># 现有数据流
+Flutter (录音) → Java后端 (音频管理) → Python后端 (LLM分析) → 报告生成
+
+# 添加RAG后的数据流
+Flutter (录音) → Java后端 (音频管理) → Python后端 (RAG增强分析) → 报告生成
+                                      ↑
+                                      知识库检索
+                                      (面试知识库)</code></pre>
+    
+    <h3>2. 组件设计</h3>
+    <p>需要添加以下RAG组件：</p>
+    
+    <ol>
+        <li><strong>知识库管理模块：</strong> 负责面试知识的存储和管理</li>
+        <li><strong>检索服务：</strong> 负责从知识库中检索相关信息</li>
+        <li><strong>嵌入服务：</strong> 负责文本向量化</li>
+        <li><strong>向量数据库：</strong> 负责存储和检索向量</li>
+    </ol>
+    
+    <h2>实现步骤</h2>
+    
+    <h3>第一步：知识库构建</h3>
+    <p>构建面试相关的知识库，包括：</p>
+    
+    <ul>
+        <li><strong>面试题库：</strong> 各技术栈的常见面试题</li>
+        <li><strong>评估标准：</strong> 针对不同问题的评估维度和标准</li>
+        <li><strong>最佳实践：</strong> 面试技巧和最佳实践</li>
+        <li><strong>行业知识：</strong> 相关技术领域的专业知识</li>
+    </ul>
+    
+    <pre><code># 知识库结构示例
+knowledge_base/
+├── interview_questions/          # 面试题库
+│   ├── python/
+│   │   ├── basic/
+│   │   ├── advanced/
+│   │   └── system_design/
+│   ├── java/
+│   ├── javascript/
+│   └── ...
+├── evaluation_criteria/          # 评估标准
+│   ├── technical_skills/
+│   ├── communication/
+│   └── problem_solving/
+├── best_practices/               # 最佳实践
+│   ├── interview_tips/
+│   └── answer_templates/
+└── industry_knowledge/           # 行业知识
+    ├── algorithms/
+    ├── data_structures/
+    └── system_design/</code></pre>
+    
+    <h3>第二步：数据预处理</h3>
+    <p>对知识库进行预处理，包括：</p>
+    
+    <pre><code># 数据预处理流程
+1. 文档清洗：去除无关内容，统一格式
+2. 文档分块：按语义或结构进行分块
+3. 元数据提取：提取标题、分类、难度等元数据
+4. 向量嵌入：使用嵌入模型生成向量
+5. 索引构建：在向量数据库中建立索引</code></pre>
+    
+    <h3>第三步：检索服务开发</h3>
+    <p>开发检索服务，支持多种检索策略：</p>
+    
+    <pre><code># 检索服务接口设计
+class RetrievalService:
+    def __init__(self, vector_store, bm25_index):
+        self.vector_store = vector_store
+        self.bm25_index = bm25_index
+    
+    def hybrid_retrieval(self, query, k=5):
+        """混合检索：结合向量检索和BM25"""
+        # 向量检索
+        vector_results = self.vector_store.similarity_search(query, k=k)
+        
+        # BM25检索
+        bm25_results = self.bm25_index.search(query, k=k)
+        
+        # 融合结果
+        return self.merge_results(vector_results, bm25_results)
+    
+    def context_aware_retrieval(self, query, dialogue_context):
+        """上下文感知检索：考虑对话上下文"""
+        # 分析对话上下文，生成增强查询
+        enhanced_query = self.enhance_query_with_context(query, dialogue_context)
+        
+        # 执行检索
+        return self.hybrid_retrieval(enhanced_query)</code></pre>
+    
+    <h3>第四步：LLM服务增强</h3>
+    <p>增强现有的LLM服务，支持RAG功能：</p>
+    
+    <pre><code># LLM服务增强
+class EnhancedLLMService:
+    def __init__(self, retrieval_service, llm_client):
+        self.retrieval_service = retrieval_service
+        self.llm_client = llm_client
+    
+    def rag_enhanced_evaluation(self, question, answer, context):
+        """RAG增强的评估"""
+        # 1. 检索相关知识
+        relevant_knowledge = self.retrieval_service.context_aware_retrieval(
+            f"评估问题：{question}，回答：{answer}",
+            context
+        )
+        
+        # 2. 构建增强提示
+        enhanced_prompt = self.build_rag_prompt(
+            question, answer, relevant_knowledge
+        )
+        
+        # 3. 调用LLM进行评估
+        return self.llm_client.evaluate(enhanced_prompt)</code></pre>
+    
+    <h2>技术选型建议</h2>
+    
+    <table style="width:100%; border-collapse: collapse; margin: 1rem 0;">
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">组件</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">推荐方案</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">理由</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">嵌入模型</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">BAAI/bge-large-zh-v1.5</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">中文优化，本地部署，成本低</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">向量数据库</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">ChromaDB</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">轻量级，易于集成，适合原型</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">检索策略</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">混合检索 + 重排序</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">平衡精度和性能</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">部署方式</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">容器化部署</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">易于扩展和维护</td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <h2>实施路线图</h2>
+    
+    <h3>阶段一：原型开发（2-3周）</h3>
+    <ol>
+        <li>构建基础RAG功能，支持简单的知识检索</li>
+        <li>集成到现有的Python AI后端</li>
+        <li>进行初步测试和评估</li>
+    </ol>
+    
+    <h3>阶段二：功能完善（3-4周）</h3>
+    <ol>
+        <li>优化检索效果，引入混合检索和重排序</li>
+        <li>构建完整的面试知识库</li>
+        <li>实现上下文感知检索</li>
+    </ol>
+    
+    <h3>阶段三：生产优化（2-3周）</h3>
+    <ol>
+        <li>性能优化，支持大规模知识库</li>
+        <li>监控和日志系统</li>
+        <li>用户反馈循环</li>
+    </ol>
+    
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>在InterviewMentorAI项目中，应该首先实现哪个RAG组件？</p>
+        <option onclick="checkAnswer(this, false)">A. 复杂的混合检索算法</option>
+        <option onclick="checkAnswer(this, true)">B. 基础的知识库和检索功能</option>
+        <option onclick="checkAnswer(this, false)">C. 高级的查询增强技术</option>
+        <option onclick="checkAnswer(this, false)">D. 完整的评估监控系统</option>
+    </div>
+    
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了RAG集成方法后，我们将探讨具体的实现细节和代码示例。请阅读<a href="https://theitzy.net/building-a-rag-application-in-python/">从零开始用Python打造RAG系统</a>作为补充材料。
+    </div>
+    
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <div class="navigation">
+            <a href="0005-rag-evaluation.html">上一课：RAG系统评估</a>
+            <a href="0007-implementation-guide.html">下一课：实现指南</a>
+        </div>
+    </div>
+    
+    <script>
+        function checkAnswer(element, isCorrect) {
+            // 移除所有选项的样式
+            const options = element.parentElement.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+                opt.style.pointerEvents = 'none';
+            });
+            
+            // 添加对应的样式
+            if (isCorrect) {
+                element.classList.add('correct');
+                element.innerHTML += ' ✓ 正确！应该从基础功能开始，逐步迭代完善。';
+            } else {
+                element.classList.add('incorrect');
+                element.innerHTML += ' ✗ 不正确。应该从基础功能开始，逐步迭代完善。';
+            }
+        }
+    </script>
+</body>
+</html>

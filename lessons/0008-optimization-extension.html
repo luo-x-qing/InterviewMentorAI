@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>优化与扩展 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+    <h1>优化与扩展</h1>
+    
+    <div class="callout info">
+        <strong>学习目标：</strong> 掌握RAG系统的优化方法，了解高级RAG模式，以及如何在InterviewMentorAI项目中扩展功能。
+    </div>
+    
+    <h2>性能优化</h2>
+    
+    <h3>1. 检索性能优化</h3>
+    
+    <h4>索引优化</h4>
+    <pre><code># 索引优化策略
+1. HNSW索引：使用分层可导航小世界图，提高检索速度
+2. 量化压缩：使用产品量化减少向量存储空间
+3. 分片索引：将大型索引分片，支持并行检索</code></pre>
+    
+    <h4>缓存策略</h4>
+    <pre><code># 缓存实现示例
+from functools import lru_cache
+import hashlib
+
+class CachedRAGService(RAGService):
+    @lru_cache(maxsize=1000)
+    def _get_cache_key(self, query: str, k: int) -> str:
+        """生成缓存键"""
+        content = f"{query}:{k}"
+        return hashlib.md5(content.encode()).hexdigest()
+    
+    def retrieve_with_cache(self, query: str, k: int = 5):
+        """带缓存的检索"""
+        cache_key = self._get_cache_key(query, k)
+        
+        # 检查缓存
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+        
+        # 执行检索
+        results = self.retrieve(query, k)
+        
+        # 存入缓存
+        self.cache[cache_key] = results
+        
+        return results</code></pre>
+    
+    <h4>批量处理</h4>
+    <pre><code># 批量检索优化
+def batch_retrieve(self, queries: List[str], k: int = 5) -> List[List[Dict]]:
+    """批量检索"""
+    results = []
+    
+    # 批量向量化
+    query_embeddings = self.embeddings.embed_documents(queries)
+    
+    # 批量检索
+    for embedding in query_embeddings:
+        result = self.vector_store.similarity_search_by_vector(
+            embedding, k=k
+        )
+        results.append(result)
+    
+    return results</code></pre>
+    
+    <h3>2. 生成性能优化</h3>
+    
+    <h4>上下文压缩</h4>
+    <pre><code># 上下文压缩
+from langchain.retrievers.document_compressors import LLMChainExtractor
+
+def compress_context(self, query: str, documents: List[Dict]) -> str:
+    """压缩检索到的上下文"""
+    # 使用LLM提取相关部分
+    compressor = LLMChainExtractor.from_llm(self.llm)
+    
+    compressed_docs = compressor.compress_documents(
+        documents, query
+    )
+    
+    return "\n".join([doc.page_content for doc in compressed_docs])</code></pre>
+    
+    <h4>流式生成</h4>
+    <pre><code># 流式生成
+async def stream_generate(self, prompt: str):
+    """流式生成"""
+    async for chunk in self.llm.astream(prompt):
+        yield chunk.content</code></pre>
+    
+    <h2>高级RAG模式</h2>
+    
+    <h3>1. Self-RAG（自反思RAG）</h3>
+    <p>让模型自己判断是否需要检索，以及检索结果是否足够。</p>
+    
+    <pre><code># Self-RAG实现
+class SelfRAG:
+    def __init__(self, llm, retrieval_service):
+        self.llm = llm
+        self.retrieval_service = retrieval_service
+    
+    def generate(self, query: str) -> str:
+        """Self-RAG生成"""
+        # 1. 判断是否需要检索
+        need_retrieval = self._need_retrieval(query)
+        
+        if need_retrieval:
+            # 2. 检索相关文档
+            documents = self.retrieval_service.retrieve(query)
+            
+            # 3. 生成回答
+            response = self._generate_with_context(query, documents)
+            
+            # 4. 自我反思
+            if self._need_more_info(response, query):
+                # 5. 追加检索
+                additional_docs = self._retrieve_additional(query, response)
+                documents.extend(additional_docs)
+                response = self._generate_with_context(query, documents)
+            
+            return response
+        else:
+            # 直接生成
+            return self.llm.invoke(query).content
+    
+    def _need_retrieval(self, query: str) -> bool:
+        """判断是否需要检索"""
+        prompt = f"""
+        判断以下问题是否需要外部知识来回答：
+        问题：{query}
+        
+        如果问题涉及具体事实、数据或专业知识，请回答"是"。
+        如果问题是一般性问题或个人观点，请回答"否"。
+        """
+        
+        response = self.llm.invoke(prompt).content
+        return "是" in response</code></pre>
+    
+    <h3>2. Graph RAG（图RAG）</h3>
+    <p>结合知识图谱，支持多跳推理。</p>
+    
+    <pre><code># Graph RAG实现示例
+from langchain_community.graphs import Neo4jGraph
+from langchain.chains import GraphCypherQAChain
+
+class GraphRAG:
+    def __init__(self):
+        # 连接Neo4j图数据库
+        self.graph = Neo4jGraph(
+            url="bolt://localhost:7687",
+            username="neo4j",
+            password="password"
+        )
+        
+        # 创建GraphCypherQA链
+        self.chain = GraphCypherQAChain.from_llm(
+            llm=self.llm,
+            graph=self.graph,
+            verbose=True
+        )
+    
+    def query(self, question: str) -> str:
+        """图查询"""
+        return self.chain.invoke({"query": question})["result"]
+    
+    def add_entity(self, entity_type: str, properties: Dict):
+        """添加实体到知识图谱"""
+        query = f"""
+        CREATE (n:{entity_type} {{name: $name, ...$properties}})
+        RETURN n
+        """
+        self.graph.query(query, {"name": properties["name"], "properties": properties})</code></pre>
+    
+    <h3>3. Agentic RAG（智能体RAG）</h3>
+    <p>让Agent自主决策检索策略。</p>
+    
+    <pre><code># Agentic RAG实现
+from langgraph.graph import StateGraph, END
+
+class AgenticRAG:
+    def __init__(self, llm, retrieval_service):
+        self.llm = llm
+        self.retrieval_service = retrieval_service
+        
+        # 创建状态图
+        self.graph = self._build_graph()
+    
+    def _build_graph(self):
+        """构建状态图"""
+        # 定义状态
+        class State(TypedDict):
+            question: str
+            documents: List[Dict]
+            answer: str
+            iteration: int
+        
+        # 定义节点
+        def retrieve(state: State):
+            """检索节点"""
+            docs = self.retrieval_service.retrieve(state["question"])
+            return {"documents": docs, "iteration": state.get("iteration", 0) + 1}
+        
+        def assess(state: State):
+            """评估节点"""
+            # 评估检索结果是否足够
+            prompt = f"""
+            问题：{state['question']}
+            检索到的文档：{state['documents']}
+            
+            评估：检索结果是否足够回答该问题？
+            如果不够，请说明还需要检索什么信息。
+            """
+            
+            response = self.llm.invoke(prompt)
+            return {"assessment": response.content}
+        
+        def generate(state: State):
+            """生成节点"""
+            # 生成回答
+            context = "\n".join([doc["content"] for doc in state["documents"]])
+            prompt = f"问题：{state['question']}\n上下文：{context}\n回答："
+            
+            response = self.llm.invoke(prompt)
+            return {"answer": response.content}
+        
+        # 构建图
+        workflow = StateGraph(State)
+        
+        workflow.add_node("retrieve", retrieve)
+        workflow.add_node("assess", assess)
+        workflow.add_node("generate", generate)
+        
+        workflow.set_entry_point("retrieve")
+        workflow.add_edge("retrieve", "assess")
+        workflow.add_conditional_edges(
+            "assess",
+            lambda state: "generate" if "足够" in state.get("assessment", "") else "retrieve",
+            {"generate": "generate", "retrieve": "retrieve"}
+        )
+        workflow.add_edge("generate", END)
+        
+        return workflow.compile()</code></pre>
+    
+    <h2>在InterviewMentorAI中的扩展</h2>
+    
+    <h3>1. 多轮对话支持</h3>
+    <pre><code># 多轮对话RAG
+class ConversationalRAG:
+    def __init__(self, rag_service, llm):
+        self.rag_service = rag_service
+        self.llm = llm
+        self.conversation_history = []
+    
+    def chat(self, user_input: str) -> str:
+        """多轮对话"""
+        # 添加用户输入到历史
+        self.conversation_history.append({"role": "user", "content": user_input})
+        
+        # 生成上下文感知的查询
+        context = self._build_context()
+        enhanced_query = self._enhance_query(user_input, context)
+        
+        # 检索相关文档
+        documents = self.rag_service.retrieve(enhanced_query)
+        
+        # 生成回答
+        response = self._generate_response(user_input, documents, context)
+        
+        # 添加助手回答到历史
+        self.conversation_history.append({"role": "assistant", "content": response})
+        
+        return response
+    
+    def _build_context(self) -> str:
+        """构建对话上下文"""
+        context_parts = []
+        for message in self.conversation_history[-5:]:  # 保留最近5轮对话
+            context_parts.append(f"{message['role']}: {message['content']}")
+        return "\n".join(context_parts)</code></pre>
+    
+    <h3>2. 个性化推荐</h3>
+    <pre><code># 个性化RAG推荐
+class PersonalizedRAG:
+    def __init__(self, rag_service, user_profile_service):
+        self.rag_service = rag_service
+        self.user_profile_service = user_profile_service
+    
+    def personalized_retrieve(self, query: str, user_id: str) -> List[Dict]:
+        """个性化检索"""
+        # 获取用户画像
+        user_profile = self.user_profile_service.get_profile(user_id)
+        
+        # 基于用户画像增强查询
+        enhanced_query = self._enhance_with_profile(query, user_profile)
+        
+        # 检索相关文档
+        results = self.rag_service.retrieve(enhanced_query)
+        
+        # 基于用户兴趣排序
+        ranked_results = self._rank_by_interest(results, user_profile)
+        
+        return ranked_results
+    
+    def _enhance_with_profile(self, query: str, profile: Dict) -> str:
+        """基于用户画像增强查询"""
+        # 添加用户感兴趣的领域
+        interests = profile.get("interests", [])
+        if interests:
+            query += f" (相关领域: {', '.join(interests)})"
+        
+        return query</code></pre>
+    
+    <h3>3. 实时学习</h3>
+    <pre><code># 实时学习RAG
+class RealTimeLearningRAG:
+    def __init__(self, rag_service):
+        self.rag_service = rag_service
+        self.learning_buffer = []
+    
+    def add_feedback(self, query: str, feedback: str, rating: int):
+        """添加用户反馈"""
+        self.learning_buffer.append({
+            "query": query,
+            "feedback": feedback,
+            "rating": rating,
+            "timestamp": datetime.now()
+        })
+        
+        # 定期更新知识库
+        if len(self.learning_buffer) >= 10:
+            self._update_knowledge_base()
+    
+    def _update_knowledge_base(self):
+        """更新知识库"""
+        # 分析反馈，提取有价值的信息
+        valuable_feedback = [
+            fb for fb in self.learning_buffer 
+            if fb["rating"] >= 4  # 只保留高评分反馈
+        ]
+        
+        if valuable_feedback:
+            # 将反馈添加到知识库
+            documents = [fb["feedback"] for fb in valuable_feedback]
+            self.rag_service.add_documents(documents)
+            
+            # 清空缓冲区
+            self.learning_buffer.clear()</code></pre>
+    
+    <h2>监控和运维</h2>
+    
+    <h3>1. 性能监控</h3>
+    <pre><code># 性能监控
+import prometheus_client
+from prometheus_client import Counter, Histogram
+
+# 定义指标
+RETRIEVAL_COUNT = Counter('rag_retrieval_total', 'Total retrieval requests')
+RETRIEVAL_LATENCY = Histogram('rag_retrieval_latency_seconds', 'Retrieval latency')
+
+class MonitoredRAGService(RAGService):
+    @RETRIEVAL_LATENCY.time()
+    def retrieve(self, query: str, k: int = 5):
+        """带监控的检索"""
+        RETRIEVAL_COUNT.inc()
+        
+        # 执行检索
+        results = super().retrieve(query, k)
+        
+        return results</code></pre>
+    
+    <h3>2. 日志和审计</h3>
+    <pre><code># 日志和审计
+import logging
+from datetime import datetime
+
+class AuditedRAGService(RAGService):
+    def __init__(self):
+        super().__init__()
+        self.audit_log = []
+    
+    def retrieve(self, query: str, k: int = 5):
+        """带审计的检索"""
+        # 记录审计日志
+        audit_entry = {
+            "timestamp": datetime.now(),
+            "query": query,
+            "k": k,
+            "user_id": getattr(self, 'current_user_id', None)
+        }
+        
+        try:
+            results = super().retrieve(query, k)
+            audit_entry["success"] = True
+            audit_entry["results_count"] = len(results)
+        except Exception as e:
+            audit_entry["success"] = False
+            audit_entry["error"] = str(e)
+            raise
+        finally:
+            self.audit_log.append(audit_entry)
+        
+        return results</code></pre>
+    
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>在以下场景中，应该优先实现哪种优化？</p>
+        <p><em>场景：用户反馈检索速度慢，但检索结果准确</em></p>
+        <option onclick="checkAnswer(this, false)">A. 优化检索算法</option>
+        <option onclick="checkAnswer(this, true)">B. 添加缓存机制</option>
+        <option onclick="checkAnswer(this, false)">C. 实现Self-RAG</option>
+        <option onclick="checkAnswer(this, false)">D. 添加监控系统</option>
+    </div>
+    
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了优化和扩展方法后，我们将总结整个学习路径，并提供进一步学习的建议。请阅读<a href="https://blog.csdn.net/qq_31142761/article/details/161788018">RAG 2026实战：从基础向量检索到Graph RAG与Agentic RAG</a>作为补充材料。
+    </div>
+    
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <div class="navigation">
+            <a href="0007-implementation-guide.html">上一课：实现指南</a>
+            <a href="0009-summary-next-steps.html">下一课：总结与下一步</a>
+        </div>
+    </div>
+    
+    <script>
+        function checkAnswer(element, isCorrect) {
+            // 移除所有选项的样式
+            const options = element.parentElement.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+                opt.style.pointerEvents = 'none';
+            });
+            
+            // 添加对应的样式
+            if (isCorrect) {
+                element.classList.add('correct');
+                element.innerHTML += ' ✓ 正确！对于速度问题，缓存是最直接有效的优化方法。';
+            } else {
+                element.classList.add('incorrect');
+                element.innerHTML += ' ✗ 不正确。对于速度问题，缓存是最直接有效的优化方法。';
+            }
+        }
+    </script>
+</body>
+</html>

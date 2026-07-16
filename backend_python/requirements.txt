@@ -12,3 +12,8 @@ httpx>=0.25.0
 
 # 环境变量管理
 python-dotenv>=1.0.0
+
+# RAG新增依赖（课程推荐轻量栈）
+numpy==1.26
+sqlite-vec==0.1.6
+rank-bm25==0.2.2

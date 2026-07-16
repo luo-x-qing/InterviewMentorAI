@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG核心概念 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+    <h1>RAG核心概念</h1>
+    
+    <div class="callout info">
+        <strong>学习目标：</strong> 理解RAG（检索增强生成）的基本原理、核心组件和工作流程。
+    </div>
+    
+    <h2>什么是RAG？</h2>
+    <p>RAG（Retrieval-Augmented Generation，检索增强生成）是一种结合信息检索和文本生成的AI技术架构。它的核心思想是：在LLM生成回答之前，先从外部知识库中检索相关信息，将这些信息作为上下文提供给模型，从而生成更准确、更有依据的回答。</p>
+    
+    <p>简单来说，RAG就像是让AI进行"开卷考试"——模型本身的知识没有变化，但允许它在回答问题前查阅相关资料，从而生成更准确的答案。</p>
+    
+    <h2>为什么需要RAG？</h2>
+    <p>传统大语言模型（LLM）存在几个主要问题：</p>
+    <ul>
+        <li><strong>知识截止：</strong> 训练数据有时间限制，无法获取最新信息</li>
+        <li><strong>幻觉问题：</strong> 可能编造不存在的事实</li>
+        <li><strong>领域知识不足：</strong> 通用模型在专业领域表现有限</li>
+        <li><strong>可追溯性差：</strong> 无法验证信息来源</li>
+    </ul>
+    
+    <p>RAG通过检索外部知识库，有效解决了这些问题，让AI能够基于最新、最准确的信息生成回答。</p>
+    
+    <h2>RAG核心组件</h2>
+    <p>一个完整的RAG系统主要由三个核心组件构成：</p>
+    
+    <h3>1. 嵌入模型（Embedding Model）</h3>
+    <p>嵌入模型是RAG系统的基础，负责将文本转换为向量表示。它是连接文本和向量空间的桥梁。</p>
+    <ul>
+        <li><strong>作用：</strong> 将文本转换为高维向量，使计算机能够理解语义相似性</li>
+        <li><strong>类型：</strong> 包括OpenAI Embeddings、Hugging Face模型、本地模型等</li>
+        <li><strong>选择考虑：</strong> 需要考虑语言支持、维度、部署方式、成本等因素</li>
+    </ul>
+    
+    <h3>2. 检索器（Retriever）</h3>
+    <p>检索器负责从知识库中找到与用户查询最相关的文档片段。常见的检索方法包括：</p>
+    <ul>
+        <li><strong>稀疏检索（BM25）：</strong> 基于关键词匹配，速度快但无法理解语义</li>
+        <li><strong>密集检索（Dense）：</strong> 基于向量相似度，语义理解强但需要嵌入模型</li>
+        <li><strong>混合检索（Hybrid）：</strong> 结合两者优点，效果最佳但实现复杂</li>
+    </ul>
+    
+    <h3>2. 生成器（Generator）</h3>
+    <p>生成器基于检索到的上下文和用户问题，生成最终回答。通常使用大语言模型（如GPT、Claude等）作为生成器。</p>
+    
+    <h2>RAG工作流程</h2>
+    <p>一个完整的RAG系统包含两个主要阶段：</p>
+    
+    <h3>数据准备阶段（离线）</h3>
+    <ol>
+        <li><strong>文档清洗：</strong> 收集并清理领域相关文档</li>
+        <li><strong>文档分割：</strong> 将长文档拆分为短文本片段（Chunk）</li>
+        <li><strong>向量编码：</strong> 使用嵌入模型将文本片段转换为高维向量</li>
+        <li><strong>向量存储：</strong> 将文本片段及其对应的向量存入向量数据库，构建检索知识库</li>
+    </ol>
+    
+    <h3>查询推理阶段（在线）</h3>
+    <ol>
+        <li><strong>用户提问：</strong> 用户输入自然语言问题</li>
+        <li><strong>问题编码：</strong> 使用与文档编码相同的嵌入模型，将用户问题转换为向量</li>
+        <li><strong>相似检索：</strong> 在向量数据库中检索与问题向量最相似的Top N文本片段</li>
+        <li><strong>Prompt构建：</strong> 将检索到的文本片段作为上下文，与用户问题组合成新的Prompt</li>
+        <li><strong>生成回复：</strong> 将新Prompt输入LLM，生成基于准确上下文的回复</li>
+    </ol>
+    
+    <div class="callout warning">
+        <strong>关键点：</strong> 检索质量是RAG系统效果的上限。如果检索不到相关文档，生成器再强大也无法给出准确答案。
+    </div>
+    
+    <h2>RAG vs 微调</h2>
+    <p>RAG和微调（Fine-tuning）是增强LLM能力的两种主要方法，各有优劣：</p>
+    
+    <table style="width:100%; border-collapse: collapse; margin: 1rem 0;">
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">维度</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">RAG</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">微调</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">知识更新</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">实时更新，仅需修改知识库</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">需要重新训练模型</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">成本</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">较低，主要是存储和检索成本</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">较高，需要GPU训练资源</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">准确性</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">基于真实文档，可追溯</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">知识内化，可能产生幻觉</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">延迟</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">略高（需要检索步骤）</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">较低（直接生成）</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">适用场景</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">知识密集型、需要引用来源</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">风格适配、特定任务优化</td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <div class="callout success">
+        <strong>选择建议：</strong> 对于知识类需求（内容常变、要出处、要权限），选择RAG；对于输出格式和风格的固化需求，才考虑微调。
+    </div>
+    
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>以下哪个场景最适合使用RAG技术？</p>
+        <option onclick="checkAnswer(this, false)">A. 将AI助手的说话风格从正式改为随意</option>
+        <option onclick="checkAnswer(this, true)">B. 让AI助手能够回答公司最新的产品政策问题</option>
+        <option onclick="checkAnswer(this, false)">C. 让AI助手学会使用特定的代码格式</option>
+        <option onclick="checkAnswer(this, false)">D. 让AI助手记住用户的个人偏好</option>
+    </div>
+    
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了RAG的基本概念后，我们将深入探讨文档分块策略和向量嵌入技术。请阅读<a href="https://langchain.cadn.net.cn/python/docs/tutorials/rag/index.html">LangChain RAG教程</a>作为补充材料。
+    </div>
+    
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <div class="navigation">
+            <a href="#">上一课：介绍</a>
+            <a href="0002-document-chunking.html">下一课：文档分块策略</a>
+        </div>
+    </div>
+    
+    <script>
+        function checkAnswer(element, isCorrect) {
+            // 移除所有选项的样式
+            const options = element.parentElement.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+                opt.style.pointerEvents = 'none';
+            });
+            
+            // 添加对应的样式
+            if (isCorrect) {
+                element.classList.add('correct');
+                element.innerHTML += ' ✓ 正确！RAG最适合需要实时知识更新的场景。';
+            } else {
+                element.classList.add('incorrect');
+                element.innerHTML += ' ✗ 不正确。这个场景更适合使用微调或提示工程。';
+            }
+        }
+    </script>
+</body>
+</html>

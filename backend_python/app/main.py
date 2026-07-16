@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.analysis import router as analysis_router
+from app.api.rag_api import router as rag_router
 from app.core.config import settings
 
 # 配置日志
@@ -47,6 +48,7 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(analysis_router)
+app.include_router(rag_router)
 
 
 @app.get("/")

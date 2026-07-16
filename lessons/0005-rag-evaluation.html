@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG系统评估 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+    <h1>RAG系统评估</h1>
+    
+    <div class="callout info">
+        <strong>学习目标：</strong> 掌握RAG系统的评估方法，理解如何度量检索质量和生成质量，以及如何在InterviewMentorAI项目中应用评估。
+    </div>
+    
+    <h2>为什么需要评估？</h2>
+    <p>RAG系统的效果不能只看最终回答，需要分环节评估。检索质量决定了系统的上限，生成质量决定了系统的下限。</p>
+    
+    <div class="callout warning">
+        <strong>关键原则：</strong> 数据和评测比模型调优重要。大多数RAG项目翻车都输在数据质量和评估不足上。
+    </div>
+    
+    <h2>评估维度</h2>
+    
+    <h3>1. 检索质量评估</h3>
+    <p>评估检索器能否找到相关文档。</p>
+    
+    <table style="width:100%; border-collapse: collapse; margin: 1rem 0;">
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">指标</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">定义</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">计算公式</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">召回率（Recall）</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">相关文档被检索到的比例</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">召回率 = 检索到的相关文档数 / 所有相关文档数</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">精确率（Precision）</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">检索到的文档中相关文档的比例</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">精确率 = 检索到的相关文档数 / 检索到的文档总数</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">F1分数</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">召回率和精确率的调和平均</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">F1 = 2 × (精确率 × 召回率) / (精确率 + 召回率)</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">MRR（Mean Reciprocal Rank）</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">第一个相关文档排名的倒数</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">MRR = 1/Q × Σ(1/rank_i)</td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <h3>2. 生成质量评估</h3>
+    <p>评估生成器能否基于检索到的上下文生成准确回答。</p>
+    
+    <table style="width:100%; border-collapse: collapse; margin: 1rem 0;">
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">指标</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">定义</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">评估方法</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">忠实度（Faithfulness）</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">回答是否基于检索到的上下文</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">人工评估或LLM评估</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">相关性（Relevance）</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">回答是否与问题相关</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">人工评估或LLM评估</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">完整性（Completeness）</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">回答是否完整覆盖问题</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">人工评估或LLM评估</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">幻觉率（Hallucination Rate）</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">回答中编造信息的比例</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">人工评估或LLM评估</td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <h3>3. 端到端评估</h3>
+    <p>评估整个RAG系统的效果。</p>
+    
+    <ul>
+        <li><strong>准确率（Accuracy）：</strong> 最终回答是否正确</li>
+        <li><strong>延迟（Latency）：</strong> 系统响应时间</li>
+        <li><strong>成本（Cost）：</strong> API调用和存储成本</li>
+        <li><strong>用户满意度：</strong> 用户对回答的满意度评分</li>
+    </ul>
+    
+    <h2>评估工具</h2>
+    
+    <h3>1. RAGAS</h3>
+    <p>RAGAS（Retrieval Augmented Generation Assessment）是一个专门用于评估RAG系统的框架。</p>
+    
+    <pre><code># RAGAS评估示例
+from ragas import evaluate
+from ragas.metrics import (
+    faithfulness,
+    answer_relevancy,
+    context_precision,
+    context_recall,
+)
+
+# 准备评估数据
+eval_dataset = {
+    "question": ["如何退款？"],
+    "answer": ["您可以在7天内申请退款..."],
+    "contexts": [["退款政策：7天内无理由退款..."]],
+    "ground_truth": ["7天内无理由退款"]
+}
+
+# 执行评估
+result = evaluate(
+    dataset=eval_dataset,
+    metrics=[
+        faithfulness,
+        answer_relevancy,
+        context_precision,
+        context_recall,
+    ],
+)
+
+print(result)</code></pre>
+    
+    <h3>2. LangSmith</h3>
+    <p>LangSmith是LangChain的可观测性平台，可以追踪和分析RAG系统的性能。</p>
+    
+    <h3>3. 自定义评估</h3>
+    <p>根据项目需求，可以构建自定义的评估指标。</p>
+    
+    <h2>在InterviewMentorAI中的应用</h2>
+    
+    <div class="callout success">
+        <strong>项目特定评估维度：</strong>
+        <ul>
+            <li><strong>对话连贯性：</strong> 检索到的对话片段是否保持连贯</li>
+            <li><strong>评估准确性：</strong> 生成的评估是否准确反映应聘者表现</li>
+            <li><strong>引用准确性：</strong> 评估报告是否正确引用对话内容</li>
+            <li><strong>实时性：</strong> 系统响应时间是否满足实时需求</li>
+        </ul>
+    </div>
+    
+    <h3>评估流程</h3>
+    <ol>
+        <li><strong>数据准备：</strong> 收集真实的面试对话和评估结果</li>
+        <li><strong>基准测试：</strong> 建立评估基准，定义成功标准</li>
+        <li><strong>持续监控：</strong> 在生产环境中持续监控系统性能</li>
+        <li><strong>反馈循环：</strong> 根据评估结果优化系统</li>
+    </ol>
+    
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>在以下场景中，应该优先评估哪个指标？</p>
+        <p><em>场景：用户反馈AI生成的评估报告与实际面试表现不符</em></p>
+        <option onclick="checkAnswer(this, false)">A. 系统延迟</option>
+        <option onclick="checkAnswer(this, false)">B. API调用成本</option>
+        <option onclick="checkAnswer(this, true)">C. 评估准确性</option>
+        <option onclick="checkAnswer(this, false)">D. 用户界面美观度</option>
+    </div>
+    
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了RAG系统评估方法后，我们将探讨如何将RAG集成到InterviewMentorAI项目中。请阅读<a href="https://www.80aj.com/2026/07/10/rag-knowledge-retrieval/">RAG入门：知识库分块、向量检索与增强生成</a>作为补充材料。
+    </div>
+    
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <div class="navigation">
+            <a href="0004-retrieval-strategies.html">上一课：检索策略与优化</a>
+            <a href="0006-interview-mentor-integration.html">下一课：InterviewMentorAI集成</a>
+        </div>
+    </div>
+    
+    <script>
+        function checkAnswer(element, isCorrect) {
+            // 移除所有选项的样式
+            const options = element.parentElement.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+                opt.style.pointerEvents = 'none';
+            });
+            
+            // 添加对应的样式
+            if (isCorrect) {
+                element.classList.add('correct');
+                element.innerHTML += ' ✓ 正确！评估准确性是解决用户反馈的核心问题。';
+            } else {
+                element.classList.add('incorrect');
+                element.innerHTML += ' ✗ 不正确。用户反馈评估报告与实际不符，应该优先评估评估准确性。';
+            }
+        }
+    </script>
+</body>
+</html>

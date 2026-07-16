@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文档分块策略 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+    <h1>文档分块策略</h1>
+    
+    <div class="callout info">
+        <strong>学习目标：</strong> 掌握文档分块的原理、常见策略和最佳实践，理解分块对RAG系统效果的影响。
+    </div>
+    
+    <h2>为什么需要文档分块？</h2>
+    <p>在RAG系统中，文档分块（Chunking）是将长文档拆分为短文本片段的过程。这是RAG流水线中至关重要的一步，原因如下：</p>
+    
+    <ul>
+        <li><strong>检索精度：</strong> 检索是按块进行的，块太大可能导致找到一整章但真正有用的只有两行</li>
+        <li><strong>上下文窗口限制：</strong> 即使模型上下文窗口很大，也无法塞下整个知识库</li>
+        <li><strong>语义完整性：</strong> 合理的分块能保持每个块的语义完整性</li>
+        <li><strong>检索效率：</strong> 较小的块可以更快地进行相似度计算</li>
+    </ul>
+    
+    <div class="callout warning">
+        <strong>关键点：</strong> 分块策略是RAG系统效果差异的主要来源之一。选择合适的分块策略对检索质量至关重要。
+    </div>
+    
+    <h2>常见分块策略</h2>
+    
+    <h3>1. 固定长度分块</h3>
+    <p>最简单的分块方法，按照固定的字符数或词数进行分割。</p>
+    
+    <pre><code># 示例：固定长度分块
+chunk_size = 500  # 每个块500个字符
+chunk_overlap = 50  # 块之间重叠50个字符</code></pre>
+    
+    <p><strong>优点：</strong> 实现简单，计算快速</p>
+    <p><strong>缺点：</strong> 可能破坏语义完整性，导致重要信息被切断</p>
+    
+    <h3>2. 基于文档结构的分块</h3>
+    <p>根据文档的自然结构进行分割，如章节、段落、列表等。</p>
+    
+    <pre><code># 示例：按章节分块
+# 文档结构：
+# 第一章：介绍
+#   1.1 背景
+#   1.2 目标
+# 第二章：方法
+#   2.1 实验设计
+#   2.2 数据收集
+
+# 分块结果：
+# 块1：第一章介绍
+# 块2：1.1 背景
+# 块3：1.2 目标
+# 块4：第二章方法
+# ...</code></pre>
+    
+    <p><strong>优点：</strong> 保持语义完整性，块内信息自包含</p>
+    <p><strong>缺点：</strong> 需要了解文档结构，实现复杂</p>
+    
+    <h3>3. 语义分块</h3>
+    <p>基于语义相似度进行分割，确保每个块讨论一个连贯的主题。</p>
+    
+    <pre><code># 示例：语义分块
+# 原理：当相邻句子的语义相似度低于阈值时，进行分割
+
+# 文档内容：
+# "Python是一种解释型语言。它支持多种编程范式。
+# Java是一种编译型语言。它广泛应用于企业级开发。"
+
+# 语义分块结果：
+# 块1："Python是一种解释型语言。它支持多种编程范式。"
+# 块2："Java是一种编译型语言。它广泛应用于企业级开发。"</code></pre>
+    
+    <p><strong>优点：</strong> 语义完整性最好，检索效果最佳</p>
+    <p><strong>缺点：</strong> 计算成本高，需要嵌入模型</p>
+    
+    <h3>4. 递归字符分割</h3>
+    <p>LangChain推荐的方法，尝试按多种分隔符进行分割，保持块的连贯性。</p>
+    
+    <pre><code># 示例：递归字符分割
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=200,
+    length_function=len,
+    add_start_index=True,
+)
+
+# 分割优先级：
+# 1. 段落分隔符 "\n\n"
+# 2. 句子分隔符 "\n"
+# 3. 词分隔符 " "
+# 4. 字符分隔符 ""</code></pre>
+    
+    <p><strong>优点：</strong> 平衡了语义完整性和实现复杂度</p>
+    <p><strong>缺点：</strong> 需要调优参数</p>
+    
+    <h2>分块参数调优</h2>
+    
+    <h3>块大小（Chunk Size）</h3>
+    <ul>
+        <li><strong>太小：</strong> 可能丢失上下文信息，检索结果碎片化</li>
+        <li><strong>太大：</strong> 可能包含无关信息，降低检索精度</li>
+        <li><strong>推荐范围：</strong> 200-1000个字符，根据应用场景调整</li>
+    </ul>
+    
+    <h3>重叠大小（Chunk Overlap）</h3>
+    <ul>
+        <li><strong>作用：</strong> 确保重要信息不会被切断</li>
+        <li><strong>推荐范围：</strong> 块大小的10%-20%</li>
+        <li><strong>权衡：</strong> 重叠越大，存储和计算成本越高</li>
+    </ul>
+    
+    <h2>InterviewMentorAI项目中的分块策略</h2>
+    <p>针对InterviewMentorAI项目，我们需要考虑以下特殊需求：</p>
+    
+    <div class="callout success">
+        <strong>项目特定需求：</strong>
+        <ul>
+            <li>面试对话是连续的，需要保持对话的连贯性</li>
+            <li>问题和回答应该作为整体进行检索</li>
+            <li>需要区分面试官和应聘者的对话</li>
+            <li>评估报告需要引用具体的对话片段</li>
+        </ul>
+    </div>
+    
+    <h3>推荐策略</h3>
+    <p>对于InterviewMentorAI项目，建议采用以下分块策略：</p>
+    
+    <ol>
+        <li><strong>按对话轮次分块：</strong> 每个问题-回答对作为一个块</li>
+        <li><strong>保留上下文：</strong> 在每个块中包含前一轮对话的摘要</li>
+        <li><strong>元数据标注：</strong> 为每个块添加说话人、时间戳等元数据</li>
+        <li><strong>重叠策略：</strong> 相邻块之间保留10%的重叠，确保连贯性</li>
+    </ol>
+    
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>在以下场景中，哪种分块策略最合适？</p>
+        <p><em>场景：处理一份20页的技术文档，需要支持精确的术语查询</em></p>
+        <option onclick="checkAnswer(this, false)">A. 固定长度分块（每块500字符）</option>
+        <option onclick="checkAnswer(this, true)">B. 基于文档结构的分块（按章节和小节）</option>
+        <option onclick="checkAnswer(this, false)">C. 语义分块（基于语义相似度）</option>
+        <option onclick="checkAnswer(this, false)">D. 递归字符分割（默认参数）</option>
+    </div>
+    
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了文档分块策略后，我们将深入探讨向量嵌入技术。请阅读<a href="https://qubittool.com/zh/blog/rag-retrieval-augmented-generation-guide">RAG检索增强生成完全指南</a>作为补充材料。
+    </div>
+    
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <div class="navigation">
+            <a href="0001-rag-core-concepts.html">上一课：RAG核心概念</a>
+            <a href="0003-vector-embeddings.html">下一课：向量嵌入技术</a>
+        </div>
+    </div>
+    
+    <script>
+        function checkAnswer(element, isCorrect) {
+            // 移除所有选项的样式
+            const options = element.parentElement.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+                opt.style.pointerEvents = 'none';
+            });
+            
+            // 添加对应的样式
+            if (isCorrect) {
+                element.classList.add('correct');
+                element.innerHTML += ' ✓ 正确！对于技术文档，按结构分块能最好地保持语义完整性。';
+            } else {
+                element.classList.add('incorrect');
+                element.innerHTML += ' ✗ 不正确。这个场景更适合基于文档结构的分块策略。';
+            }
+        }
+    </script>
+</body>
+</html>

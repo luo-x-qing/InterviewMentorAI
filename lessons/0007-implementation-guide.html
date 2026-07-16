@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实现指南 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+    <h1>实现指南</h1>
+    
+    <div class="callout info">
+        <strong>学习目标：</strong> 掌握在InterviewMentorAI项目中实现RAG功能的具体步骤和代码示例。
+    </div>
+    
+    <h2>环境准备</h2>
+    
+    <h3>1. 添加Python依赖</h3>
+    <p>在<code>backend_python/requirements.txt</code>中添加以下依赖：</p>
+    
+    <pre><code># requirements.txt
+# 现有依赖
+fastapi==0.104.1
+uvicorn==0.24.0
+openai==1.3.7
+httpx==0.25.2
+python-dotenv==1.0.0
+
+# RAG相关依赖
+langchain==0.0.350
+langchain-community==0.0.6
+chromadb==0.4.22
+sentence-transformers==2.2.2
+rank-bm25==0.2.2</code></pre>
+    
+    <h3>2. 项目结构</h3>
+    <p>在<code>backend_python/app</code>目录下创建以下结构：</p>
+    
+    <pre><code>backend_python/app/
+├── __init__.py
+├── main.py
+├── api/
+│   ├── __init__.py
+│   ├── analysis.py
+│   └── rag.py          # 新增：RAG相关API
+├── core/
+│   ├── __init__.py
+│   └── config.py
+├── models/
+│   ├── __init__.py
+│   └── schemas.py
+├── services/
+│   ├── __init__.py
+│   ├── llm_service.py
+│   ├── agent_pipeline.py
+│   └── rag_service.py  # 新增：RAG服务
+└── knowledge_base/     # 新增：知识库目录
+    ├── interview_questions/
+    ├── evaluation_criteria/
+    └── vector_store/</code></pre>
+    
+    <h2>核心组件实现</h2>
+    
+    <h3>1. RAG服务实现</h3>
+    <p>创建<code>backend_python/app/services/rag_service.py</code>：</p>
+    
+    <pre><code># rag_service.py
+from typing import List, Dict, Any
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.retrievers import BM25Retriever
+from langchain.retrievers import EnsembleRetriever
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+import os
+
+class RAGService:
+    def __init__(self):
+        # 初始化嵌入模型
+        self.embeddings = HuggingFaceEmbeddings(
+            model_name="BAAI/bge-large-zh-v1.5"
+        )
+        
+        # 初始化向量数据库
+        self.vector_store_path = os.path.join(
+            os.path.dirname(__file__), 
+            "../knowledge_base/vector_store"
+        )
+        self.vector_store = Chroma(
+            persist_directory=self.vector_store_path,
+            embedding_function=self.embeddings
+        )
+        
+        # 初始化文本分割器
+        self.text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=500,
+            chunk_overlap=50,
+            length_function=len,
+        )
+        
+        # 初始化混合检索器
+        self._setup_retrievers()
+    
+    def _setup_retrievers(self):
+        """设置混合检索器"""
+        # 向量检索器
+        vector_retriever = self.vector_store.as_retriever(
+            search_kwargs={"k": 5}
+        )
+        
+        # BM25检索器（需要先加载文档）
+        self._load_bm25_index()
+        
+        # 混合检索器
+        self.ensemble_retriever = EnsembleRetriever(
+            retrievers=[self.bm25_retriever, vector_retriever],
+            weights=[0.3, 0.7]
+        )
+    
+    def _load_bm25_index(self):
+        """加载BM25索引"""
+        # 从知识库加载文档
+        documents = self._load_documents()
+        
+        # 创建BM25检索器
+        self.bm25_retriever = BM25Retriever.from_documents(documents)
+        self.bm25_retriever.k = 5
+    
+    def _load_documents(self) -> List[str]:
+        """加载知识库文档"""
+        documents = []
+        knowledge_base_path = os.path.join(
+            os.path.dirname(__file__), 
+            "../knowledge_base"
+        )
+        
+        # 遍历知识库目录
+        for root, dirs, files in os.walk(knowledge_base_path):
+            for file in files:
+                if file.endswith(".txt") or file.endswith(".md"):
+                    file_path = os.path.join(root, file)
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        documents.append(f.read())
+        
+        return documents
+    
+    def add_documents(self, documents: List[str], metadatas: List[Dict] = None):
+        """添加文档到知识库"""
+        # 分割文档
+        splits = self.text_splitter.split_documents(documents)
+        
+        # 添加到向量数据库
+        self.vector_store.add_documents(splits, metadatas=metadatas)
+        
+        # 重新加载BM25索引
+        self._load_bm25_index()
+    
+    def retrieve(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
+        """检索相关文档"""
+        # 使用混合检索
+        results = self.ensemble_retriever.get_relevant_documents(query)
+        
+        # 格式化结果
+        formatted_results = []
+        for doc in results:
+            formatted_results.append({
+                "content": doc.page_content,
+                "metadata": doc.metadata,
+                "score": getattr(doc, "score", None)
+            })
+        
+        return formatted_results
+    
+    def context_aware_retrieval(self, query: str, dialogue_context: str) -> List[Dict[str, Any]]:
+        """上下文感知检索"""
+        # 分析对话上下文，生成增强查询
+        enhanced_query = self._enhance_query_with_context(query, dialogue_context)
+        
+        # 执行检索
+        return self.retrieve(enhanced_query)
+    
+    def _enhance_query_with_context(self, query: str, context: str) -> str:
+        """根据上下文增强查询"""
+        # 简单实现：将查询和上下文组合
+        # 实际项目中可以使用LLM进行查询改写
+        return f"{query} {context}"</code></pre>
+    
+    <h3>2. RAG API实现</h3>
+    <p>创建<code>backend_python/app/api/rag.py</code>：</p>
+    
+    <pre><code># rag.py
+from fastapi import APIRouter, HTTPException
+from typing import List, Dict, Any
+from ..services.rag_service import RAGService
+from ..models.schemas import RetrievalRequest, RetrievalResponse
+
+router = APIRouter()
+rag_service = RAGService()
+
+@router.post("/retrieve", response_model=RetrievalResponse)
+async def retrieve_documents(request: RetrievalRequest):
+    """检索相关文档"""
+    try:
+        results = rag_service.retrieve(
+            query=request.query,
+            k=request.k
+        )
+        return RetrievalResponse(
+            success=True,
+            results=results
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/context-aware-retrieve", response_model=RetrievalResponse)
+async def context_aware_retrieve(request: RetrievalRequest):
+    """上下文感知检索"""
+    try:
+        results = rag_service.context_aware_retrieval(
+            query=request.query,
+            dialogue_context=request.context
+        )
+        return RetrievalResponse(
+            success=True,
+            results=results
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/add-documents")
+async def add_documents(documents: List[Dict[str, Any]]):
+    """添加文档到知识库"""
+    try:
+        rag_service.add_documents(documents)
+        return {"success": True, "message": "文档添加成功"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))</code></pre>
+    
+    <h3>3. 增强LLM服务</h3>
+    <p>修改<code>backend_python/app/services/llm_service.py</code>：</p>
+    
+    <pre><code># 在现有的LLMService类中添加RAG支持
+class LLMService:
+    def __init__(self):
+        # 现有初始化代码...
+        self.rag_service = RAGService()
+    
+    def rag_enhanced_evaluation(self, question: str, answer: str, context: str) -> str:
+        """RAG增强的评估"""
+        # 1. 检索相关知识
+        relevant_knowledge = self.rag_service.context_aware_retrieval(
+            f"评估问题：{question}，回答：{answer}",
+            context
+        )
+        
+        # 2. 构建增强提示
+        knowledge_text = "\n".join([k["content"] for k in relevant_knowledge])
+        
+        enhanced_prompt = f"""
+        你是一个专业的面试评估专家。请基于以下信息评估应聘者的回答：
+        
+        面试问题：{question}
+        应聘者回答：{answer}
+        
+        相关知识参考：
+        {knowledge_text}
+        
+        请从以下维度进行评估：
+        1. 技术准确性
+        2. 回答完整性
+        3. 表达清晰度
+        4. 实际应用能力
+        
+        评估结果：
+        """
+        
+        # 3. 调用LLM进行评估
+        return self.generate_report(enhanced_prompt)</code></pre>
+    
+    <h3>4. 数据模型更新</h3>
+    <p>修改<code>backend_python/app/models/schemas.py</code>：</p>
+    
+    <pre><code># 添加RAG相关的数据模型
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional
+
+class RetrievalRequest(BaseModel):
+    query: str
+    k: int = 5
+    context: Optional[str] = None
+
+class RetrievalResponse(BaseModel):
+    success: bool
+    results: List[Dict[str, Any]]
+    message: Optional[str] = None
+
+class DocumentAddRequest(BaseModel):
+    documents: List[Dict[str, Any]]
+    metadatas: Optional[List[Dict[str, Any]]] = None</code></pre>
+    
+    <h2>知识库构建</h2>
+    
+    <h3>1. 创建知识库目录结构</h3>
+    <pre><code># 创建知识库目录
+mkdir -p backend_python/app/knowledge_base/interview_questions/python
+mkdir -p backend_python/app/knowledge_base/interview_questions/java
+mkdir -p backend_python/app/knowledge_base/evaluation_criteria
+mkdir -p backend_python/app/knowledge_base/best_practices</code></pre>
+    
+    <h3>2. 添加示例知识</h3>
+    <p>创建<code>backend_python/app/knowledge_base/interview_questions/python/basic.txt</code>：</p>
+    
+    <pre><code># Python基础面试题
+
+## 问题1：Python中的列表和元组有什么区别？
+**标准答案：**
+- 列表（list）是可变的，可以修改元素
+- 元组（tuple）是不可变的，创建后不能修改
+- 列表使用方括号[]，元组使用圆括号()
+- 元组可以作为字典的键，列表不能
+
+**评估要点：**
+- 是否理解可变性和不可变性的概念
+- 是否知道实际应用场景
+- 是否能举例说明
+
+## 问题2：解释Python中的装饰器
+**标准答案：**
+- 装饰器是一种设计模式，用于在不修改原函数的情况下增加功能
+- 使用@语法糖
+- 本质上是一个接受函数作为参数的高阶函数
+- 常用于日志记录、权限检查、性能计时等
+
+**评估要点：**
+- 是否理解装饰器的基本原理
+- 是否能编写简单的装饰器
+- 是否知道实际应用场景</code></pre>
+    
+    <h2>测试和评估</h2>
+    
+    <h3>1. 单元测试</h3>
+    <p>创建<code>backend_python/tests/test_rag.py</code>：</p>
+    
+    <pre><code># test_rag.py
+import pytest
+from app.services.rag_service import RAGService
+
+@pytest.fixture
+def rag_service():
+    return RAGService()
+
+def test_retrieve_documents(rag_service):
+    """测试文档检索"""
+    results = rag_service.retrieve("Python列表和元组的区别", k=3)
+    assert len(results) > 0
+    assert "content" in results[0]
+
+def test_context_aware_retrieval(rag_service):
+    """测试上下文感知检索"""
+    context = "应聘者正在回答关于Python数据结构的问题"
+    results = rag_service.context_aware_retrieval(
+        "Python列表的特点",
+        context
+    )
+    assert len(results) > 0</code></pre>
+    
+    <h3>2. 集成测试</h3>
+    <pre><code># 测试RAG增强的评估功能
+def test_rag_enhanced_evaluation(llm_service):
+    """测试RAG增强的评估"""
+    question = "Python中的列表和元组有什么区别？"
+    answer = "列表是可变的，元组是不可变的"
+    context = "面试对话记录"
+    
+    result = llm_service.rag_enhanced_evaluation(question, answer, context)
+    assert "技术准确性" in result
+    assert "回答完整性" in result</code></pre>
+    
+    <h2>部署和监控</h2>
+    
+    <h3>1. Docker配置</h3>
+    <p>更新<code>backend_python/Dockerfile</code>：</p>
+    
+    <pre><code># Dockerfile
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# 复制依赖文件
+COPY requirements.txt .
+
+# 安装Python依赖
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 复制应用代码
+COPY . .
+
+# 暴露端口
+EXPOSE 8000
+
+# 启动应用
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]</code></pre>
+    
+    <h3>2. 监控配置</h3>
+    <p>添加监控和日志记录：</p>
+    
+    <pre><code># 在RAG服务中添加监控
+import logging
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+class MonitoredRAGService(RAGService):
+    def retrieve(self, query: str, k: int = 5):
+        """带监控的检索"""
+        start_time = datetime.now()
+        
+        try:
+            results = super().retrieve(query, k)
+            
+            # 记录成功日志
+            duration = (datetime.now() - start_time).total_seconds()
+            logger.info(f"检索成功: query='{query}', k={k}, duration={duration:.3f}s, results={len(results)}")
+            
+            return results
+            
+        except Exception as e:
+            # 记录错误日志
+            duration = (datetime.now() - start_time).total_seconds()
+            logger.error(f"检索失败: query='{query}', k={k}, duration={duration:.3f}s, error={str(e)}")
+            raise</code></pre>
+    
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>在实现RAG服务时，应该首先实现哪个功能？</p>
+        <option onclick="checkAnswer(this, false)">A. 复杂的上下文感知检索</option>
+        <option onclick="checkAnswer(this, true)">B. 基础的文档检索功能</option>
+        <option onclick="checkAnswer(this, false)">C. 高级的查询增强技术</option>
+        <option onclick="checkAnswer(this, false)">D. 完整的监控系统</option>
+    </div>
+    
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了实现方法后，我们将探讨如何优化和扩展RAG系统。请阅读<a href="https://developer.cloud.tencent.com/article/2617737">RAG技术深度解析与实践</a>作为补充材料。
+    </div>
+    
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <div class="navigation">
+            <a href="0006-interview-mentor-integration.html">上一课：InterviewMentorAI集成</a>
+            <a href="0008-optimization-extension.html">下一课：优化与扩展</a>
+        </div>
+    </div>
+    
+    <script>
+        function checkAnswer(element, isCorrect) {
+            // 移除所有选项的样式
+            const options = element.parentElement.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+                opt.style.pointerEvents = 'none';
+            });
+            
+            // 添加对应的样式
+            if (isCorrect) {
+                element.classList.add('correct');
+                element.innerHTML += ' ✓ 正确！应该从基础功能开始，逐步完善。';
+            } else {
+                element.classList.add('incorrect');
+                element.innerHTML += ' ✗ 不正确。应该从基础功能开始，逐步完善。';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -104,13 +104,14 @@ class LlmService:
         
         return self._call_llm(system_prompt, user_prompt)
     
-    def evaluate_answer(self, question: str, answer: str) -> str:
+    def evaluate_answer(self, question: str, answer: str, ref_text: str = "") -> str:
         """
         评估面试者回答
         
         Args:
             question: 面试官的问题
             answer: 面试者的回答
+            ref_text: 知识库参考资料（可选）
             
         Returns:
             JSON 格式的评估结果
@@ -135,13 +136,18 @@ class LlmService:
 
 注意：
 - 只返回 JSON
-- 熟练项的 correction 和 knowledge_points 可以为空字符串"""
+- 熟练项的 correction 和 knowledge_points 可以为空字符串
+- 如果提供了参考资料，请结合参考资料进行更准确的评估"""
 
         user_prompt = f"""请评估以下面试问答：
 
 面试官问：{question}
 
 面试者答：{answer}"""
+        
+        # 如果有参考资料，添加到prompt中
+        if ref_text:
+            user_prompt += f"\n\n{ref_text}"
         
         return self._call_llm(system_prompt, user_prompt)
     

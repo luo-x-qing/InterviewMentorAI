@@ -5,6 +5,8 @@ Agent 流水线服务
 import json
 import logging
 from typing import List
+from app.services.rag_mcp import rag_mcp
+
 
 from app.models.schemas import (
     AgentState,
@@ -180,17 +182,21 @@ class AgentPipeline:
     def _evaluate_single(self, question: str, answer: str) -> EvaluationResult:
         """评估单个问答对"""
         try:
-            response = self.llm.evaluate_answer(question, answer)
+            # 仅调用MCP层，不再直接操作rag_service
+            response = rag_mcp.rag_enhance_evaluate(
+                question=question,
+                answer=answer,
+                use_hybrid=True,
+                use_rerank=True
+            )
             
-            # 解析JSON
+            # 原有JSON解析逻辑完全不变
             json_str = response.strip()
             if json_str.startswith("```"):
                 json_str = json_str.split("\n", 1)[1]
                 if json_str.endswith("```"):
                     json_str = json_str[:-3]
-            
             data = json.loads(json_str)
-            
             return EvaluationResult(
                 question=question,
                 answer=answer,
@@ -201,10 +207,10 @@ class AgentPipeline:
                 correction=data.get("correction", ""),
                 knowledge_points=data.get("knowledge_points", "")
             )
-            
         except Exception as e:
             logger.error(f"评估问答失败: {e}")
             return None
+
     
     # 把前面所有问答的评估结果汇总成一份复盘报告喂给LLM生成最终报告
     def _generate_report(self, state: AgentState) -> str:
