@@ -6,7 +6,7 @@ import com.ecommerce.backend_springai.util.ResultUtil;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.bean.MockBean;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -40,7 +40,6 @@ class RecordControllerTest {
 
         List<InterviewRecord> records = Arrays.asList(record);
         
-        // 模拟服务层调用
         when(recordService.page(any())).thenReturn(
             new com.baomidou.mybatisplus.extension.plugins.pagination.Page<InterviewRecord>(1, 10)
                 .setRecords(records)
@@ -77,7 +76,6 @@ class RecordControllerTest {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        // 模拟服务层调用
         when(recordService.getById(eq(1L))).thenReturn(record);
 
         // 执行测试
@@ -95,7 +93,6 @@ class RecordControllerTest {
                 .status(InterviewRecord.Status.PROCESSING)
                 .build();
 
-        // 模拟服务层调用
         when(recordService.getById(eq(1L))).thenReturn(record);
 
         // 执行测试

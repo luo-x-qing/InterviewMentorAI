@@ -267,5 +267,8 @@ class VectorDB:
             # 降级到纯向量检索
             return self.search_vector(query_emb, top_k, threshold)
 
-# 全局单例（0008连接复用优化）
-vector_db = VectorDB()
+    def close(self):
+        """关闭数据库连接"""
+        if self.conn:
+            self.conn.close()
+            logger.info("数据库连接已关闭")

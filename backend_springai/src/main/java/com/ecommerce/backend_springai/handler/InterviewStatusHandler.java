@@ -14,6 +14,7 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import org.springframework.lang.NonNull;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,12 +31,12 @@ public class InterviewStatusHandler extends TextWebSocketHandler {
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
 
     @Override
-    public void afterConnectionEstablished(WebSocketSession session) {
+    public void afterConnectionEstablished(@NonNull WebSocketSession session) {
         log.info("WebSocket连接建立, sessionId={}", session.getId());
     }
 
     @Override
-    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+    protected void handleTextMessage(@NonNull WebSocketSession session, @NonNull TextMessage message) throws Exception {
         String payload = message.getPayload();
         log.info("收到WebSocket消息: {}", payload);
         
@@ -44,21 +45,20 @@ public class InterviewStatusHandler extends TextWebSocketHandler {
             String interviewId = extractInterviewId(payload);
             if (interviewId != null) {
                 sessions.put(interviewId, session);
-                log.info("客户端订阅面试记录状态, interviewId={}, sessionId={}", interviewId, session.getId());
+                log.info("客户端订阅面试记录状态: interviewId={}, sessionId={}", interviewId, session.getId());
                 session.sendMessage(new TextMessage("{\"type\":\"subscribed\",\"interviewId\":\"" + interviewId + "\"}"));
             }
         }
     }
 
     @Override
-    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        // 移除断开的连接
+    public void afterConnectionClosed(@NonNull WebSocketSession session, @NonNull CloseStatus status) {
         sessions.values().removeIf(s -> s.equals(session));
         log.info("WebSocket连接关闭, sessionId={}", session.getId());
     }
 
     @Override
-    public void handleTransportError(WebSocketSession session, Throwable exception) {
+    public void handleTransportError(@NonNull WebSocketSession session, @NonNull Throwable exception) {
         log.error("WebSocket传输错误, sessionId={}", session.getId(), exception);
         sessions.values().removeIf(s -> s.equals(session));
     }
@@ -78,9 +78,9 @@ public class InterviewStatusHandler extends TextWebSocketHandler {
                     interviewId, status
                 );
                 session.sendMessage(new TextMessage(message));
-                log.info("推送状态更新, interviewId={}, status={}", interviewId, status);
+                log.info("推送状态更新: interviewId={}, status={}", interviewId, status);
             } catch (IOException e) {
-                log.error("推送状态更新失败, interviewId={}", interviewId, e);
+                log.error("推送状态更新失败: interviewId={}", interviewId, e);
             }
         }
     }
@@ -102,15 +102,14 @@ public class InterviewStatusHandler extends TextWebSocketHandler {
                     interviewId, escapedReport
                 );
                 session.sendMessage(new TextMessage(message));
-                log.info("推送报告, interviewId={}", interviewId);
+                log.info("推送报告: interviewId={}", interviewId);
             } catch (IOException e) {
-                log.error("推送报告失败, interviewId={}", interviewId, e);
+                log.error("推送报告失败: interviewId={}", interviewId, e);
             }
         }
     }
 
     private String extractInterviewId(String payload) {
-        // 简单的JSON解析，提取interviewId值
         String[] parts = payload.split(":");
         if (parts.length >= 2) {
             return parts[1].replaceAll("[^0-9]", "").trim();

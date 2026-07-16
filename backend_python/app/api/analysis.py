@@ -5,10 +5,11 @@
 """
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
 from app.models.schemas import AnalysisRequest, AnalysisResponse, AnalysisStatus
-from app.services.agent_pipeline import agent_pipeline
+from app.services.agent_pipeline import AgentPipeline
+from app.main import get_agent_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,10 @@ router = APIRouter(prefix="/api/v1/analysis", tags=["analysis"])
 
 #核心接口，接收前端请求，调用 Agent 流水线服务，返回分析结果
 @router.post("/analyze", response_model=AnalysisResponse)
-async def analyze_audio(request: AnalysisRequest) -> AnalysisResponse:
+async def analyze_audio(
+    request: AnalysisRequest,
+    agent_pipeline: AgentPipeline = Depends(get_agent_pipeline)
+) -> AnalysisResponse:
     """
     执行 AI 分析流水线
     

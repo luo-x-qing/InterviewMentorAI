@@ -34,7 +34,7 @@ class Settings:
     sqlite_db_path: str = "./data/interview.db"
     embedding_model: str = "text-embedding-v3"
     rag_top_k: int = 3          # 单次检索返回3条｜0004检索条数调优
-    rag_similar_threshold: float = 0.6  # 低于0.6直接过滤无关文档｜0004相似度过滤
+    rag_similar_threshold: float = 0.01  # 低于0.01直接过滤无关文档｜0004相似度过滤
     chunk_size: int = 500       # 分块大小｜0002文档分块
     chunk_overlap: int = 100    # 重叠20%｜0002重叠参数
     
@@ -51,7 +51,7 @@ class Settings:
         self.sqlite_db_path = os.getenv("SQLITE_DB_PATH", "./data/interview.db")
         self.embedding_model = os.getenv("EMBEDDING_MODEL", "text-embedding-v3")
         self.rag_top_k = int(os.getenv("RAG_TOP_K", "3"))
-        self.rag_similar_threshold = float(os.getenv("RAG_THRESHOLD", "0.6"))
+        self.rag_similar_threshold = float(os.getenv("RAG_THRESHOLD", "0.01"))
         self.chunk_size = int(os.getenv("CHUNK_SIZE", "500"))
         self.chunk_overlap = int(os.getenv("CHUNK_OVERLAP", "100"))
 

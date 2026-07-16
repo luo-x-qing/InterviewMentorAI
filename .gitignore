@@ -3,6 +3,8 @@
 *.iml
 .vscode/
 *.swp
+*.swo
+*~
 
 # === Java / Spring Boot ===
 backend_springai/target/
@@ -19,21 +21,55 @@ frontend_flutter/.flutter-plugins
 frontend_flutter/.flutter-plugins-dependencies
 frontend_flutter/pubspec.lock
 frontend_flutter/.metadata
+frontend_flutter/.flutter-plugins
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# === 环境变量 (含API密钥等敏感信息) ===
+.env
+.env.local
+.env.*.local
+
+# === 本地数据库 / 缓存 ===
+*.db
+*.sqlite
+*.sqlite3
+*.mv.db
+*.trace.db
+backend_springai/data/
+backend_python/data/*.db
+backend_python/data/*.json
+!backend_python/data/rag_docs/
+
+# === 音频 / 大文件 ===
+demo_assets/*.wav
+demo_assets/*.mp3
+demo_assets/*.mp4
+*.wav
+*.mp3
+*.mp4
+*.avi
 
 # === OS ===
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# === Env ===
-.env
-.env.local
+# === 日志 ===
+*.log
+logs/
 
-# === Demo assets (large files) ===
-demo_assets/*.wav
-demo_assets/*.mp3
-demo_assets/*.mp4
-
-# H2 Database
-backend_springai/data/
-*.mv.db
-*.trace.db
+# === Node (前端工具链) ===
+node_modules/
+.npm/
+yarn.lock

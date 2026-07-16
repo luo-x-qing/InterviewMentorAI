@@ -221,6 +221,6 @@ class LlmService:
             logger.error(f"千问大模型调用异常: {e}")
             raise Exception(f"千问调用失败: {str(e)}")
 
-
-# 全局服务实例
-llm_service = LlmService()
+    def close(self):
+        """清理资源（OpenAI客户端无需显式关闭）"""
+        logger.info("LLM服务资源清理完成")

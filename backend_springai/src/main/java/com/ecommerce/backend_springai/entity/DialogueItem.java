@@ -3,15 +3,14 @@
  * 
  * 功能说明：
  * - 表示面试过程中的一条对话记录
- * - 包含发言人角色（面试官/面试者）和对话内容文本
- * - 由DialogueParseNode从ASR转写文本中解析生成
- * - 作为AgentState的一部分在工作流节点间传递
+ * - 包含说话人角色（面试官/候选人）和对话内容文本
+ * - 由DialogueParseNode从ASR转写文本中解析得出
  * 
  * 字段说明：
- * - speaker: 发言人角色（INTERVIEWER / CANDIDATE）
+ * - speaker: 说话人角色，INTERVIEWER / CANDIDATE
  * - content: 对话内容文本
- * - startTimeMs: 对话起始时间（毫秒）
- * - endTimeMs: 对话结束时间（毫秒）
+ * - startTimeMs: 对话开始时间戳（毫秒）
+ * - endTimeMs: 对话结束时间戳（毫秒）
  */
 package com.ecommerce.backend_springai.entity;
 
@@ -27,36 +26,36 @@ import lombok.NoArgsConstructor;
 public class DialogueItem {
     
     /**
-     * 发言人角色枚举
+     * 说话人角色枚举
      * INTERVIEWER: 面试官
-     * CANDIDATE: 面试者/候选人
+     * CANDIDATE: 候选人
      */
     public enum Speaker {
         INTERVIEWER,  // 面试官
-        CANDIDATE     // 面试者
+        CANDIDATE     // 候选人
     }
     
     /**
-     * 发言人角色
-     * 值为 "INTERVIEWER" 或 "CANDIDATE"
+     * 说话人角色
+     * 取值为 "INTERVIEWER" 或 "CANDIDATE"
      */
     private Speaker speaker;
     
     /**
      * 对话内容文本
-     * 包含完整的发言内容
+     * 由ASR识别后经过格式化的文本
      */
     private String content;
     
     /**
-     * 对话起始时间（毫秒）
-     * 用于在音频中定位该段对话
+     * 对话开始时间戳（毫秒）
+     * 从音频文件中提取的相对时间
      */
     private Long startTimeMs;
     
     /**
-     * 对话结束时间（毫秒）
-     * 用于在音频中定位该段对话
+     * 对话结束时间戳（毫秒）
+     * 从音频文件中提取的相对时间
      */
     private Long endTimeMs;
 }

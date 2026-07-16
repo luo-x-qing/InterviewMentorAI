@@ -5,14 +5,12 @@ import hashlib
 import logging
 from typing import List
 from app.core.config import settings
-from app.core.vector_db import vector_db
 from app.models.schemas import RagDoc, RagRetrievalResult
-from app.services.llm_service import llm_service
 
 logger = logging.getLogger(__name__)
 
 class RagService:
-    def __init__(self):
+    def __init__(self, vector_db=None, llm_service=None):
         self.embed_model = settings.embedding_model
         self.top_k = settings.rag_top_k
         self.threshold = settings.rag_similar_threshold
@@ -23,22 +21,41 @@ class RagService:
         # Embedding缓存
         self._embedding_cache = {}
         self._cache_file = "./data/embedding_cache.json"
+        
+        # 依赖注入
+        if vector_db is None:
+            from app.core.vector_db import VectorDB
+            self.vector_db = VectorDB()
+        else:
+            self.vector_db = vector_db
+            
+        if llm_service is None:
+            from app.services.llm_service import LlmService
+            self.llm_service = LlmService()
+        else:
+            self.llm_service = llm_service
+            
         self._load_cache()
 
-    def split_fixed_chunk(self, text: str) -> list[str]:
+    def split_fixed_chunk(self, text: str, chunk_size: int = None, chunk_overlap: int = None) -> list[str]:
         """固定长度滑动分块｜0002文档分块课程基础方案"""
+        size = chunk_size if chunk_size is not None else self.chunk_size
+        overlap = chunk_overlap if chunk_overlap is not None else self.chunk_overlap
+        
         chunks = []
         start = 0
         full_len = len(text)
-        step = self.chunk_size - self.chunk_overlap
+        step = size - overlap
         while start < full_len:
-            end = min(start + self.chunk_size, full_len)
+            end = min(start + size, full_len)
             chunks.append(text[start:end])
             start += step
         return chunks
 
-    def split_paragraph_chunk(self, text: str) -> list[str]:
+    def split_paragraph_chunk(self, text: str, chunk_size: int = None, chunk_overlap: int = None) -> list[str]:
         """按段落分块｜保留语义完整性"""
+        size = chunk_size if chunk_size is not None else self.chunk_size
+        
         # 按双换行符分段
         paragraphs = text.split("\n\n")
         chunks = []
@@ -50,7 +67,7 @@ class RagService:
                 continue
             
             # 如果当前段落加上新段落超过限制，保存当前块
-            if len(current_chunk) + len(para) + 1 > self.chunk_size:
+            if len(current_chunk) + len(para) + 1 > size:
                 if current_chunk:
                     chunks.append(current_chunk)
                 current_chunk = para
@@ -62,9 +79,11 @@ class RagService:
         
         return chunks
 
-    def split_semantic_chunk(self, text: str) -> list[str]:
+    def split_semantic_chunk(self, text: str, chunk_size: int = None, chunk_overlap: int = None) -> list[str]:
         """语义分块｜按句子边界切分，保持语义完整"""
         import re
+        
+        size = chunk_size if chunk_size is not None else self.chunk_size
         
         # 按句子结束符分割
         sentences = re.split(r'([。！？\n])', text)
@@ -80,7 +99,7 @@ class RagService:
         current_chunk = ""
         
         for sentence in combined_sentences:
-            if len(current_chunk) + len(sentence) > self.chunk_size:
+            if len(current_chunk) + len(sentence) > size:
                 if current_chunk:
                     chunks.append(current_chunk)
                 current_chunk = sentence
@@ -92,14 +111,14 @@ class RagService:
         
         return chunks
 
-    def split_chunks(self, text: str, method: str = "fixed") -> list[str]:
+    def split_chunks(self, text: str, method: str = "fixed", chunk_size: int = None, chunk_overlap: int = None) -> list[str]:
         """统一的分块入口方法"""
         if method == "paragraph":
-            return self.split_paragraph_chunk(text)
+            return self.split_paragraph_chunk(text, chunk_size, chunk_overlap)
         elif method == "semantic":
-            return self.split_semantic_chunk(text)
+            return self.split_semantic_chunk(text, chunk_size, chunk_overlap)
         else:
-            return self.split_fixed_chunk(text)
+            return self.split_fixed_chunk(text, chunk_size, chunk_overlap)
 
     def _load_reranker(self):
         """延迟加载重排序模型"""
@@ -181,7 +200,7 @@ class RagService:
         
         # 调用API
         try:
-            resp = llm_service.client.embeddings.create(
+            resp = self.llm_service.client.embeddings.create(
                 model=self.embed_model,
                 input=text
             )
@@ -219,7 +238,7 @@ class RagService:
             for idx, chunk_text in enumerate(chunk_list):
                 chunk_title = f"{filename} 片段{idx+1}"
                 emb = self.get_text_embedding(chunk_text)
-                vector_db.insert_chunk(chunk_title, chunk_text, filename, emb)
+                self.vector_db.insert_chunk(chunk_title, chunk_text, filename, emb)
                 imported_count += 1
             
             logger.info(f"导入文件 {filename}，分块数量: {len(chunk_list)}")
@@ -236,7 +255,7 @@ class RagService:
         
         if use_hybrid:
             # 混合检索：BM25 + 向量检索
-            hit_docs = vector_db.search_hybrid(
+            hit_docs = self.vector_db.search_hybrid(
                 query=interview_question,
                 query_emb=query_emb,
                 top_k=self.top_k * 2 if use_rerank else self.top_k,
@@ -247,7 +266,7 @@ class RagService:
             logger.info(f"混合检索匹配文档数量：{len(hit_docs)}")
         else:
             # 仅向量检索
-            hit_docs = vector_db.search_vector(
+            hit_docs = self.vector_db.search_vector(
                 query_emb, 
                 self.top_k * 2 if use_rerank else self.top_k, 
                 self.threshold
@@ -264,5 +283,7 @@ class RagService:
             docs=hit_docs
         )
 
-# 全局单例
-rag_service = RagService()
+    def close(self):
+        """清理资源"""
+        self._embedding_cache.clear()
+        logger.info("RAG服务资源清理完成")

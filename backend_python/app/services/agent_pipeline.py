@@ -5,7 +5,6 @@ Agent 流水线服务
 import json
 import logging
 from typing import List
-from app.services.rag_mcp import rag_mcp
 
 
 from app.models.schemas import (
@@ -18,7 +17,6 @@ from app.models.schemas import (
     EvaluationResult,
     Speaker,
 )
-from app.services.llm_service import llm_service
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +26,19 @@ class AgentPipeline:
     """AI Agent 流水线"""
 
     #初始化
-    def __init__(self):
-        self.llm = llm_service
+    def __init__(self, llm_service=None, rag_mcp=None):
+        # 延迟导入，避免循环依赖
+        if llm_service is None:
+            from app.services.llm_service import LlmService
+            self.llm = LlmService()
+        else:
+            self.llm = llm_service
+            
+        if rag_mcp is None:
+            from app.services.rag_mcp import RagMCP
+            self.rag_mcp = RagMCP()
+        else:
+            self.rag_mcp = rag_mcp
     
     #外部接口收到请求之后，调用执行，启动整条链路
     def run(self, request: AnalysisRequest) -> AnalysisResponse:
@@ -183,7 +192,7 @@ class AgentPipeline:
         """评估单个问答对"""
         try:
             # 仅调用MCP层，不再直接操作rag_service
-            response = rag_mcp.rag_enhance_evaluate(
+            response = self.rag_mcp.rag_enhance_evaluate(
                 question=question,
                 answer=answer,
                 use_hybrid=True,
@@ -235,6 +244,10 @@ class AgentPipeline:
         # 调用 LLM 生成报告
         return self.llm.generate_report(evaluations_text)
 
-
-# 全局流水线实例
-agent_pipeline = AgentPipeline()
+    def close(self):
+        """清理资源"""
+        if hasattr(self.rag_mcp, 'close'):
+            self.rag_mcp.close()
+        if hasattr(self.llm, 'close'):
+            self.llm.close()
+        logger.info("Agent流水线资源清理完成")

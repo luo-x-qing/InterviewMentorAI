@@ -3,16 +3,16 @@
  * 
  * 功能说明：
  * - 提供面试记录的CRUD操作
- * - 被AudioController调用，存储音频上传后的初始记录
- * - 被InterviewAgentGraph调用，更新流水线处理状态和结果
- * - 被RecordController调用，查询历史面试记录
+ * - 供AudioController调用，存储音频上传后的初始记录
+ * - 供InterviewAgentGraph调用，更新处理流程状态和结果
+ * - 供RecordController调用，提供查询接口
  * 
- * 核心方法：
- * - createRecord(): 创建面试记录（音频上传时）
+ * 主要方法：
+ * - createRecord(): 创建面试记录并保存
  * - updateStatus(): 更新处理状态
  * - updateTranscript(): 更新ASR转写文本
- * - updateDialogue(): 更新对话列表
- * - updateReport(): 更新复盘报告
+ * - updateDialogue(): 更新对话解析结果
+ * - updateReport(): 更新评估报告
  * - getById(): 查询单条记录
  * - listAll(): 查询记录列表
  */
@@ -33,14 +33,14 @@ public class InterviewRecordService extends ServiceImpl<InterviewRecordMapper, I
     
     /**
      * 创建面试记录
-     * 在音频上传成功后调用，初始化记录状态为PROCESSING
+     * 初始化状态为PROCESSING
      * 
-     * @param record 面试记录实体（已填充audioFileId, audioFilePath, durationSeconds等字段）
-     * @return 保存后的记录（包含自增ID）
+     * @param record 面试记录实体，至少包含audioFileId, audioFilePath, durationSeconds
+     * @return 保存后的记录，包含生成的ID
      */
     @Transactional
     public InterviewRecord createRecord(InterviewRecord record) {
-        log.info("创建面试记录, audioFileId={}", record.getAudioFileId());
+        log.info("创建面试记录: audioFileId={}", record.getAudioFileId());
         
         // 设置初始状态
         record.setStatus(InterviewRecord.Status.PROCESSING);
@@ -55,15 +55,15 @@ public class InterviewRecordService extends ServiceImpl<InterviewRecordMapper, I
     }
     
     /**
-     * 更新流水线处理状态
-     * 在Agent流水线每个节点执行完成后调用
+     * 更新面试记录处理状态
+     * 由InterviewAgentGraph在处理过程中调用
      * 
      * @param id 面试记录ID
      * @param status 新状态
      */
     @Transactional
     public void updateStatus(Long id, InterviewRecord.Status status) {
-        log.info("更新面试记录状态, id={}, status={}", id, status);
+        log.info("更新面试记录状态: id={}, status={}", id, status);
         
         InterviewRecord record = getById(id);
         if (record != null) {
@@ -75,7 +75,7 @@ public class InterviewRecordService extends ServiceImpl<InterviewRecordMapper, I
     
     /**
      * 更新ASR转写文本
-     * 在Whisper ASR节点执行完成后调用
+     * Whisper ASR识别完成后调用
      * 
      * @param id 面试记录ID
      * @param rawTranscript ASR识别的原始文本
@@ -94,15 +94,15 @@ public class InterviewRecordService extends ServiceImpl<InterviewRecordMapper, I
     }
     
     /**
-     * 更新对话列表
-     * 在DialogueParseNode说话人分离完成后调用
+     * 更新对话解析结果
+     * DialogueParseNode解析完成后调用
      * 
      * @param id 面试记录ID
-     * @param dialogueJson 对话列表JSON字符串
+     * @param dialogueJson 解析后的对话JSON
      */
     @Transactional
     public void updateDialogue(Long id, String dialogueJson) {
-        log.info("更新对话列表, id={}", id);
+        log.info("更新对话解析结果: id={}", id);
         
         InterviewRecord record = getById(id);
         if (record != null) {
@@ -114,15 +114,15 @@ public class InterviewRecordService extends ServiceImpl<InterviewRecordMapper, I
     }
     
     /**
-     * 更新复盘报告
-     * 在ReportGenNode报告生成完成后调用
+     * 更新评估报告
+     * ReportGenNode生成报告后调用
      * 
      * @param id 面试记录ID
-     * @param reportJson 复盘报告JSON字符串
+     * @param reportJson 评估报告JSON
      */
     @Transactional
     public void updateReport(Long id, String reportJson) {
-        log.info("更新复盘报告, id={}", id);
+        log.info("更新评估报告: id={}", id);
         
         InterviewRecord record = getById(id);
         if (record != null) {
@@ -134,11 +134,11 @@ public class InterviewRecordService extends ServiceImpl<InterviewRecordMapper, I
     }
     
     /**
-     * 标记流水线执行失败
-     * 在Agent流水线异常时调用
+     * 标记面试记录处理失败
+     * 由InterviewAgentGraph在异常时调用
      * 
      * @param id 面试记录ID
-     * @param errorMsg 错误信息（可选，用于调试）
+     * @param errorMsg 错误信息
      */
     @Transactional
     public void markFailed(Long id, String errorMsg) {

@@ -3,12 +3,12 @@
  * 
  * 功能说明：
  * - 接收Flutter前端上传的音频文件（wav/mp3/m4a格式）
- * - 将音频文件转存到服务端指定目录，生成唯一文件标识
+ * - 将音频文件保存到服务器指定目录，生成唯一文件标识
  * - 创建面试记录
- * - 调用 Python AI 后端执行分析流水线
+ * - 异步调用Python AI后端进行语音识别和分析
  * 
  * 接口说明：
- * - POST /api/audio/upload — 上传音频文件并触发AI分析
+ * - POST /api/audio/upload - 上传音频文件并创建面试记录
  */
 package com.ecommerce.backend_springai.controller;
 
@@ -40,7 +40,7 @@ import java.util.Map;
 public class AudioController {
     
     /**
-     * 音频文件存储目录
+     * 音频文件存储路径
      */
     @Value("${audio.storage.path:./data/audio}")
     private String audioStoragePath;
@@ -62,7 +62,7 @@ public class AudioController {
     private final RestTemplate restTemplate;
     
     /**
-     * WebSocket处理器，用于推送处理进度
+     * WebSocket状态推送处理器
      */
     private final InterviewStatusHandler statusHandler;
     
@@ -76,15 +76,15 @@ public class AudioController {
     }
     
     /**
-     * 上传面试录音接口
+     * 上传音频文件并创建面试记录
      * 
      * 处理流程：
-     * 1. 验证音频文件格式和大小
-     * 2. 生成唯一文件标识（UUID）
-     * 3. 将音频文件存储到服务端本地目录
+     * 1. 验证文件格式和大小
+     * 2. 生成唯一文件标识
+     * 3. 保存音频文件到本地磁盘
      * 4. 创建面试记录
-     * 5. 异步调用 Python AI 后端执行分析
-     * 6. 返回「AI排队处理中」状态给前端
+     * 5. 异步调用Python AI后端进行分析
+     * 6. 返回处理状态给Flutter前端
      */
     @PostMapping("/upload")
     public ResultUtil<AnalysisResp> uploadAudio(
@@ -93,17 +93,17 @@ public class AudioController {
             @RequestParam(value = "userId", required = false) Long userId,
             @RequestParam(value = "durationSeconds", required = false) Integer durationSeconds) {
         
-        log.info("收到音频上传请求, fileName={}, fileSize={}", 
+        log.info("收到音频上传请求: fileName={}, fileSize={}", 
                 audioFile.getOriginalFilename(), audioFile.getSize());
         
-        // 1. 验证音频文件
+        // 1. 验证文件格式和大小
         if (audioFile.isEmpty()) {
             return ResultUtil.fail(400, "音频文件不能为空");
         }
         
         String originalFilename = audioFile.getOriginalFilename();
         if (originalFilename == null || !isAudioFileValid(originalFilename)) {
-            return ResultUtil.fail(400, "不支持的音频格式，请上传 wav/mp3/m4a 文件");
+            return ResultUtil.fail(400, "不支持的音频格式，请上传 wav/mp3/m4a 格式的音频");
         }
         
         long maxSize = 200 * 1024 * 1024; // 200MB
@@ -118,7 +118,7 @@ public class AudioController {
             
             log.info("生成文件标识: audioFileId={}, newFileName={}", audioFileId, newFileName);
             
-            // 3. 存储音频文件到本地
+            // 3. 保存音频文件到本地磁盘
             FileUtil.makeDir(audioStoragePath);
             Path filePath = Paths.get(audioStoragePath, newFileName);
             audioFile.transferTo(new java.io.File(filePath.toString()));
@@ -134,7 +134,7 @@ public class AudioController {
             record = recordService.createRecord(record);
             log.info("面试记录创建成功, id={}", record.getId());
             
-            // 5. 异步调用 Python AI 后端
+            // 5. 异步调用Python AI后端
             final Long interviewId = record.getId();
             final String audioFilePathStr = filePath.toAbsolutePath().toString();
             
@@ -142,17 +142,17 @@ public class AudioController {
                 try {
                     callPythonBackend(interviewId, audioFilePathStr);
                 } catch (Exception e) {
-                    log.error("调用 Python AI 后端失败, interviewId={}", interviewId, e);
+                    log.error("调用Python AI后端失败, interviewId={}", interviewId, e);
                     recordService.markFailed(interviewId, e.getMessage());
                 }
             }, "ai-pipeline-" + interviewId).start();
             
-            // 6. 返回「AI排队处理中」状态
+            // 6. 返回处理状态给Flutter前端
             AnalysisResp resp = AnalysisResp.builder()
                     .interviewId(record.getId())
                     .audioFileId(audioFileId)
                     .status("PROCESSING")
-                    .message("音频上传成功，AI复盘流水线已启动")
+                    .message("音频上传成功，正在进行AI分析处理，请稍后查看结果")
                     .build();
             
             return ResultUtil.success(resp);
@@ -167,12 +167,12 @@ public class AudioController {
     }
     
     /**
-     * 调用 Python AI 后端执行分析
+     * 调用Python AI后端进行分析
      */
     private void callPythonBackend(Long interviewId, String audioFilePath) {
-        log.info("调用 Python AI 后端, interviewId={}", interviewId);
+        log.info("调用Python AI后端: interviewId={}", interviewId);
         
-        // 推送状态：正在处理
+        // 推送处理状态给Flutter前端
         statusHandler.sendStatusUpdate(String.valueOf(interviewId), "PROCESSING");
         
         String url = pythonBackendUrl + "/api/v1/analysis/analyze";
@@ -192,17 +192,17 @@ public class AudioController {
             @SuppressWarnings("unchecked")
             Map<String, Object> body = (Map<String, Object>) response.getBody();
             if (body != null && "COMPLETED".equals(body.get("status"))) {
-                log.info("Python AI 后端分析完成, interviewId={}", interviewId);
-                // 更新数据库中的结果
+                log.info("Python AI分析完成: interviewId={}", interviewId);
+                // 更新面试记录报告
                 String report = (String) body.get("report");
                 if (report != null) {
                     recordService.updateReport(interviewId, report);
-                    // 推送报告给客户端
+                    // 推送报告给Flutter前端
                     statusHandler.sendReport(String.valueOf(interviewId), report);
                 }
             }
         } else {
-            throw new RuntimeException("Python AI 后端返回错误: " + response.getStatusCode());
+            throw new RuntimeException("Python AI后端调用失败: " + response.getStatusCode());
         }
     }
     

@@ -5,16 +5,24 @@ RAG-MCP 模型上下文调度层
 """
 import logging
 from typing import Optional
-from app.services.rag_service import rag_service
-from app.services.llm_service import llm_service
 from app.models.schemas import RagRetrievalResult
 
 logger = logging.getLogger(__name__)
 
 class RagMCP:
-    def __init__(self):
-        self.rag = rag_service
-        self.llm = llm_service
+    def __init__(self, rag_service=None, llm_service=None):
+        # 延迟导入，避免循环依赖
+        if rag_service is None:
+            from app.services.rag_service import RagService
+            self.rag = RagService()
+        else:
+            self.rag = rag_service
+            
+        if llm_service is None:
+            from app.services.llm_service import LlmService
+            self.llm = LlmService()
+        else:
+            self.llm = llm_service
 
     def build_rag_context(self, retrieval_res: RagRetrievalResult) -> str:
         """MCP专属：标准化拼接检索参考上下文"""
@@ -72,5 +80,10 @@ class RagMCP:
         )
         return llm_response
 
-# 全局单例MCP实例
-rag_mcp = RagMCP()
+    def close(self):
+        """清理资源"""
+        if hasattr(self.rag, 'close'):
+            self.rag.close()
+        if hasattr(self.llm, 'close'):
+            self.llm.close()
+        logger.info("MCP服务资源清理完成")
