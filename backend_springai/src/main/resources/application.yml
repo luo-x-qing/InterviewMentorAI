@@ -2,41 +2,77 @@ server:
   port: 8080
   servlet:
     multipart:
-      max-file-size: 20MB
-      max-request-size: 25MB
+      max-file-size: 200MB
+      max-request-size: 250MB
 
 spring:
   application:
     name: interview-mentor-ai-java
-  # H2数据库配置
+
+  # MySQL 数据库配置
   datasource:
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:file:./data/interview_db
-    username: sa
-    password:
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/platform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: ${MYSQL_PASSWORD:root}
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  # SQL 初始化 (首次启动建表)
   sql:
     init:
-      mode: always
-      schema-locations: classpath:schema.sql
+      mode: never
+      schema-locations: classpath:schema-platform.sql
 
 # Python AI 后端配置
 python:
   ai:
     backend:
       url: ${PYTHON_AI_BACKEND_URL:http://localhost:8000}
+      connect-timeout: 10000
+      read-timeout: 120000
 
 # 音频文件存储配置
 audio:
   storage:
-    path: ./data/audio
+    path: ${AUDIO_STORAGE_PATH:./data/audio}
+
+# JWT 配置
+jwt:
+  secret: ${JWT_SECRET:InterviewMentorAI-2026-Super-Secret-Key-At-Least-256-Bits-Long}
+  access-token-expiration: 7200000    # 2小时 (毫秒)
+  refresh-token-expiration: 604800000 # 7天 (毫秒)
+
+# 多租户配置
+tenant:
+  default-tenant-id: 1
+  default-tenant-schema: platform
+
+# 异步线程池配置
+async:
+  core-pool-size: 4
+  max-pool-size: 8
+  queue-capacity: 50
+  thread-name-prefix: ai-analysis-
+  keep-alive-seconds: 60
 
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
   type-aliases-package: com.interview.mentor.entity
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+logging:
+  level:
+    com.interview.mentor: DEBUG
+    org.springframework.security: DEBUG

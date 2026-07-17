@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RESTful API设计与Controller层 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="with-sidebar">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>InterviewMentorAI</h2>
+            <div class="subtitle">教学工作区</div>
+        </div>
+        
+        <div class="sidebar-learning-record">
+            <a href="../learning-records/0002-saas-backend-learning-start.md">
+                <span class="icon">&#128213;</span>
+                <span>学习记录</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title rag">RAG 技术课程</div>
+            <nav class="sidebar-nav">
+                <a href="0001-rag-core-concepts.html">0001 - RAG核心概念</a>
+                <a href="0002-document-chunking.html">0002 - 文档分块策略</a>
+                <a href="0003-vector-embeddings.html">0003 - 向量嵌入技术</a>
+                <a href="0004-retrieval-strategies.html">0004 - 检索策略与优化</a>
+                <a href="0005-rag-evaluation.html">0005 - RAG系统评估</a>
+                <a href="0006-interview-mentor-integration.html">0006 - InterviewMentorAI集成</a>
+                <a href="0007-implementation-guide.html">0007 - 实现指南</a>
+                <a href="0008-optimization-extension.html">0008 - 优化与扩展</a>
+                <a href="0009-summary-next-steps.html">0009 - 总结与下一步</a>
+            </nav>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title saas">SaaS 后端架构</div>
+            <nav class="sidebar-nav">
+                <a href="0010-saas-multi-tenant-core.html">0010 - SaaS多租户架构核心概念</a>
+                <a href="0011-springboot3-java17-infra.html">0011 - Spring Boot 3 + Java 17</a>
+                <a href="0012-jwt-auth-rbac.html">0012 - JWT认证与RBAC权限体系</a>
+                <a href="0013-multi-tenant-data-isolation.html">0013 - 多租户数据隔离设计</a>
+                <a href="0014-mybatis-plus-db-design.html">0014 - MyBatis-Plus与数据库设计</a>
+                <a href="0015-async-websocket-push.html">0015 - 异步调用与WebSocket推送</a>
+                <a href="0016-restful-api-controller.html" class="active">0016 - RESTful API设计</a>
+                <a href="0017-business-logic-implementation.html">0017 - 业务逻辑实现</a>
+                <a href="0018-architecture-review-exercises.html">0018 - 架构回顾与实战</a>
+            </nav>
+        </div>
+    </aside>
+    
+    <main class="main-content">
+    <h1>RESTful API 设计与 Controller 层</h1>
+    
+    <div class="callout info">
+        <strong>学习目标：</strong> 理解 RESTful API 设计原则，掌握统一响应格式，学会设计清晰的 URL 规范，以及在 InterviewMentorAI 中实现规范的 Controller 层。
+    </div>
+    
+    <h2>什么是 RESTful API？餐厅菜单的比喻</h2>
+    <p>想象一下你去餐厅吃饭。餐厅有一份菜单（API 文档），上面列出了所有可选的菜品（资源）和对应的价格（操作）。</p>
+    
+    <ul>
+        <li><strong>资源（Resource）：</strong> 菜单上的每道菜就是一个资源，比如"红烧肉"、"清蒸鱼"</li>
+        <li><strong>URL：</strong> 每道菜有一个编号，比如 "红烧肉" 是 #1，"清蒸鱼" 是 #2</li>
+        <li><strong>HTTP 方法：</strong> 你对这道菜的操作——查看菜单（GET）、点菜（POST）、换菜（PUT）、退菜（DELETE）</li>
+        <li><strong>状态码：</strong> 服务员告诉你"菜做好了"（200）、"没有这道菜"（404）、"厨房着火了"（500）</li>
+    </ul>
+    
+    <p>RESTful API 就是这样一种设计风格：URL 代表资源，HTTP 方法代表操作，状态码代表结果。</p>
+    
+    <h2>核心设计原则</h2>
+    
+    <h3>URL 设计规范：好菜单 vs 坏菜单</h3>
+    <pre><code># 好的 URL 设计（像清晰的菜单）
+GET    /interview              # 获取面试列表
+POST   /interview              # 创建面试
+GET    /interview/{id}         # 获取单个面试
+PUT    /interview/{id}         # 更新面试
+DELETE /interview/{id}         # 删除面试
+
+# 不好的 URL 设计（像混乱的菜单）
+GET    /getInterviewList       # ❌ 使用动词，应该是名词
+POST   /createInterview       # ❌ 使用动词
+GET    /interview/getById?id=1 # ❌ 查询参数传递ID，应该放在路径中</code></pre>
+    
+    <div class="callout warning">
+        <strong>记住：</strong> URL 应该是名词（资源），不是动词（操作）。操作由 HTTP 方法来表示。
+    </div>
+    
+    <h3>HTTP 方法：点菜、换菜、退菜</h3>
+    <table>
+        <tr>
+            <th>HTTP 方法</th>
+            <th>操作</th>
+            <th>餐厅类比</th>
+            <th>使用场景</th>
+        </tr>
+        <tr>
+            <td><strong>GET</strong></td>
+            <td>查询</td>
+            <td>看菜单</td>
+            <td>获取资源列表或详情</td>
+        </tr>
+        <tr>
+            <td><strong>POST</strong></td>
+            <td>创建</td>
+            <td>点菜</td>
+            <td>创建新资源</td>
+        </tr>
+        <tr>
+            <td><strong>PUT</strong></td>
+            <td>更新</td>
+            <td>换菜</td>
+            <td>更新整个资源</td>
+        </tr>
+        <tr>
+            <td><strong>PATCH</strong></td>
+            <td>部分更新</td>
+            <td>加辣/不要香菜</td>
+            <td>更新资源的部分字段</td>
+        </tr>
+        <tr>
+            <td><strong>DELETE</strong></td>
+            <td>删除</td>
+            <td>退菜</td>
+            <td>删除资源</td>
+        </tr>
+    </table>
+    
+    <h3>HTTP 状态码：服务员的反馈</h3>
+    <table>
+        <tr>
+            <th>状态码</th>
+            <th>含义</th>
+            <th>餐厅类比</th>
+            <th>使用场景</th>
+        </tr>
+        <tr>
+            <td>200</td>
+            <td>OK</td>
+            <td>菜做好了，请慢用</td>
+            <td>请求成功</td>
+        </tr>
+        <tr>
+            <td>201</td>
+            <td>Created</td>
+            <td>您的菜已下单</td>
+            <td>资源创建成功</td>
+        </tr>
+        <tr>
+            <td>204</td>
+            <td>No Content</td>
+            <td>已为您退菜</td>
+            <td>删除成功，无返回内容</td>
+        </tr>
+        <tr>
+            <td>400</td>
+            <td>Bad Request</td>
+            <td>您点的菜不存在</td>
+            <td>参数校验失败</td>
+        </tr>
+        <tr>
+            <td>401</td>
+            <td>Unauthorized</td>
+            <td>请先出示会员卡</td>
+            <td>未认证</td>
+        </tr>
+        <tr>
+            <td>403</td>
+            <td>Forbidden</td>
+            <td>抱歉，这道菜不对外出售</td>
+            <td>无权限</td>
+        </tr>
+        <tr>
+            <td>404</td>
+            <td>Not Found</td>
+            <td>我们餐厅没有这道菜</td>
+            <td>资源不存在</td>
+        </tr>
+        <tr>
+            <td>500</td>
+            <td>Internal Server Error</td>
+            <td>厨房着火了，暂时无法服务</td>
+            <td>服务器内部错误</td>
+        </tr>
+    </table>
+    
+    <h2>统一响应格式</h2>
+    
+    <p>想象一下，如果每家餐厅的账单格式都不一样，有的写中文，有的写英文，有的只有数字，你会很困惑。统一响应格式就是让所有 API 返回的数据格式保持一致。</p>
+    
+    <h3>Result 包装类</h3>
+    <pre><code>@Data
+public class Result&lt;T&gt; {
+    
+    private int code;
+    private String message;
+    private T data;
+    private long timestamp;
+    
+    public static &lt;T&gt; Result&lt;T&gt; success(T data) {
+        Result&lt;T&gt; result = new Result&lt;&gt;();
+        result.setCode(200);
+        result.setMessage("success");
+        result.setData(data);
+        result.setTimestamp(System.currentTimeMillis());
+        return result;
+    }
+    
+    public static &lt;T&gt; Result&lt;T&gt; error(int code, String message) {
+        Result&lt;T&gt; result = new Result&lt;&gt;();
+        result.setCode(code);
+        result.setMessage(message);
+        result.setTimestamp(System.currentTimeMillis());
+        return result;
+    }
+}</code></pre>
+    
+    <h3>响应示例</h3>
+    <pre><code>// 成功响应（菜做好了）
+{
+    "code": 200,
+    "message": "success",
+    "data": {
+        "id": 1,
+        "title": "产品经理面试",
+        "status": "CREATED"
+    },
+    "timestamp": 1700000000000
+}
+
+// 错误响应（点的菜不存在）
+{
+    "code": 400,
+    "message": "参数校验失败：标题不能为空",
+    "data": null,
+    "timestamp": 1700000000000
+}</code></pre>
+    
+    <h2>InterviewMentorAI API 设计</h2>
+    
+    <h3>认证模块 API</h3>
+    <table>
+        <tr>
+            <th>方法</th>
+            <th>路径</th>
+            <th>说明</th>
+            <th>认证</th>
+        </tr>
+        <tr>
+            <td>POST</td>
+            <td>/auth/register</td>
+            <td>用户注册</td>
+            <td>否</td>
+        </tr>
+        <tr>
+            <td>POST</td>
+            <td>/auth/login</td>
+            <td>用户登录</td>
+            <td>否</td>
+        </tr>
+        <tr>
+            <td>POST</td>
+            <td>/auth/refresh</td>
+            <td>刷新 Token</td>
+            <td>否</td>
+        </tr>
+    </table>
+    
+    <h3>面试模块 API</h3>
+    <table>
+        <tr>
+            <th>方法</th>
+            <th>路径</th>
+            <th>说明</th>
+            <th>权限</th>
+        </tr>
+        <tr>
+            <td>POST</td>
+            <td>/interview</td>
+            <td>创建面试</td>
+            <td>interview:create</td>
+        </tr>
+        <tr>
+            <td>POST</td>
+            <td>/interview/{id}/audio</td>
+            <td>上传音频</td>
+            <td>interview:create</td>
+        </tr>
+        <tr>
+            <td>GET</td>
+            <td>/interview</td>
+            <td>获取面试列表</td>
+            <td>interview:view</td>
+        </tr>
+        <tr>
+            <td>GET</td>
+            <td>/interview/{id}</td>
+            <td>获取面试详情</td>
+            <td>interview:view</td>
+        </tr>
+        <tr>
+            <td>GET</td>
+            <td>/interview/stats</td>
+            <td>获取面试统计</td>
+            <td>interview:view_all</td>
+        </tr>
+    </table>
+    
+    <h3>报告模块 API</h3>
+    <table>
+        <tr>
+            <th>方法</th>
+            <th>路径</th>
+            <th>说明</th>
+            <th>权限</th>
+        </tr>
+        <tr>
+            <td>GET</td>
+            <td>/report/interview/{id}/evaluations</td>
+            <td>获取评估列表</td>
+            <td>report:view</td>
+        </tr>
+        <tr>
+            <td>PUT</td>
+            <td>/report/evaluation/{id}/correct</td>
+            <td>HR 修正评估</td>
+            <td>report:edit</td>
+        </tr>
+        <tr>
+            <td>GET</td>
+            <td>/report/interview/{id}/report</td>
+            <td>获取面试报告</td>
+            <td>report:view</td>
+        </tr>
+    </table>
+    
+    <h2>Controller 实现示例</h2>
+    
+    <h3>InterviewController</h3>
+    <pre><code>@RestController
+@RequestMapping("/interview")
+public class InterviewController {
+    
+    private final InterviewService interviewService;
+    
+    public InterviewController(InterviewService interviewService) {
+        this.interviewService = interviewService;
+    }
+    
+    @PostMapping
+    public Result&lt;InterviewRecord&gt; createInterview(
+            @Valid @RequestBody CreateInterviewRequest request,
+            Authentication authentication) {
+        Long currentUserId = getCurrentUserId(authentication);
+        InterviewRecord record = interviewService.createInterview(request, currentUserId);
+        return Result.success(record);
+    }
+    
+    @PostMapping("/{id}/audio")
+    public Result&lt;Void&gt; uploadAudio(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication) {
+        Long currentUserId = getCurrentUserId(authentication);
+        interviewService.uploadAudioAndAnalyze(id, file, currentUserId);
+        return Result.success(null);
+    }
+    
+    @GetMapping
+    public Result&lt;IPage&lt;InterviewRecord&gt;&gt; listInterviews(
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "20") Integer pageSize,
+            Authentication authentication) {
+        Long currentUserId = getCurrentUserId(authentication);
+        IPage&lt;InterviewRecord&gt; page = interviewService.listInterviews(
+                userId, status, pageNum, pageSize);
+        return Result.success(page);
+    }
+    
+    @GetMapping("/stats")
+    public Result&lt;Map&lt;String, Integer&gt;&gt; getInterviewStats() {
+        Map&lt;String, Integer&gt; stats = interviewService.getInterviewStats();
+        return Result.success(stats);
+    }
+    
+    private Long getCurrentUserId(Authentication authentication) {
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        return 1L; // 简化示例
+    }
+}</code></pre>
+    
+    <h3>参数校验</h3>
+    <pre><code>@Data
+public class CreateInterviewRequest {
+    
+    @NotBlank(message = "面试标题不能为空")
+    @Size(max = 200, message = "面试标题不能超过200个字符")
+    private String title;
+    
+    private Long userId;
+}</code></pre>
+    
+    <h3>获取当前用户</h3>
+    <pre><code>Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
+    UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+    String username = userDetails.getUsername();
+}</code></pre>
+    
+    <h2>全局异常处理</h2>
+    
+    <p>全局异常处理就像餐厅的"万能服务员"——不管发生什么问题，都能给顾客一个合理的解释。</p>
+    
+    <pre><code>@RestControllerAdvice
+public class GlobalExceptionHandler {
+    
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity&lt;Result&lt;Void&gt;&gt; handleBusinessException(BusinessException e) {
+        log.warn("业务异常: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Result.error(e.getCode(), e.getMessage()));
+    }
+    
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity&lt;Result&lt;Void&gt;&gt; handleValidationException(
+            MethodArgumentNotValidException e) {
+        String message = e.getBindingResult().getFieldErrors().stream()
+                .map(error -&gt; error.getField() + ": " + error.getDefaultMessage())
+                .collect(Collectors.joining("; "));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Result.error(400, message));
+    }
+    
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity&lt;Result&lt;Void&gt;&gt; handleAccessDeniedException(AccessDeniedException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Result.error(403, "无权限访问"));
+    }
+    
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity&lt;Result&lt;Void&gt;&gt; handleException(Exception e) {
+        log.error("系统异常", e);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Result.error(500, "系统内部错误"));
+    }
+}</code></pre>
+    
+    <div class="callout success">
+        <strong>最佳实践：</strong> 使用 @RestControllerAdvice 可以统一处理所有 Controller 的异常，避免在每个 Controller 中重复编写异常处理代码。
+    </div>
+    
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>以下哪个 URL 设计符合 RESTful 规范？</p>
+        <option onclick="checkAnswer(this, false)">A. POST /createInterview</option>
+        <option onclick="checkAnswer(this, true)">B. POST /interview</option>
+        <option onclick="checkAnswer(this, false)">C. GET /interview/getById?id=1</option>
+        <option onclick="checkAnswer(this, false)">D. DELETE /interview/delete?id=1</option>
+    </div>
+    
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>当你成功创建一个面试后，应该返回哪个状态码？</p>
+        <option onclick="checkAnswer(this, false)">A. 200 OK</option>
+        <option onclick="checkAnswer(this, true)">B. 201 Created</option>
+        <option onclick="checkAnswer(this, false)">C. 204 No Content</option>
+        <option onclick="checkAnswer(this, false)">D. 302 Redirect</option>
+    </div>
+    
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了 RESTful API 设计后，我们将学习如何实现完整的业务逻辑，把各个模块串联起来。请阅读 <a href="https://restfulapi.net/">RESTful API 设计指南</a> 作为补充材料。
+    </div>
+    
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <div class="navigation">
+            <a href="0015-async-websocket-push.html">上一课：异步调用与WebSocket推送</a>
+            <a href="0017-business-logic-implementation.html">下一课：业务逻辑实现</a>
+        </div>
+    </div>
+    
+    <script>
+        function checkAnswer(element, isCorrect) {
+            const options = element.parentElement.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+                opt.style.pointerEvents = 'none';
+            });
+            
+            if (isCorrect) {
+                element.classList.add('correct');
+                element.innerHTML += ' ✓ 正确！';
+            } else {
+                element.classList.add('incorrect');
+                element.innerHTML += ' ✗ 不正确。';
+            }
+        }
+    </script>
+    </main>
+</body>
+</html>

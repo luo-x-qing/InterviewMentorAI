@@ -1,249 +1,332 @@
-# InterviewMentorAI 后端架构说明
+# InterviewMentorAI - Java 业务后端
 
-## 项目概述
+> Spring Boot 3.2.5 + Java 17 多租户 SaaS 业务后端
 
-InterviewMentorAI 是一个AI驱动的面试复盘助手，后端采用 Spring Boot 3 + Spring AI 架构，实现了一套完整的 AI Agent 流水线，用于处理面试录音并生成结构化复盘报告。
+---
 
-## 架构设计
+## 技术栈
 
-### 整体架构
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| Java | 17 | 运行时 |
+| Spring Boot | 3.2.5 | Web 框架 |
+| Spring Security | 6.x | 认证授权（JWT） |
+| MyBatis-Plus | 3.5.6 | ORM |
+| MySQL | 8.0+ | 数据库 |
+| WebSocket | STOMP + SockJS | 实时推送 |
+| Lombok | - | 代码简化 |
+
+---
+
+## 架构概览
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      AudioController                            │
-│                    (音频上传控制器)                               │
+│                        分层架构                                  │
+├─────────────────────────────────────────────────────────────────┤
+│  Controller     REST API 入口 + 参数校验 + 权限注解              │
+│       ↓                                                         │
+│  Service        业务逻辑层（事务管理、业务规则）                  │
+│       ↓                                                         │
+│  Mapper         数据访问层（MyBatis-Plus + XML 复杂查询）        │
+│       ↓                                                         │
+│  Entity         数据实体（对应数据库表）                          │
+├─────────────────────────────────────────────────────────────────┤
+│  Security       JWT Filter Chain（认证 → 租户解析 → 权限校验）   │
+│  Tenant         多租户上下文（ThreadLocal + Filter）             │
+│  WebSocket      STOMP 推送服务（异步状态通知）                   │
+│  Async          线程池 + @Async（AI 分析异步调用）               │
 └─────────────────────────────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                  InterviewRecordService                          │
-│                   (面试记录服务)                                  │
-└─────────────────────────────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                  InterviewAgentGraph                             │
-│                   (AI Agent流水线调度器)                          │
-└─────────────────────────────────────────────────────────────────┘
-                                 │
-         ┌───────────────────────┼───────────────────────┐
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
-│  AsrService     │   │ DialogueParse   │   │ AnswerEvaluate  │
-│  (Whisper ASR)  │   │    Node         │   │    Node         │
-└─────────────────┘   └─────────────────┘   └─────────────────┘
-         │                       │                       │
-         │                       ▼                       │
-         │               ┌─────────────────┐            │
-         │               │   LlmService    │            │
-         │               │ (大模型调用)     │            │
-         │               └─────────────────┘            │
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────────┐
-                    │      ReportGenNode           │
-                    │   (复盘报告生成节点)          │
-                    └─────────────────────────────┘
 ```
 
-### AI Agent 流水线
+---
 
-项目采用状态图（StateGraph）模式编排 AI 流程，全局状态 `AgentState` 贯穿整个流水线：
+## 多租户设计
+
+### 数据隔离策略
+
+- **平台数据**（`platform` schema）：用户、角色、权限、租户、订阅
+- **租户数据**（`tenant_{id}` schema）：面试记录、评估、报告、知识库
+
+### 租户上下文流转
 
 ```
-音频上传 → Whisper ASR → DialogueParseNode → AnswerEvaluateNode → ReportGenNode
-    │           │               │                    │                   │
-    │           │               │                    │                   │
-    ▼           ▼               ▼                    ▼                   ▼
- [初始化]  [语音转文字]    [说话人分离]          [回答评估]        [报告生成]
+HTTP Request
+  ↓
+JwtAuthenticationFilter  → 解析 JWT，提取 username
+  ↓
+TenantFilter             → 从 JWT/请求头解析 tenantId
+  ↓                         → 查询 schemaName
+TenantContext.set()      → ThreadLocal 存储 { tenantId, schemaName }
+  ↓
+Controller / Service     → 通过 TenantContext.getTenantId() 获取当前租户
+  ↓
+TenantContext.clear()    → 请求结束，清理 ThreadLocal
 ```
 
-每个节点接收 `AgentState`，处理后返回更新的 `AgentState`，确保数据在节点间正确传递。
+---
 
-## 目录结构
+## 认证授权
+
+### JWT 双 Token 机制
+
+| Token | 有效期 | 用途 |
+|-------|--------|------|
+| accessToken | 2 小时 | API 鉴权 |
+| refreshToken | 7 天 | 刷新 accessToken |
+
+### 三层角色 RBAC
+
+| 角色 | 权限 |
+|------|------|
+| `PLATFORM_ADMIN` | 全部权限：租户管理、订阅管理、成员管理 |
+| `TENANT_ADMIN` | 租户内管理：成员管理、知识库、查看所有面试 |
+| `TENANT_MEMBER` | 基础操作：创建面试、上传音频、查看自己报告 |
+
+### 预置权限码
+
+```
+interview:create, interview:view, interview:view_all,
+report:view, report:edit, report:export,
+knowledge:manage, tenant:manage, member:manage, subscription:manage
+```
+
+---
+
+## 业务模块
+
+### 1. 认证模块 (Auth)
+
+| 接口 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/auth/login` | POST | 用户登录 | 公开 |
+| `/auth/register` | POST | 用户注册（默认分配 TENANT_MEMBER） | 公开 |
+| `/auth/refresh` | POST | 刷新 Token | 公开 |
+
+### 2. 用户模块 (User)
+
+| 接口 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/user/profile` | GET | 获取当前用户信息 | 已认证 |
+| `/user/profile` | PUT | 修改个人信息 | 已认证 |
+| `/user/password` | PUT | 修改密码 | 已认证 |
+
+### 3. 租户管理 (Tenant)
+
+| 接口 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/tenant/create` | POST | 创建租户 | PLATFORM_ADMIN |
+| `/tenant/members` | GET | 租户成员列表 | TENANT_ADMIN |
+| `/tenant/invite` | POST | 邀请成员 | TENANT_ADMIN |
+
+### 4. 订阅管理 (Subscription)
+
+| 接口 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/subscription/current` | GET | 当前订阅状态 | 已认证 |
+| `/subscription/stats` | GET | 订阅统计 | 已认证 |
+| `/subscription/upgrade` | POST | 升级计划 | TENANT_ADMIN |
+
+### 5. 面试模块 (Interview)
+
+| 接口 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/interview` | POST | 创建面试记录 | TENANT_MEMBER |
+| `/interview/{id}/audio` | POST | 上传音频 + 触发 AI | TENANT_MEMBER |
+| `/interview/{id}` | GET | 面试详情 | 已认证 |
+| `/interview/list` | GET | 本租户面试列表 | 已认证 |
+| `/interview/my` | GET | 我的面试列表 | TENANT_MEMBER |
+
+### 6. 面试会话 (InterviewSession)
+
+| 接口 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/session/create` | POST | HR 创建面试会话 | TENANT_ADMIN |
+| `/session/code/{code}` | GET | 候选人通过邀请码查看 | 公开 |
+| `/session/code/{code}/valid` | GET | 检查邀请码有效性 | 公开 |
+| `/session/list` | GET | HR 会话列表 | TENANT_ADMIN |
+
+### 7. 评估与报告 (Report)
+
+| 接口 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/report/interview/{id}/evaluations` | GET | 评估列表 | 已认证 |
+| `/report/evaluation/{id}/correct` | PUT | HR 逐条修正评估 | report:edit |
+| `/report/interview/{id}/report` | GET | 获取复盘报告 | 已认证 |
+| `/report/interview/{id}/report` | PUT | HR 修正报告内容 | report:edit |
+| `/report/list` | GET | 报告列表 | 已认证 |
+| `/report/stats` | GET | 租户报告统计 | 已认证 |
+| `/report/pending-review` | GET | 待 HR 修正列表 | TENANT_ADMIN |
+
+### 8. 知识库 (Knowledge)
+
+| 接口 | 方法 | 说明 | 权限 |
+|------|------|------|------|
+| `/knowledge` | POST | 创建知识库 | knowledge:manage |
+| `/knowledge/{id}` | PUT | 更新文档 | knowledge:manage |
+| `/knowledge/{id}` | DELETE | 删除文档 | knowledge:manage |
+| `/knowledge/{id}` | GET | 文档详情 | 已认证 |
+| `/knowledge/list` | GET | 文档列表 | 已认证 |
+| `/knowledge/search` | GET | 搜索文档 | 已认证 |
+
+---
+
+## 异步调用流程
+
+```
+Flutter 上传音频
+  ↓
+InterviewController.uploadAudio()
+  1. 保存文件到磁盘
+  2. 创建 t_interview (PROCESSING)
+  3. 返回 { interviewId, status: "PROCESSING" }
+  └──→ @Async aiAnalysisExecutor
+        ├─ STOMP 推送: /topic/interview/{id} → PROCESSING
+        ├─ RestClient POST http://localhost:8000/api/v1/analysis/analyze
+        │    (Python AI 后端处理中...)
+        ├─ 收到响应后:
+        │    ├─ 更新 t_interview: raw_transcript, status=COMPLETED
+        │    ├─ 插入 t_evaluation: 逐条评估结果
+        │    ├─ 插入 t_report: report_markdown
+        │    └─ STOMP 推送: /topic/interview/{id} → COMPLETED
+        └─ 异常处理:
+             ├─ 更新 t_interview: status=FAILED
+             └─ STOMP 推送: /topic/interview/{id} → FAILED
+```
+
+---
+
+## STOMP 推送协议
+
+| 主题 | 用途 | 数据 |
+|------|------|------|
+| `/topic/interview/{id}` | 面试状态变更 | status, message |
+| `/topic/interview/{id}/progress` | AI 分析进度 | progress(0-100), step |
+| `/topic/interview/{id}/complete` | 分析完成 | reportId |
+| `/topic/interview/{id}/error` | 分析失败 | error |
+| `/topic/user/{userId}/notifications` | HR 修正通知 | reportId, message |
+
+---
+
+## 数据库设计
+
+### Platform Schema（公共平台）
+
+| 表名 | 说明 |
+|------|------|
+| `sys_tenant` | 租户表 |
+| `sys_user` | 用户表 |
+| `sys_role` | 角色表 |
+| `sys_permission` | 权限表 |
+| `sys_user_role` | 用户角色关联 |
+| `sys_role_permission` | 角色权限关联 |
+| `sys_subscription` | 订阅计划 |
+
+### Tenant Schema（每租户独立）
+
+| 表名 | 说明 |
+|------|------|
+| `t_interview` | 面试记录 |
+| `t_evaluation` | 逐条评估 |
+| `t_report` | 复盘报告（AI原始 + HR修正后） |
+| `t_interview_session` | 面试会话（邀请码） |
+| `t_knowledge_base` | 知识库 |
+| `t_knowledge_doc` | 知识库文档 |
+| `knowledge_chunk` | 文档片段（向量检索） |
+| `evaluation_template` | 评估模板 |
+| `audit_log` | 操作日志 |
+
+---
+
+## 项目结构
 
 ```
 backend_springai/
-├── src/main/java/com/ecommerce/backend_springai/
-│   ├── config/                    # 配置类
-│   │   ├── CorsConfig.java       # 跨域配置
-│   │   ├── WebClientConfig.java  # WebClient配置
-│   │   └── WebConfig.java        # Web配置
-│   ├── controller/                # 控制器层
-│   │   ├── AudioController.java  # 音频上传控制器
-│   │   └── RecordController.java # 记录查询控制器
-│   ├── entity/                    # 实体类
-│   │   ├── DialogueItem.java     # 对话项实体
-│   │   ├── InterviewRecord.java  # 面试记录实体
-│   │   └── dto/                  # 数据传输对象
-│   │       ├── req/              # 请求DTO
-│   │       │   └── AudioUploadReq.java
-│   │       └── resp/             # 响应DTO
-│   │           └── AnalysisResp.java
-│   ├── repository/                # 数据访问层
-│   │   └── InterviewRecordMapper.java
-│   ├── service/                   # 业务逻辑层
-│   │   ├── AsrService.java       # 语音转文字服务
-│   │   ├── LlmService.java       # 大模型调用服务
-│   │   ├── InterviewRecordService.java  # 记录服务
-│   │   ├── InterviewAgentGraph.java     # Agent流水线调度器
-│   │   └── agent/                # Agent节点
-│   │       ├── AgentState.java   # 全局状态实体
-│   │       ├── nodes/            # 处理节点
-│   │       │   ├── DialogueParseNode.java    # 说话人分离节点
-│   │       │   ├── AnswerEvaluateNode.java   # 回答评估节点
-│   │       │   └── ReportGenNode.java        # 报告生成节点
-│   │       └── prompts/          # 提示词模板
-│   │           └── AgentPromptTemplate.java
-│   └── util/                      # 工具类
-│       ├── FileUtil.java         # 文件操作工具
-│       └── ResultUtil.java       # 统一响应工具
+├── pom.xml
+├── src/main/java/com/interview/mentor/
+│   ├── InterviewMentorApplication.java
+│   ├── config/
+│   │   ├── SecurityConfig.java          # Spring Security + JWT FilterChain
+│   │   └── CorsConfig.java              # 跨域配置
+│   ├── security/
+│   │   ├── JwtTokenProvider.java         # JWT 生成/验证
+│   │   ├── JwtAuthenticationFilter.java  # JWT 认证过滤器
+│   │   └── CustomUserDetailsService.java # 用户详情加载
+│   ├── tenant/
+│   │   ├── TenantContext.java            # ThreadLocal 租户上下文
+│   │   ├── TenantFilter.java            # 租户解析过滤器
+│   │   └── TenantService.java           # 租户服务
+│   ├── async/
+│   │   └── AsyncConfig.java             # 线程池配置
+│   ├── websocket/
+│   │   ├── WebSocketConfig.java         # STOMP + SockJS
+│   │   └── WsPushService.java           # 推送服务
+│   ├── exception/
+│   │   ├── BusinessException.java       # 业务异常
+│   │   └── GlobalExceptionHandler.java  # 全局异常处理
+│   ├── entity/                           # 18个实体类
+│   ├── entity/dto/                       # 请求/响应 DTO
+│   ├── mapper/                           # 12个Mapper接口
+│   ├── service/                          # 6个Service（接口+实现）
+│   └── controller/                       # 8个Controller
 ├── src/main/resources/
-│   ├── application.yml            # 应用配置
-│   └── schema.sql                # 数据库初始化脚本
-└── pom.xml                        # Maven依赖
+│   ├── application.yml                   # 应用配置
+│   ├── schema-platform.sql              # 平台建表脚本
+│   ├── schema-tenant.sql                # 租户建表脚本
+│   └── mapper/                           # MyBatis XML
+└── INTERVIEW-MVP-PLAN.html              # MVP 技术方案
 ```
 
-## 核心模块说明
+---
 
-### 1. 音频上传模块（步骤1-3）
+## 快速开始
 
-**AudioController** 负责接收前端上传的音频文件：
+### 环境要求
 
-- 验证音频格式（wav/mp3/m4a）和大小（最大200MB）
-- 生成唯一文件标识（UUID）
-- 存储音频文件到服务端本地目录
-- 创建面试记录（初始化AI流水线上下文）
-- 异步触发AI处理流水线
-- 返回「AI排队处理中」状态
+- JDK 17+
+- MySQL 8.0+
+- Maven 3.8+
 
-### 2. 语音转文字模块（Whisper ASR）
+### 数据库初始化
 
-**AsrService** 调用 Whisper API 进行语音识别：
+```sql
+-- 创建平台数据库
+CREATE DATABASE platform DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE platform;
+SOURCE schema-platform.sql;
 
-- 读取音频文件
-- 发送POST请求到 Whisper API
-- 解析响应，提取转写文本
-- 返回原始转写文本
-
-### 3. 说话人分离模块（DialogueParseNode）
-
-**DialogueParseNode** 通过AI语义分析区分说话人：
-
-- 读取ASR输出的原始流水文本
-- 使用大模型分析对话语义
-- 自动区分面试官（INTERVIEWER）和面试者（CANDIDATE）
-- 生成结构化问答对
-
-### 4. 回答评估模块（AnswerEvaluateNode）
-
-**AnswerEvaluateNode** 逐题评估面试者回答：
-
-- 遍历每个问答对
-- 调用LLM进行差异化评估
-- 熟练项：精简概括优点
-- 薄弱项：详细修正和拓展知识点
-- 输出评估结果（得分、等级、优缺点等）
-
-### 5. 报告生成模块（ReportGenNode）
-
-**ReportGenNode** 生成完整的复盘报告：
-
-- 汇总所有评估结果
-- 生成Markdown格式报告
-- 包含：整体概况、逐题复盘、知识点汇总、改进建议
-
-## 配置说明
-
-### application.yml
-
-```yaml
-# LLM配置
-llm:
-  api-key: ${LLM_API_KEY:sk-xxx}        # API密钥
-  base-url: ${LLM_BASE_URL:https://api.deepseek.com/v1}  # API地址
-  model-name: deepseek-chat              # 模型名称
-  temperature: 0.3                       # 温度参数
-
-# Whisper ASR配置
-asr:
-  api-key: ${ASR_API_KEY:sk-xxx}        # API密钥
-  base-url: ${ASR_BASE_URL:https://api.openai.com/v1}  # API地址
-
-# 音频存储配置
-audio:
-  storage:
-    path: ./data/audio                   # 存储路径
+-- 为每个租户执行（复制 schema-tenant.sql）
+-- CREATE DATABASE tenant_1 ...;
+-- USE tenant_1;
+-- SOURCE schema-tenant.sql;
 ```
 
-## API接口
-
-### 1. 上传面试录音
-
-**POST** `/api/audio/upload`
-
-请求参数：
-- `file`: 音频文件（multipart/form-data）
-- `title`: 面试标题（可选）
-- `userId`: 用户ID（可选）
-- `durationSeconds`: 面试时长（可选）
-
-响应：
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "interviewId": 1001,
-    "audioFileId": "uuid-xxx",
-    "status": "PROCESSING",
-    "message": "音频上传成功，AI复盘流水线已启动"
-  }
-}
-```
-
-### 2. 查询面试记录列表
-
-**GET** `/api/record/list`
-
-查询参数：
-- `page`: 页码（默认1）
-- `size`: 每页条数（默认10）
-
-### 3. 查询面试记录详情
-
-**GET** `/api/record/{id}`
-
-### 4. 查询流水线状态
-
-**GET** `/api/record/{id}/status`
-
-## 运行方式
-
-### 1. 配置环境变量
-
-```bash
-export LLM_API_KEY=your-api-key
-export ASR_API_KEY=your-api-key
-```
-
-### 2. 启动应用
+### 启动
 
 ```bash
 cd backend_springai
+
+# 配置环境变量
+export MYSQL_PASSWORD=your-password
+export JWT_SECRET=your-secret-key
+
+# 编译运行
 mvn spring-boot:run
 ```
 
-### 3. 访问H2控制台
+服务默认运行在 `http://localhost:8080`
 
-浏览器访问：http://localhost:8080/h2-console
+---
 
-## 注意事项
+## 配置说明
 
-1. **API密钥安全**：请勿将API密钥提交到代码仓库
-2. **音频文件大小**：最大支持200MB
-3. **处理时间**：完整流水线处理时间取决于音频长度，通常需要1-5分钟
-4. **错误处理**：流水线异常时会自动更新数据库状态为FAILED
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `server.port` | 8080 | 服务端口 |
+| `spring.datasource.url` | localhost:3306/platform | MySQL 连接 |
+| `jwt.secret` | - | JWT 签名密钥 |
+| `jwt.access-token-expiration` | 7200000 | accessToken 过期时间(ms) |
+| `jwt.refresh-token-expiration` | 604800000 | refreshToken 过期时间(ms) |
+| `python.ai.backend.url` | http://localhost:8000 | Python AI 后端地址 |
+| `async.core-pool-size` | 4 | AI 分析线程池核心数 |
+| `async.max-pool-size` | 8 | AI 分析线程池最大数 |

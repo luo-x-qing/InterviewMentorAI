@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spring Boot 3 + Java 17 基础设施 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="with-sidebar">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>InterviewMentorAI</h2>
+            <div class="subtitle">教学工作区</div>
+        </div>
+        
+        <div class="sidebar-learning-record">
+            <a href="../learning-records/0002-saas-backend-learning-start.md">
+                <span class="icon">&#128213;</span>
+                <span>学习记录</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title rag">RAG 技术课程</div>
+            <nav class="sidebar-nav">
+                <a href="0001-rag-core-concepts.html">0001 - RAG核心概念</a>
+                <a href="0002-document-chunking.html">0002 - 文档分块策略</a>
+                <a href="0003-vector-embeddings.html">0003 - 向量嵌入技术</a>
+                <a href="0004-retrieval-strategies.html">0004 - 检索策略与优化</a>
+                <a href="0005-rag-evaluation.html">0005 - RAG系统评估</a>
+                <a href="0006-interview-mentor-integration.html">0006 - InterviewMentorAI集成</a>
+                <a href="0007-implementation-guide.html">0007 - 实现指南</a>
+                <a href="0008-optimization-extension.html">0008 - 优化与扩展</a>
+                <a href="0009-summary-next-steps.html">0009 - 总结与下一步</a>
+            </nav>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title saas">SaaS 后端架构</div>
+            <nav class="sidebar-nav">
+                <a href="0010-saas-multi-tenant-core.html">0010 - SaaS多租户架构核心概念</a>
+                <a href="0011-springboot3-java17-infra.html" class="active">0011 - Spring Boot 3 + Java 17</a>
+                <a href="0012-jwt-auth-rbac.html">0012 - JWT认证与RBAC权限体系</a>
+                <a href="0013-multi-tenant-data-isolation.html">0013 - 多租户数据隔离设计</a>
+                <a href="0014-mybatis-plus-db-design.html">0014 - MyBatis-Plus与数据库设计</a>
+                <a href="0015-async-websocket-push.html">0015 - 异步调用与WebSocket推送</a>
+                <a href="0016-restful-api-controller.html">0016 - RESTful API设计</a>
+                <a href="0017-business-logic-implementation.html">0017 - 业务逻辑实现</a>
+                <a href="0018-architecture-review-exercises.html">0018 - 架构回顾与实战</a>
+            </nav>
+        </div>
+    </aside>
+    
+    <main class="main-content">
+    <h1>Spring Boot 3 + Java 17 基础设施</h1>
+
+    <div class="callout info">
+        <strong>学习目标：</strong>
+        <ul>
+            <li>理解为什么选择 Spring Boot 3 + Java 17 作为技术栈</li>
+            <li>掌握分层架构的设计思想和各层职责</li>
+            <li>理解构造器注入的优势和使用方式</li>
+            <li>能够搭建 Spring Boot 项目的基础设施</li>
+        </ul>
+    </div>
+
+    <h2>为什么选择 Spring Boot 3 + Java 17？</h2>
+    <p>想象一下你要盖一栋大楼（开发一个完整的SaaS后端），你当然不想从挖土、烧砖开始。Spring Boot 就像一套预制件系统——它帮你把基础的、重复的脏活累活都干好了，你只需要专注于自己的业务逻辑。</p>
+    <p>Spring Boot 3 是 Spring 框架的重大升级，基于 Java 17 构建。就像手机系统升级到最新版本一样，你不仅获得了新功能，还得到了更好的性能和安全性。</p>
+
+    <h3>Java 17 新特性一览</h3>
+    <table>
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">特性</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">说明</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">类比</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Record 类</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">简化不可变数据类的定义</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">像自动生成的快递单，格式固定、内容不可改</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Sealed Classes</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">限制类的继承层次</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">像VIP俱乐部，只允许指定的成员加入</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Pattern Matching</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">增强的模式匹配能力</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">像智能快递柜，自动识别包裹大小并分配格子</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Text Blocks</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">多行字符串支持</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">像便签本，可以自由换行而不用到处加转义符</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Switch 表达式</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">增强的 switch 语法</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">像交通信号灯，更加智能和安全的路口决策</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Spring Boot 3 核心升级</h3>
+    <table>
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">升级项</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">影响</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Jakarta EE 9+</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">包名从 javax.* 变为 jakarta.*（需要更新所有 import）</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">GraalVM 原生编译</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">可以编译成独立可执行文件，启动速度提升数十倍</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">HTTP 接口客户端</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">声明式 HTTP 调用，像写本地方法一样调用远程 API</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Observability</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">内置链路追踪和指标收集，不用额外引入监控框架</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Virtual Threads</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">轻量级线程，一个应用可以轻松处理数十万并发</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="callout success">
+        <strong>一句话总结：</strong> Spring Boot 3 + Java 17 就像给你的项目装上了一台涡轮增压发动机——更快、更安全、更现代。
+    </div>
+
+    <h2>分层架构：餐厅运作模式</h2>
+    <p>我们的后端项目采用了经典的分层架构。为了让你更好地理解，我用餐厅来做类比：</p>
+
+    <table>
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">层级</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">餐厅角色</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">职责</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Controller</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">服务员</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">接待顾客（接收请求）、记录点单（解析参数）、上菜（返回响应）</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Service</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">厨师</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">处理核心业务（烹饪）、制定流程（事务管理）、保证质量（数据校验）</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Mapper</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">仓库管理员</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">管理食材（数据库操作）、进出货记录（CRUD）、盘点库存（查询）</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Entity</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">菜单</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">定义菜品结构（数据模型）、标注原料（字段映射）</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="callout info">
+        <strong>为什么这样分层？</strong> 就像餐厅里服务员不能直接进厨房做饭、厨师不用亲自端盘子一样，分层让每个角色各司其职，系统才能高效运转。如果服务员既要点单又要做菜，那厨房就乱套了。
+    </div>
+
+    <h2>项目结构概览</h2>
+    <p>来看看我们项目的文件结构，就像看一栋大楼的楼层平面图：</p>
+
+    <pre><code>com.interview.mentor/
+├── InterviewMentorApplication.java    # 大楼入口（应用启动类）
+├── config/                            # 物业管理处（配置类）
+│   ├── SecurityConfig.java            # 门禁系统配置
+│   └── CorsConfig.java                # 访客管理配置
+├── security/                          # 安保部门（安全模块）
+│   ├── JwtTokenProvider.java          # 工牌生成/验证
+│   ├── JwtAuthenticationFilter.java   # 门卫（过滤器）
+│   └── CustomUserDetailsService.java  # 住户信息库
+├── tenant/                            # 房管部门（多租户模块）
+│   ├── TenantContext.java             # 当前房间号（上下文）
+│   ├── TenantFilter.java              # 楼层门禁（过滤器）
+│   └── TenantService.java             # 房管服务
+├── async/                             # 快递驿站（异步模块）
+│   └── AsyncConfig.java               # 快递柜配置
+├── websocket/                         # 对讲机（WebSocket模块）
+│   ├── WebSocketConfig.java           # 通信协议配置
+│   └── WsPushService.java             # 消息推送服务
+├── exception/                         # 应急处理中心（异常处理）
+│   ├── BusinessException.java         # 业务异常
+│   └── GlobalExceptionHandler.java    # 全局异常处理
+├── entity/                            # 图纸（实体类）
+├── entity/dto/                        # 快递单（数据传输对象）
+├── mapper/                            # 仓库（数据访问层）
+├── service/                           # 厨房（业务逻辑层）
+├── service/impl/                      # 主厨团队（服务实现）
+└── controller/                        # 服务台（控制器层）</code></pre>
+
+    <h2>核心配置文件</h2>
+
+    <h3>pom.xml — 项目的"购物清单"</h3>
+    <p>pom.xml 就像你搬新家前的购物清单，列明了所有需要的家具和电器：</p>
+    <pre><code>&lt;parent&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-parent&lt;/artifactId&gt;
+    &lt;version&gt;3.2.5&lt;/version&gt;
+&lt;/parent&gt;
+
+&lt;properties&gt;
+    &lt;java.version&gt;17&lt;/java.version&gt;
+    &lt;mybatis.plus.version&gt;3.5.6&lt;/mybatis.plus.version&gt;
+&lt;/properties&gt;
+
+&lt;dependencies&gt;
+    <!-- Spring Boot Web - 基础家具（Web服务器） -->
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+        &lt;artifactId&gt;spring-boot-starter-web&lt;/artifactId&gt;
+    &lt;/dependency&gt;
+
+    <!-- Spring Security - 门禁系统 -->
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+        &lt;artifactId&gt;spring-boot-starter-security&lt;/artifactId&gt;
+    &lt;/dependency&gt;
+
+    <!-- MyBatis Plus - 智能仓库管理系统 -->
+    &lt;dependency&gt;
+        &lt;groupId&gt;com.baomidou&lt;/groupId&gt;
+        &lt;artifactId&gt;mybatis-plus-spring-boot3-starter&lt;/artifactId&gt;
+        &lt;version&gt;${mybatis.plus.version}&lt;/version&gt;
+    &lt;/dependency&gt;
+
+    <!-- MySQL Driver - 仓库钥匙 -->
+    &lt;dependency&gt;
+        &lt;groupId&gt;com.mysql&lt;/groupId&gt;
+        &lt;artifactId&gt;mysql-connector-j&lt;/artifactId&gt;
+        &lt;scope&gt;runtime&lt;/scope&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+
+    <h3>application.yml — 系统运行参数</h3>
+    <p>这个文件就像餐厅的运营手册，定义了各种运行参数：</p>
+    <pre><code>server:
+  port: 8080                     # 餐厅大门编号（服务端口）
+
+spring:
+  application:
+    name: interview-mentor-ai-java  # 餐厅招牌名
+
+  datasource:                    # 仓库连接信息
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/platform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: ${MYSQL_PASSWORD:root}
+    hikari:
+      minimum-idle: 5             # 最少保持5个连接（待命的仓库钥匙）
+      maximum-pool-size: 20       # 最多同时20个连接
+      idle-timeout: 300000        # 空闲5分钟回收
+      max-lifetime: 1800000       # 连接最长存活30分钟
+
+jwt:
+  secret: ${JWT_SECRET:InterviewMentorAI-2026-Super-Secret-Key}
+  access-token-expiration: 7200000    # 工牌有效期2小时
+  refresh-token-expiration: 604800000 # 补办卡有效期7天
+
+python:
+  ai:
+    backend:
+      url: ${PYTHON_AI_BACKEND_URL:http://localhost:8000}
+
+async:
+  core-pool-size: 4              # 快递驿站基础柜位
+  max-pool-size: 8               # 最多扩展到8个柜位
+  queue-capacity: 50             # 等候区最多50件
+  thread-name-prefix: ai-analysis-</code></pre>
+
+    <h2>分层架构详解</h2>
+    <p>接下来，我们深入看看每一层的代码实现。</p>
+
+    <h3>1. Controller 层（服务员）</h3>
+    <p>服务员的工作很简单：接待顾客、记录需求、把菜端上来。对应到代码里，就是接收HTTP请求、解析参数、返回JSON响应。</p>
+    <pre><code>@RestController
+@RequestMapping("/interview")
+public class InterviewController {
+
+    private final InterviewService interviewService;
+
+    // 构造器注入 - 厨师（Service）必须在开餐前就确定
+    public InterviewController(InterviewService interviewService) {
+        this.interviewService = interviewService;
+    }
+
+    @PostMapping
+    public Result&lt;InterviewRecord&gt; createInterview(
+            @Valid @RequestBody CreateInterviewRequest request,
+            Authentication authentication) {
+        Long currentUserId = getCurrentUserId(authentication);
+        // 记录点单后，直接交给厨师处理
+        InterviewRecord record = interviewService.createInterview(request, currentUserId);
+        return Result.success(record);
+    }
+}</code></pre>
+
+    <h3>2. Service 层（厨师）</h3>
+    <p>厨师是厨房的核心，他决定怎么搭配食材、控制火候、保证质量。对应到代码里，就是业务逻辑、数据校验、事务管理。</p>
+    <pre><code>@Service
+public class InterviewServiceImpl implements InterviewService {
+
+    private final InterviewRecordMapper interviewMapper;
+    private final WsPushService wsPushService;
+
+    // 厨师需要知道仓库在哪（Mapper）和对讲机号码（WebSocket）
+    public InterviewServiceImpl(InterviewRecordMapper interviewMapper,
+                                WsPushService wsPushService) {
+        this.interviewMapper = interviewMapper;
+        this.wsPushService = wsPushService;
+    }
+
+    @Override
+    public InterviewRecord createInterview(CreateInterviewRequest request, Long currentUserId) {
+        InterviewRecord record = new InterviewRecord();
+        record.setTenantId(TenantContext.getTenantId());  // 从门禁卡获取房间号
+        record.setUserId(request.getUserId() != null ? request.getUserId() : currentUserId);
+        record.setStatus("CREATED");
+        record.setCreatedAt(LocalDateTime.now());
+
+        interviewMapper.insert(record);  // 去仓库取食材
+        return record;
+    }
+}</code></pre>
+
+    <h3>3. Mapper 层（仓库管理员）</h3>
+    <p>仓库管理员负责管理所有食材（数据）的进出，使用 MyBatis-Plus 让操作更高效。</p>
+    <pre><code>@Mapper
+public interface InterviewRecordMapper extends BaseMapper&lt;InterviewRecord&gt; {
+
+    // 自定义复杂查询 - 比如"找出某房间所有过期食材"
+    List&lt;Map&lt;String, Object&gt;&gt; selectListWithUser(
+            @Param("tenantId") Long tenantId,
+            @Param("status") String status);
+}</code></pre>
+
+    <h3>4. Entity 层（菜单/图纸）</h3>
+    <p>定义数据模型，就像餐厅的菜单一样，清楚地标注了每道菜（每张表）有哪些字段。</p>
+    <pre><code>@Data
+@TableName("t_interview")
+public class InterviewRecord {
+
+    @TableId(type = IdType.AUTO)
+    private Long id;
+
+    private Long tenantId;       // 房间号
+    private String title;        // 菜名
+    private Long createdBy;      // 点单人
+    private Long candidateId;    // 用餐人
+    private String audioFileId;  // 配料单
+    private String status;       // 制作状态
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+}</code></pre>
+
+    <h2>依赖注入：构造器注入 vs 字段注入</h2>
+    <p>Spring Boot 3 推荐使用<strong>构造器注入</strong>。这就像招聘厨师时，你希望在入职前就把所有工具准备齐，而不是等厨师入职后再到处找。</p>
+
+    <h3>推荐：构造器注入</h3>
+    <pre><code>@Service
+public class UserServiceImpl implements UserService {
+
+    private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
+
+    // 工具在入职时就确定，之后不会变（final）
+    public UserServiceImpl(UserMapper userMapper, PasswordEncoder passwordEncoder) {
+        this.userMapper = userMapper;
+        this.passwordEncoder = passwordEncoder;
+    }
+}</code></pre>
+
+    <h3>不推荐：字段注入</h3>
+    <pre><code>@Service
+public class UserServiceImpl implements UserService {
+
+    @Autowired  // 工具随时可能被替换，不稳定
+    private UserMapper userMapper;
+
+    @Autowired  // 不推荐 - 依赖不透明
+    private PasswordEncoder passwordEncoder;
+}</code></pre>
+
+    <div class="callout warning">
+        <strong>为什么构造器注入更好？</strong>
+        <ul>
+            <li><strong>不可变性：</strong> 字段可以声明为 final，确保依赖一旦注入就不会变</li>
+            <li><strong>可测试性：</strong> 单元测试时可以直接传入 mock 对象，不用启动 Spring 容器</li>
+            <li><strong>显式依赖：</strong> 构造器参数清楚地展示了这个类需要什么</li>
+            <li><strong>循环依赖检测：</strong> Spring 在启动时就能发现循环依赖，而不是运行时才报错</li>
+        </ul>
+    </div>
+
+    <h2>配置类设计</h2>
+
+    <h3>SecurityConfig（门禁系统配置）</h3>
+    <p>就像小区的门禁系统，有些门任何人都能进（/auth/**），有些门需要刷卡（其他接口）。</p>
+    <pre><code>@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(AbstractHttpConfigurer::disable)  // 关闭 CSRF（API 不需要）
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))  // 无状态
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/auth/**").permitAll()      // 登录页不需要门禁
+                .requestMatchers("/session/code/**").permitAll()  // 会议室预约也不需要
+                .anyRequest().authenticated()                 // 其他地方都要刷卡
+            )
+            .addFilterBefore(jwtAuthenticationFilter,
+                    UsernamePasswordAuthenticationFilter.class);  // JWT过滤器插在前面
+
+        return http.build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();  // 密码加密工具
+    }
+}</code></pre>
+
+    <h3>CorsConfig（访客管理配置）</h3>
+    <p>前端和后端通常不在同一个域名，需要配置跨域，就像小区要设置访客进出规则一样。</p>
+    <pre><code>@Configuration
+public class CorsConfig {
+
+    @Bean
+    public CorsFilter corsFilter() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOriginPatterns(List.of("*"));          // 允许所有来源
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
+        config.setAllowedHeaders(List.of("*"));                 // 允许所有头部
+        config.setAllowCredentials(true);                       // 允许携带凭证
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return new CorsFilter(source);
+    }
+}</code></pre>
+
+    <h2>全局异常处理</h2>
+    <p>不管厨房里出了什么意外（异常），前台服务员都应该给顾客一个友好的提示，而不是让厨师跑出来解释。全局异常处理就是这个作用。</p>
+    <pre><code>@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity&lt;Result&lt;Void&gt;&gt; handleBusinessException(BusinessException e) {
+        log.warn("业务异常: {}", e.getMessage());  // 记录日志
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Result.error(e.getCode(), e.getMessage()));  // 返回友好提示
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity&lt;Result&lt;Void&gt;&gt; handleException(Exception e) {
+        log.error("系统异常", e);  // 系统异常需要记录详细信息
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Result.error(500, "系统内部错误"));  // 不要暴露内部细节
+    }
+}</code></pre>
+
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>在分层架构中，如果用户注册需要"验证邮箱格式"、"检查用户名唯一"、"加密密码"，这些逻辑应该放在哪一层？</p>
+        <option onclick="checkAnswer(this, false)">A. Controller 层 - 接收请求时就验证</option>
+        <option onclick="checkAnswer(this, true)">B. Service 层 - 业务逻辑处理</option>
+        <option onclick="checkAnswer(this, false)">C. Mapper 层 - 数据库查询时验证</option>
+        <option onclick="checkAnswer(this, false)">D. Entity 层 - 实体定义时验证</option>
+    </div>
+
+    <h2>Next Step Learning</h2>
+    <p>掌握了基础设施之后，建议你进一步学习：</p>
+    <ul>
+        <li><a href="https://spring.io/projects/spring-boot" target="_blank">Spring Boot 官方文档</a> - 了解最新特性和最佳实践</li>
+        <li><a href="https://www.baeldung.com/spring-dependency-injection" target="_blank">Baeldung: Spring 依赖注入详解</a> - 深入理解 DI 的各种方式</li>
+        <li><a href="https://docs.oracle.com/en/java/javase/17/language/" target="_blank">Java 17 语言特性文档</a> - 掌握 Record、Sealed Classes 等新特性</li>
+    </ul>
+
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了 Spring Boot 基础设施后，我们将深入探讨 JWT 认证和 RBAC 权限体系。请阅读<a href="https://spring.io/guides/gs/securing-web/">Spring Security 官方教程</a>作为补充材料。
+    </div>
+
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <p>
+            <a href="0010-saas-multi-tenant-core.html">上一课: SaaS多租户架构核心概念</a> |
+            <a href="0012-jwt-auth-rbac.html">下一课: JWT认证与RBAC权限体系</a>
+        </p>
+    </div>
+    </main>
+</body>
+</html>

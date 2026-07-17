@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyBatis-Plus与数据库设计 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="with-sidebar">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>InterviewMentorAI</h2>
+            <div class="subtitle">教学工作区</div>
+        </div>
+        
+        <div class="sidebar-learning-record">
+            <a href="../learning-records/0002-saas-backend-learning-start.md">
+                <span class="icon">&#128213;</span>
+                <span>学习记录</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title rag">RAG 技术课程</div>
+            <nav class="sidebar-nav">
+                <a href="0001-rag-core-concepts.html">0001 - RAG核心概念</a>
+                <a href="0002-document-chunking.html">0002 - 文档分块策略</a>
+                <a href="0003-vector-embeddings.html">0003 - 向量嵌入技术</a>
+                <a href="0004-retrieval-strategies.html">0004 - 检索策略与优化</a>
+                <a href="0005-rag-evaluation.html">0005 - RAG系统评估</a>
+                <a href="0006-interview-mentor-integration.html">0006 - InterviewMentorAI集成</a>
+                <a href="0007-implementation-guide.html">0007 - 实现指南</a>
+                <a href="0008-optimization-extension.html">0008 - 优化与扩展</a>
+                <a href="0009-summary-next-steps.html">0009 - 总结与下一步</a>
+            </nav>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title saas">SaaS 后端架构</div>
+            <nav class="sidebar-nav">
+                <a href="0010-saas-multi-tenant-core.html">0010 - SaaS多租户架构核心概念</a>
+                <a href="0011-springboot3-java17-infra.html">0011 - Spring Boot 3 + Java 17</a>
+                <a href="0012-jwt-auth-rbac.html">0012 - JWT认证与RBAC权限体系</a>
+                <a href="0013-multi-tenant-data-isolation.html">0013 - 多租户数据隔离设计</a>
+                <a href="0014-mybatis-plus-db-design.html" class="active">0014 - MyBatis-Plus与数据库设计</a>
+                <a href="0015-async-websocket-push.html">0015 - 异步调用与WebSocket推送</a>
+                <a href="0016-restful-api-controller.html">0016 - RESTful API设计</a>
+                <a href="0017-business-logic-implementation.html">0017 - 业务逻辑实现</a>
+                <a href="0018-architecture-review-exercises.html">0018 - 架构回顾与实战</a>
+            </nav>
+        </div>
+    </aside>
+    
+    <main class="main-content">
+    <h1>MyBatis-Plus 与数据库设计</h1>
+
+    <div class="callout info">
+        <strong>学习目标：</strong>
+        <ul>
+            <li>理解 MyBatis-Plus 的核心优势和使用场景</li>
+            <li>掌握多租户数据库表的设计原则</li>
+            <li>学会使用 LambdaQueryWrapper 进行类型安全的条件查询</li>
+            <li>理解分页插件的配置和使用</li>
+            <li>掌握自动填充机制的实现</li>
+        </ul>
+    </div>
+
+    <h2>MyBatis-Plus：智能仓库管理系统</h2>
+    <p>如果你以前用过 MyBatis，你一定写过大量的 CRUD SQL——增删改查，每个表都要来一遍。MyBatis-Plus 就像给你的仓库装上了一套智能管理系统，常用的出入库操作（CRUD）它都帮你做好了，你只需要写那些特殊的、复杂的查询。</p>
+
+    <p>打个比方：以前你需要手动洗碗（手写每条 SQL），现在有了洗碗机（MyBatis-Plus），日常的碗碟（CRUD）直接放进去就好，你只需要处理那些特殊的锅具（复杂查询）。</p>
+
+    <h3>MyBatis-Plus 核心特性</h3>
+    <table>
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">特性</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">作用</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">类比</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>通用 CRUD</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">内置 BaseMapper，无需编写基础 SQL</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">洗碗机自动处理日常碗碟</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>条件构造器</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LambdaQueryWrapper 链式编程，类型安全</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">智能分拣系统，按条件自动归类</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>分页插件</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">内置分页功能，支持多种数据库</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">自动翻页的库存清单</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>自动填充</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">自动填充创建时间、更新时间、租户ID等</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">自动盖章机，进出库自动盖日期</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>逻辑删除</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">支持软删除，数据可恢复</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">物品不是真扔掉，而是放到"待处理区"</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>代码生成器</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">自动生成 Entity、Mapper、Service 等代码</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">自动生成货架标签和管理文档</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>数据库表设计</h2>
+    <p>在多租户系统中，数据库表设计就像规划一栋大楼的楼层布局——公共区域放一楼，每层楼有独立的办公空间。</p>
+
+    <h3>Platform Schema（一楼公共大厅）</h3>
+    <p>这里存放所有租户共享的表——就像商场一楼的物业管理处，管理所有商铺的信息：</p>
+    <pre><code>-- 租户表 - 住户登记簿
+CREATE TABLE t_tenant (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL,           -- 公司名称
+    schema_name VARCHAR(100) NOT NULL,           -- 对应的楼层编号
+    contact_email VARCHAR(100),                  -- 联系邮箱
+    status      VARCHAR(20) DEFAULT 'ACTIVE',    -- 状态（在住/退租）
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted     TINYINT DEFAULT 0
+);
+
+-- 用户表 - 住户信息
+CREATE TABLE t_user (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id   BIGINT NOT NULL,                 -- 属于哪个租户
+    username    VARCHAR(50) NOT NULL,            -- 登录名
+    password    VARCHAR(200) NOT NULL,           -- 加密密码
+    real_name   VARCHAR(50),                     -- 真实姓名
+    email       VARCHAR(100),
+    phone       VARCHAR(20),
+    avatar      VARCHAR(200),
+    status      VARCHAR(20) DEFAULT 'ACTIVE',
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted     TINYINT DEFAULT 0,
+    UNIQUE KEY uk_username_tenant (username, tenant_id)  -- 同一租户内用户名唯一
+);
+
+-- 角色表 - 权限级别定义
+CREATE TABLE t_role (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id   BIGINT NOT NULL,
+    role_name   VARCHAR(50) NOT NULL,
+    role_code   VARCHAR(50) NOT NULL,
+    description VARCHAR(200),
+    status      VARCHAR(20) DEFAULT 'ACTIVE',
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted     TINYINT DEFAULT 0
+);
+
+-- 用户角色关联表 - 住户权限卡
+CREATE TABLE t_user_role (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id     BIGINT NOT NULL,
+    role_id     BIGINT NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_user_role (user_id, role_id)
+);
+
+-- 权限表 - 可用的钥匙类型
+CREATE TABLE t_permission (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    permission_name VARCHAR(100) NOT NULL,
+    permission_code VARCHAR(100) NOT NULL,
+    description     VARCHAR(200),
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted         TINYINT DEFAULT 0
+);
+
+-- 角色权限关联表 - 权限卡对应的钥匙
+CREATE TABLE t_role_permission (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    role_id         BIGINT NOT NULL,
+    permission_id   BIGINT NOT NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_role_permission (role_id, permission_id)
+);</code></pre>
+
+    <h3>Tenant Schema（每层楼的独立空间）</h3>
+    <p>每个租户都有独立的业务数据表：</p>
+    <pre><code>-- 面试记录表
+CREATE TABLE t_interview (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id       BIGINT NOT NULL,             -- 楼层号
+    title           VARCHAR(200) NOT NULL,        -- 面试标题
+    created_by      BIGINT NOT NULL,              -- 谁创建的
+    candidate_id    BIGINT,                       -- 候选人
+    audio_file_id   VARCHAR(200),                 -- 录音文件
+    status          VARCHAR(20) DEFAULT 'CREATED',
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- 评估记录表
+CREATE TABLE t_evaluation (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    interview_id    BIGINT NOT NULL,
+    dimension       VARCHAR(50) NOT NULL,         -- 评估维度
+    ai_score        INT,                          -- AI评分
+    ai_summary      TEXT,                         -- AI总结
+    hr_score        INT,                          -- HR评分
+    hr_remark       TEXT,                         -- HR备注
+    final_score     INT,                          -- 最终评分
+    final_summary   TEXT,                         -- 最终总结
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- 面试报告表
+CREATE TABLE t_report (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    interview_id    BIGINT NOT NULL,
+    total_score     INT,
+    summary         TEXT,
+    recommendation  VARCHAR(50),
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- 知识库表
+CREATE TABLE t_knowledge_base (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id       BIGINT NOT NULL,
+    name            VARCHAR(200) NOT NULL,
+    description     TEXT,
+    type            VARCHAR(20) DEFAULT 'TENANT',
+    created_by      BIGINT NOT NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- 知识库文档表
+CREATE TABLE t_knowledge_doc (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    knowledge_base_id BIGINT NOT NULL,
+    tenant_id       BIGINT NOT NULL,
+    title           VARCHAR(200) NOT NULL,
+    content         TEXT,
+    doc_type        VARCHAR(20) DEFAULT 'PDF',
+    file_url        VARCHAR(500),
+    created_by      BIGINT NOT NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);</code></pre>
+
+    <h2>Entity 实体映射</h2>
+    <p>Entity 就像数据库表的"身份证"，把表的每个字段映射成 Java 对象的属性。</p>
+
+    <h3>面试记录实体</h3>
+    <pre><code>@Data                           // 自动生成 getter/setter/toString 等
+@TableName("t_interview")       // 指定对应的数据库表名
+public class InterviewRecord {
+
+    @TableId(type = IdType.AUTO)  // 主键，自增
+    private Long id;
+
+    private Long tenantId;         // 租户ID（楼层数）
+    private String title;          // 面试标题
+    private Long createdBy;        // 创建人
+    private Long candidateId;      // 候选人
+    private String audioFileId;    // 录音文件
+    private String status;         // 状态
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+}</code></pre>
+
+    <h3>评估记录实体</h3>
+    <pre><code>@Data
+@TableName("t_evaluation")
+public class Evaluation {
+
+    @TableId(type = IdType.AUTO)
+    private Long id;
+
+    private Long interviewId;
+    private String dimension;        // 评估维度（如"沟通能力"、"技术能力"）
+    private Integer aiScore;         // AI打分
+    private String aiSummary;        // AI总结
+    private Integer hrScore;         // HR打分
+    private String hrRemark;         // HR备注
+    private Integer finalScore;      // 最终分数
+    private String finalSummary;     // 最终总结
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+}</code></pre>
+
+    <h2>Mapper 接口定义</h2>
+
+    <h3>基础 Mapper</h3>
+    <p>继承 BaseMapper 后，常用操作自动就有了：</p>
+    <pre><code>@Mapper
+public interface InterviewRecordMapper extends BaseMapper&lt;InterviewRecord&gt; {
+
+    // BaseMapper 已经提供了这些方法（免费送的）：
+    // insert(T entity)                              - 新增
+    // deleteById(Serializable id)                   - 按ID删除
+    // updateById(T entity)                          - 按ID更新
+    // selectById(Serializable id)                   - 按ID查询
+    // selectList(Wrapper&lt;T&gt; queryWrapper)           - 条件查询
+    // selectPage(Page&lt;T&gt; page, Wrapper&lt;T&gt; queryWrapper) - 分页查询
+
+    // 只需要写那些复杂的、自定义的查询
+    @Select("SELECT i.*, u.real_name as candidate_name " +
+            "FROM t_interview i " +
+            "LEFT JOIN t_user u ON i.candidate_id = u.id " +
+            "WHERE i.tenant_id = #{tenantId} " +
+            "ORDER BY i.created_at DESC")
+    List&lt;Map&lt;String, Object&gt;&gt; selectListWithUser(@Param("tenantId") Long tenantId);
+}</code></pre>
+
+    <h2>条件构造器：智能查询</h2>
+    <p>LambdaQueryWrapper 就像智能搜索引擎——你只需要说"我要找什么"，它自动帮你生成正确的 SQL：</p>
+
+    <pre><code>// 查询面试记录（带多种条件）
+LambdaQueryWrapper&lt;InterviewRecord&gt; wrapper = new LambdaQueryWrapper&lt;&gt;();
+wrapper.eq(InterviewRecord::getTenantId, tenantId)           // 只查当前楼层
+       .eq(InterviewRecord::getCreatedBy, userId)            // 只看自己创建的
+       .eq(status != null, InterviewRecord::getStatus, status)  // 状态过滤（可选）
+       .ge(startTime != null, InterviewRecord::getCreatedAt, startTime)  // 开始时间
+       .le(endTime != null, InterviewRecord::getCreatedAt, endTime)      // 结束时间
+       .orderByDesc(InterviewRecord::getCreatedAt);          // 按创建时间倒序
+
+// 执行分页查询
+Page&lt;InterviewRecord&gt; page = new Page&lt;&gt;(pageNum, pageSize);
+IPage&lt;InterviewRecord&gt; result = interviewMapper.selectPage(page, wrapper);
+
+// 统计各状态面试数量（分组统计）
+Map&lt;String, Integer&gt; stats = interviewMapper.selectMaps(
+        new LambdaQueryWrapper&lt;InterviewRecord&gt;()
+                .select(InterviewRecord::getStatus,
+                        InterviewRecord::getId.count().as("count"))
+                .eq(InterviewRecord::getTenantId, tenantId)
+                .groupBy(InterviewRecord::getStatus)
+).stream().collect(Collectors.toMap(
+        m -&gt; (String) m.get("status"),
+        m -&gt; ((Number) m.get("count")).intValue()
+));</code></pre>
+
+    <div class="callout info">
+        <strong>为什么要用 Lambda 表达式？</strong> 比如 <code>InterviewRecord::getTenantId</code>，如果将来你重命名了 tenantId 字段，编译器会立刻报错。而用字符串 <code>"tenantId"</code> 的话，改了字段名也不会报错，运行时才会发现查询失败。
+    </div>
+
+    <h2>分页查询</h2>
+    <p>分页就像翻书——你不会一次把整本书看完，而是一页一页地翻。MyBatis-Plus 的分页插件帮你自动实现这个功能。</p>
+
+    <h3>配置分页插件</h3>
+    <pre><code>@Configuration
+public class MybatisPlusConfig {
+
+    @Bean
+    public MybatisPlusInterceptor mybatisPlusInterceptor() {
+        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
+        // 添加分页拦截器，指定数据库类型
+        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
+        return interceptor;
+    }
+}</code></pre>
+
+    <h3>使用分页</h3>
+    <pre><code>@Override
+public IPage&lt;InterviewRecord&gt; listInterviews(Long userId, String status,
+                                              Integer pageNum, Integer pageSize) {
+    Long tenantId = TenantContext.getTenantId();
+
+    // 创建分页对象（第几页，每页几条）
+    Page&lt;InterviewRecord&gt; page = new Page&lt;&gt;(pageNum, pageSize);
+
+    LambdaQueryWrapper&lt;InterviewRecord&gt; wrapper = new LambdaQueryWrapper&lt;&gt;()
+            .eq(InterviewRecord::getTenantId, tenantId)   // 只查当前楼层
+            .eq(userId != null, InterviewRecord::getUserId, userId)
+            .eq(status != null, InterviewRecord::getStatus, status)
+            .orderByDesc(InterviewRecord::getCreatedAt);
+
+    return interviewMapper.selectPage(page, wrapper);
+    // 返回值包含：当前页数据、总条数、总页数等
+}</code></pre>
+
+    <h2>自动填充：自动盖章机</h2>
+    <p>每次插入数据时，创建时间、更新时间、租户ID这些字段不需要手动设置，MyBatis-Plus 会自动帮你填充，就像自动盖章机一样。</p>
+
+    <pre><code>@Component
+public class AutoFillHandler implements MetaObjectHandler {
+
+    @Override
+    public void insertFill(MetaObject metaObject) {
+        // 新增时自动填充
+        this.strictInsertFill(metaObject, "createdAt", LocalDateTime::now, LocalDateTime.class);
+        this.strictInsertFill(metaObject, "updatedAt", LocalDateTime::now, LocalDateTime.class);
+
+        // 自动填充租户ID（从当前上下文获取）
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId != null) {
+            this.strictInsertFill(metaObject, "tenantId", () -&gt; tenantId, Long.class);
+        }
+    }
+
+    @Override
+    public void updateFill(MetaObject metaObject) {
+        // 更新时只填充更新时间
+        this.strictUpdateFill(metaObject, "updatedAt", LocalDateTime::now, LocalDateTime.class);
+    }
+}</code></pre>
+
+    <div class="callout success">
+        <strong>自动填充的好处：</strong>
+        <ul>
+            <li>不会忘记设置时间字段（以前经常忘记 setCreatedAt）</li>
+            <li>租户ID从上下文自动获取，不会出错</li>
+            <li>代码更简洁，不用每个 Service 都写一遍填充逻辑</li>
+        </ul>
+    </div>
+
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>使用 LambdaQueryWrapper 而不是字符串 "tenantId" 的主要优势是什么？</p>
+        <option onclick="checkAnswer(this, false)">A. 执行速度更快</option>
+        <option onclick="checkAnswer(this, true)">B. 编译时类型检查，字段重命名时能发现错误</option>
+        <option onclick="checkAnswer(this, false)">C. 代码更短</option>
+        <option onclick="checkAnswer(this, false)">D. 支持更多查询条件</option>
+    </div>
+
+    <h2>Next Step Learning</h2>
+    <p>掌握了 MyBatis-Plus 和数据库设计后，建议你进一步学习：</p>
+    <ul>
+        <li><a href="https://baomidou.com/guides/crud/" target="_blank">MyBatis-Plus CRUD 指南</a> - 了解 BaseMapper 和 IService 的全部方法</li>
+        <li><a href="https://baomidou.com/guides/wrapper/" target="_blank">MyBatis-Plus 条件构造器</a> - 掌握所有查询条件的用法</li>
+        <li><a href="https://baomidou.com/guides/auto-fill/" target="_blank">MyBatis-Plus 自动填充</a> - 深入理解 MetaObjectHandler</li>
+        <li><a href="https://dev.mysql.com/doc/refman/8.0/en/create-table.html" target="_blank">MySQL 建表语法参考</a> - 了解数据库表设计的最佳实践</li>
+    </ul>
+
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了 MyBatis-Plus 和数据库设计后，我们将深入探讨异步调用与 WebSocket 推送。请阅读<a href="https://baomidou.com/" target="_blank">MyBatis-Plus 官方文档</a>作为补充材料。
+    </div>
+
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <p>
+            <a href="0013-multi-tenant-data-isolation.html">上一课: 多租户数据隔离设计</a> |
+            <a href="0015-async-websocket-push.html">下一课: 异步调用与WebSocket推送</a>
+        </p>
+    </div>
+    </main>
+</body>
+</html>

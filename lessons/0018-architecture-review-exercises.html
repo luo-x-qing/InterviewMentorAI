@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>整体架构回顾与实战练习 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="with-sidebar">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>InterviewMentorAI</h2>
+            <div class="subtitle">教学工作区</div>
+        </div>
+        
+        <div class="sidebar-learning-record">
+            <a href="../learning-records/0002-saas-backend-learning-start.md">
+                <span class="icon">&#128213;</span>
+                <span>学习记录</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title rag">RAG 技术课程</div>
+            <nav class="sidebar-nav">
+                <a href="0001-rag-core-concepts.html">0001 - RAG核心概念</a>
+                <a href="0002-document-chunking.html">0002 - 文档分块策略</a>
+                <a href="0003-vector-embeddings.html">0003 - 向量嵌入技术</a>
+                <a href="0004-retrieval-strategies.html">0004 - 检索策略与优化</a>
+                <a href="0005-rag-evaluation.html">0005 - RAG系统评估</a>
+                <a href="0006-interview-mentor-integration.html">0006 - InterviewMentorAI集成</a>
+                <a href="0007-implementation-guide.html">0007 - 实现指南</a>
+                <a href="0008-optimization-extension.html">0008 - 优化与扩展</a>
+                <a href="0009-summary-next-steps.html">0009 - 总结与下一步</a>
+            </nav>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title saas">SaaS 后端架构</div>
+            <nav class="sidebar-nav">
+                <a href="0010-saas-multi-tenant-core.html">0010 - SaaS多租户架构核心概念</a>
+                <a href="0011-springboot3-java17-infra.html">0011 - Spring Boot 3 + Java 17</a>
+                <a href="0012-jwt-auth-rbac.html">0012 - JWT认证与RBAC权限体系</a>
+                <a href="0013-multi-tenant-data-isolation.html">0013 - 多租户数据隔离设计</a>
+                <a href="0014-mybatis-plus-db-design.html">0014 - MyBatis-Plus与数据库设计</a>
+                <a href="0015-async-websocket-push.html">0015 - 异步调用与WebSocket推送</a>
+                <a href="0016-restful-api-controller.html">0016 - RESTful API设计</a>
+                <a href="0017-business-logic-implementation.html">0017 - 业务逻辑实现</a>
+                <a href="0018-architecture-review-exercises.html" class="active">0018 - 架构回顾与实战</a>
+            </nav>
+        </div>
+    </aside>
+    
+    <main class="main-content">
+    <h1>整体架构回顾与实战练习</h1>
+    
+    <div class="callout info">
+        <strong>学习目标：</strong> 回顾 InterviewMentorAI 的完整架构，巩固所学知识，通过实战练习加深理解，为独立开发 SaaS 应用做好准备。
+    </div>
+    
+    <h2>架构全景图</h2>
+    
+    <p>想象一下你在指挥一场交响乐。整个系统就像一个交响乐团，每个部分各司其职，协同演奏：</p>
+    
+    <pre><code>┌─────────────────────────────────────────────────────────────────┐
+│                      InterviewMentorAI 架构                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                    Flutter App                           │   │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │   │
+│  │  │  Home    │  │  Record  │  │  Report  │              │   │
+│  │  │  Page    │  │  Page    │  │  Page    │              │   │
+│  │  └──────────┘  └──────────┘  └──────────┘              │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│         │                 │                 │                  │
+│    HTTP/WS           HTTP/WS           HTTP/WS                │
+│         │                 │                 │                  │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                    Java Backend                          │   │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │   │
+│  │  │Controller│  │ Service  │  │  Mapper  │              │   │
+│  │  └──────────┘  └──────────┘  └──────────┘              │   │
+│  │        │              │              │                   │   │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │   │
+│  │  │ Security │  │  Tenant  │  │   Ws     │              │   │
+│  │  │   JWT    │  │  Filter  │  │  Push    │              │   │
+│  │  └──────────┘  └──────────┘  └──────────┘              │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│         │                 │                                    │
+│    RestClient         JDBC                                   │
+│         │                 │                                    │
+│  ┌──────────┐      ┌──────────┐                              │
+│  │ Python   │      │  MySQL   │                              │
+│  │   AI     │      │  (Schema)│                              │
+│  └──────────┘      └──────────┘                              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘</code></pre>
+    
+    <div class="callout info">
+        <strong>乐团类比：</strong>
+        <ul>
+            <li><strong>Flutter App：</strong> 指挥家（接收用户指令）</li>
+            <li><strong>Java Backend：</strong> 第一小提琴（核心业务处理）</li>
+            <li><strong>Python AI：</strong> 独奏家（AI 分析）</li>
+            <li><strong>MySQL：</strong> 乐谱库（数据存储）</li>
+        </ul>
+    </div>
+    
+    <h2>知识体系回顾</h2>
+    
+    <h3>1. SaaS 多租户架构</h3>
+    <table>
+        <tr>
+            <th>概念</th>
+            <th>说明</th>
+            <th>类比</th>
+        </tr>
+        <tr>
+            <td><strong>隔离策略</strong></td>
+            <td>共享数据库 + 独立 Schema</td>
+            <td>同一栋楼，不同公司租不同楼层</td>
+        </tr>
+        <tr>
+            <td><strong>租户上下文</strong></td>
+            <td>ThreadLocal 存储当前租户 ID</td>
+            <td>每个员工的工作证（知道自己属于哪家公司）</td>
+        </tr>
+        <tr>
+            <td><strong>数据隔离</strong></td>
+            <td>所有查询自动添加 tenantId 条件</td>
+            <td>每份文件都贴有公司标签</td>
+        </tr>
+    </table>
+    
+    <h3>2. Spring Boot 3 + Java 17</h3>
+    <table>
+        <tr>
+            <th>概念</th>
+            <th>说明</th>
+            <th>类比</th>
+        </tr>
+        <tr>
+            <td><strong>分层架构</strong></td>
+            <td>Controller → Service → Mapper → Entity</td>
+            <td>餐厅的组织结构：前厅 → 厨房 → 采购 → 食材</td>
+        </tr>
+        <tr>
+            <td><strong>依赖注入</strong></td>
+            <td>构造器注入优于字段注入</td>
+            <td>新员工入职时领取工作用品（而不是自己去找）</td>
+        </tr>
+        <tr>
+            <td><strong>配置管理</strong></td>
+            <td>application.yml 统一配置</td>
+            <td>公司的规章制度手册</td>
+        </tr>
+    </table>
+    
+    <h3>3. 安全认证</h3>
+    <table>
+        <tr>
+            <th>概念</th>
+            <th>说明</th>
+            <th>类比</th>
+        </tr>
+        <tr>
+            <td><strong>JWT 双 Token</strong></td>
+            <td>accessToken（2小时）+ refreshToken（7天）</td>
+            <td>门禁卡（短期）+ 员工证（长期）</td>
+        </tr>
+        <tr>
+            <td><strong>RBAC 三级角色</strong></td>
+            <td>平台管理员 → 租户管理员 → 租户成员</td>
+            <td>董事长 → 部门经理 → 普通员工</td>
+        </tr>
+        <tr>
+            <td><strong>权限控制</strong></td>
+            <td>@PreAuthorize 注解实现方法级权限</td>
+            <td>不同级别员工能进入不同区域</td>
+        </tr>
+    </table>
+    
+    <h3>4. 异步与实时通信</h3>
+    <table>
+        <tr>
+            <th>概念</th>
+            <th>说明</th>
+            <th>类比</th>
+        </tr>
+        <tr>
+            <td><strong>异步处理</strong></td>
+            <td>@Async + ThreadPoolTaskExecutor</td>
+            <td>拿取餐器等餐（不用站在柜台等）</td>
+        </tr>
+        <tr>
+            <td><strong>WebSocket</strong></td>
+            <td>STOMP 协议 + SockJS 降级</td>
+            <td>对讲机系统（实时通信）</td>
+        </tr>
+        <tr>
+            <td><strong>实时推送</strong></td>
+            <td>SimpMessagingTemplate 广播</td>
+            <td>广播通知（所有人同时收到）</td>
+        </tr>
+    </table>
+    
+    <h3>5. API 设计</h3>
+    <table>
+        <tr>
+            <th>概念</th>
+            <th>说明</th>
+            <th>类比</th>
+        </tr>
+        <tr>
+            <td><strong>RESTful</strong></td>
+            <td>资源导向，HTTP 方法表示操作</td>
+            <td>餐厅菜单（菜品 = 资源，点菜 = 操作）</td>
+        </tr>
+        <tr>
+            <td><strong>统一响应</strong></td>
+            <td>Result&lt;T&gt; 包装类</td>
+            <td>统一格式的账单</td>
+        </tr>
+        <tr>
+            <td><strong>异常处理</strong></td>
+            <td>GlobalExceptionHandler 全局处理</td>
+            <td>万能服务员（处理各种问题）</td>
+        </tr>
+    </table>
+    
+    <h2>实战练习</h2>
+    
+    <h3>练习 1：创建新功能模块</h3>
+    <p>任务：为 InterviewMentorAI 添加"面试模板"功能。</p>
+    
+    <pre><code>需求：
+- HR 可以创建面试模板（包含问题列表）
+- 面试时可以选择模板
+- 候选人按模板问题回答
+
+步骤：
+1. 设计数据库表
+   CREATE TABLE t_interview_template (
+       id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+       tenant_id   BIGINT NOT NULL,
+       name        VARCHAR(200) NOT NULL,
+       description TEXT,
+       questions   JSON,
+       created_by  BIGINT NOT NULL,
+       created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+   );
+
+2. 创建 Entity
+   @Data
+   @TableName("t_interview_template")
+   public class InterviewTemplate { ... }
+
+3. 创建 Mapper
+   @Mapper
+   public interface InterviewTemplateMapper 
+       extends BaseMapper&lt;InterviewTemplate&gt; { ... }
+
+4. 创建 Service
+   @Service
+   public class InterviewTemplateServiceImpl 
+       implements InterviewTemplateService {
+       
+       @Override
+       public InterviewTemplate createTemplate(
+               CreateTemplateRequest request, Long userId) {
+           Long tenantId = TenantContext.getTenantId();
+           // ... 创建模板逻辑
+       }
+   }
+
+5. 创建 Controller
+   @RestController
+   @RequestMapping("/template")
+   public class InterviewTemplateController {
+       
+       @PostMapping
+       @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'TENANT_ADMIN')")
+       public Result&lt;InterviewTemplate&gt; createTemplate(
+               @Valid @RequestBody CreateTemplateRequest request,
+               Authentication authentication) {
+           // ... 创建模板
+       }
+   }</code></pre>
+    
+    <h3>练习 2：添加新的评估维度</h3>
+    <p>任务：为 AI 分析添加"领导力"评估维度。</p>
+    
+    <pre><code>步骤：
+1. 在 Python AI 后端添加新的评估维度
+   # backend_python/app/services/agent_pipeline.py
+   LEADERSHIP_PROMPT = """
+   请评估候选人的领导力，包括：
+   - 团队管理能力
+   - 决策能力
+   - 影响力
+   - 战略思维
+   """
+
+2. 在 Java 后端处理新的评估维度
+   // EvaluationService.java
+   public void processAiResult(Map&lt;String, Object&gt; aiResult) {
+       processDimension(aiResult, "communication");
+       processDimension(aiResult, "professional");
+       processDimension(aiResult, "leadership");
+   }
+
+3. 在 Flutter 端展示新的评估维度
+   // report_page.dart
+   Widget buildLeadershipSection(Evaluation leadership) {
+       return Card(
+           child: ListTile(
+               title: Text('领导力'),
+               subtitle: Text('${leadership.score}分'),
+               trailing: Icon(Icons.star),
+           ),
+       );
+   }</code></pre>
+    
+    <h3>练习 3：优化查询性能</h3>
+    <p>任务：为面试列表查询添加索引和分页优化。</p>
+    
+    <pre><code>步骤：
+1. 添加数据库索引
+   CREATE INDEX idx_interview_tenant_status 
+   ON t_interview(tenant_id, status);
+   
+   CREATE INDEX idx_interview_created_by 
+   ON t_interview(created_by);
+   
+   CREATE INDEX idx_interview_created_at 
+   ON t_interview(created_at DESC);
+
+2. 优化 Mapper 查询
+   // InterviewRecordMapper.xml
+   &lt;select id="selectListOptimized" resultType="InterviewRecord"&gt;
+       SELECT id, tenant_id, title, status, created_at
+       FROM t_interview
+       WHERE tenant_id = #{tenantId}
+       &lt;if test="status != null"&gt;
+           AND status = #{status}
+       &lt;/if&gt;
+       ORDER BY created_at DESC
+       LIMIT #{offset}, #{pageSize}
+   &lt;/select&gt;
+
+3. 添加查询缓存
+   @Service
+   public class InterviewServiceImpl {
+       
+       private final Map&lt;String, IPage&lt;InterviewRecord&gt;&gt; cache 
+           = new ConcurrentHashMap&lt;&gt;();
+       
+       @Override
+       public IPage&lt;InterviewRecord&gt; listInterviews(...) {
+           String cacheKey = buildCacheKey(userId, status, pageNum);
+           
+           return cache.computeIfAbsent(cacheKey, k -&gt; {
+               return interviewMapper.selectPage(...);
+           });
+       }
+   }</code></pre>
+    
+    <h2>常见问题解答</h2>
+    
+    <h3>Q1: 如何处理跨租户的用户登录？</h3>
+    <pre><code>A: 用户登录时需要指定租户。可以通过以下方式：
+   1. URL 参数：/auth/login?tenantId=1
+   2. 下拉框选择：用户在登录页面选择所属租户
+   3. 域名解析：通过子域名自动识别租户（tenant1.example.com）
+   
+   示例实现：
+   @PostMapping("/login")
+   public Result&lt;Map&lt;String, Object&gt;&gt; login(
+           @RequestBody LoginRequest request) {
+       User user = userMapper.selectByUsernameAndTenantId(
+           request.getUsername(), request.getTenantId());
+       // ...
+   }</code></pre>
+    
+    <h3>Q2: 如何处理 Python 后端调用失败？</h3>
+    <pre><code>A: 使用重试机制和降级策略：
+   
+   @Async("aiAnalysisExecutor")
+   public void analyzeWithRetry(Long interviewId, String audioFileId) {
+       int maxRetries = 3;
+       for (int i = 0; i &lt; maxRetries; i++) {
+           try {
+               pythonAiClient.analyzeAudio(audioFileId, "wav");
+               return;
+           } catch (Exception e) {
+               log.warn("第 {} 次调用失败", i + 1, e);
+               if (i == maxRetries - 1) {
+                   wsPushService.pushAnalysisError(...);
+               }
+               Thread.sleep(1000 * (i + 1)); // 指数退避
+           }
+       }
+   }</code></pre>
+    
+    <h3>Q3: 如何扩展新的 AI 分析维度？</h3>
+    <pre><code>A: 遵循开闭原则，通过配置扩展：
+   
+   1. 在 Python 后端添加新的评估维度
+   2. 在 Java 后端的 EvaluationDimension 枚举中添加新维度
+   3. 在 Flutter 端的评估报告页面添加新的展示卡片
+   
+   扩展点：
+   - AgentPipeline：添加新的 Agent 步骤
+   - EvaluationMapper：添加新的维度查询
+   - ReportService：更新加权计算逻辑</code></pre>
+    
+    <h2>学习资源</h2>
+    
+    <h3>官方文档</h3>
+    <ul>
+        <li><a href="https://spring.io/projects/spring-boot">Spring Boot 3 官方文档</a></li>
+        <li><a href="https://baomidou.com/">MyBatis-Plus 官方文档</a></li>
+        <li><a href="https://spring.io/projects/spring-security">Spring Security 官方文档</a></li>
+    </ul>
+    
+    <h3>推荐书籍</h3>
+    <ul>
+        <li>《Spring Boot 编程思想》</li>
+        <li>《MyBatis 从入门到精通》</li>
+        <li>《微服务架构设计模式》</li>
+    </ul>
+    
+    <h3>在线课程</h3>
+    <ul>
+        <li><a href="https://www.coursera.org/learn/spring-boot-intro">Spring Boot 入门课程</a></li>
+        <li><a href="https://www.udemy.com/course/spring-boot-tutorial/">Spring Boot 实战教程</a></li>
+    </ul>
+    
+    <h2>课程总结</h2>
+    
+    <div class="callout success">
+        <strong>恭喜完成 SaaS 后端架构学习！</strong>
+        <p>通过本课程，你已经掌握了：</p>
+        <ul>
+            <li>SaaS 多租户架构设计</li>
+            <li>Spring Boot 3 + Java 17 开发</li>
+            <li>JWT 认证与 RBAC 权限控制</li>
+            <li>多租户数据隔离实现</li>
+            <li>MyBatis-Plus 数据库操作</li>
+            <li>异步处理与 WebSocket 实时通信</li>
+            <li>RESTful API 设计规范</li>
+            <li>核心业务流程实现</li>
+        </ul>
+        <p>现在你已经具备了独立开发 SaaS 应用的能力。继续实践，不断精进！</p>
+    </div>
+    
+    <h2>下一步行动</h2>
+    <ol>
+        <li><strong>动手实践：</strong> 完成上述三个练习，加深理解</li>
+        <li><strong>阅读源码：</strong> 深入阅读 InterviewMentorAI 的 Java 后端代码</li>
+        <li><strong>参与社区：</strong> 关注 Spring Boot 和 MyBatis-Plus 社区</li>
+        <li><strong>持续学习：</strong> 学习微服务、容器化等进阶主题</li>
+    </ol>
+    
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>最终测验</h4>
+        <p>在 InterviewMentorAI 中，哪种隔离策略适合数据量较大的场景？</p>
+        <option onclick="checkAnswer(this, false)">A. 共享数据库 + 共享表</option>
+        <option onclick="checkAnswer(this, true)">B. 共享数据库 + 独立 Schema</option>
+        <option onclick="checkAnswer(this, false)">C. 独立数据库</option>
+        <option onclick="checkAnswer(this, false)">D. 文件隔离</option>
+    </div>
+    
+    <div class="quiz">
+        <h4>最终测验</h4>
+        <p>JWT Token 中，accessToken 和 refreshToken 的主要区别是什么？</p>
+        <option onclick="checkAnswer(this, false)">A. 没有区别，都是认证令牌</option>
+        <option onclick="checkAnswer(this, true)">B. accessToken 短期有效，refreshToken 长期有效</option>
+        <option onclick="checkAnswer(this, false)">C. accessToken 用于登录，refreshToken 用于注销</option>
+        <option onclick="checkAnswer(this, false)">D. accessToken 加密，refreshToken 不加密</option>
+    </div>
+    
+    <div class="callout info">
+        <strong>学习记录：</strong> 请在 <code>learning-records/0002-saas-backend-learning-start.md</code> 中记录你的学习心得和实践成果。
+    </div>
+    
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <div class="navigation">
+            <a href="0017-business-logic-implementation.html">上一课：业务逻辑实现</a>
+            <a href="0001-rag-core-concepts.html">返回第一课：RAG核心概念</a>
+        </div>
+    </div>
+    
+    <script>
+        function checkAnswer(element, isCorrect) {
+            const options = element.parentElement.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+                opt.style.pointerEvents = 'none';
+            });
+            
+            if (isCorrect) {
+                element.classList.add('correct');
+                element.innerHTML += ' ✓ 正确！';
+            } else {
+                element.classList.add('incorrect');
+                element.innerHTML += ' ✗ 不正确。';
+            }
+        }
+    </script>
+    </main>
+</body>
+</html>

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaS多租户架构核心概念 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="with-sidebar">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>InterviewMentorAI</h2>
+            <div class="subtitle">教学工作区</div>
+        </div>
+        
+        <div class="sidebar-learning-record">
+            <a href="../learning-records/0002-saas-backend-learning-start.md">
+                <span class="icon">&#128213;</span>
+                <span>学习记录</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title rag">RAG 技术课程</div>
+            <nav class="sidebar-nav">
+                <a href="0001-rag-core-concepts.html">0001 - RAG核心概念</a>
+                <a href="0002-document-chunking.html">0002 - 文档分块策略</a>
+                <a href="0003-vector-embeddings.html">0003 - 向量嵌入技术</a>
+                <a href="0004-retrieval-strategies.html">0004 - 检索策略与优化</a>
+                <a href="0005-rag-evaluation.html">0005 - RAG系统评估</a>
+                <a href="0006-interview-mentor-integration.html">0006 - InterviewMentorAI集成</a>
+                <a href="0007-implementation-guide.html">0007 - 实现指南</a>
+                <a href="0008-optimization-extension.html">0008 - 优化与扩展</a>
+                <a href="0009-summary-next-steps.html">0009 - 总结与下一步</a>
+            </nav>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title saas">SaaS 后端架构</div>
+            <nav class="sidebar-nav">
+                <a href="0010-saas-multi-tenant-core.html" class="active">0010 - SaaS多租户架构核心概念</a>
+                <a href="0011-springboot3-java17-infra.html">0011 - Spring Boot 3 + Java 17</a>
+                <a href="0012-jwt-auth-rbac.html">0012 - JWT认证与RBAC权限体系</a>
+                <a href="0013-multi-tenant-data-isolation.html">0013 - 多租户数据隔离设计</a>
+                <a href="0014-mybatis-plus-db-design.html">0014 - MyBatis-Plus与数据库设计</a>
+                <a href="0015-async-websocket-push.html">0015 - 异步调用与WebSocket推送</a>
+                <a href="0016-restful-api-controller.html">0016 - RESTful API设计</a>
+                <a href="0017-business-logic-implementation.html">0017 - 业务逻辑实现</a>
+                <a href="0018-architecture-review-exercises.html">0018 - 架构回顾与实战</a>
+            </nav>
+        </div>
+    </aside>
+    
+    <main class="main-content">
+    <h1>SaaS 多租户架构核心概念</h1>
+    
+    <div class="callout info">
+        <strong>学习目标：</strong> 理解 SaaS 和多租户的基本原理，掌握三种数据隔离策略，为 InterviewMentorAI 的 Java 后端重构打下基础。
+    </div>
+    
+    <h2>什么是 SaaS？</h2>
+    <p>SaaS（Software as a Service，软件即服务）是一种软件交付模式。简单来说，用户通过互联网使用软件，而不需要在自己的电脑上安装和维护。</p>
+    
+    <p>想象一下你家里的水电煤：你不需要自己建发电厂或水厂，只需要拧开水龙头就有水，按下开关就有电。SaaS 也是一样——你不需要自己搭建服务器、安装软件，只需要打开浏览器就能使用。</p>
+    
+    <h2>什么是多租户？</h2>
+    <p>多租户（Multi-Tenant）是 SaaS 的核心技术架构。它的意思是：多个用户（租户）共享同一个软件实例，但各自的数据和配置是隔离的。</p>
+    
+    <p>打个比方：多租户就像一栋公寓楼。所有住户共享大楼的水电煤、电梯、门禁系统，但每户人家有自己独立的房间、锁和生活空间。你不能打开邻居家的门，邻居也不能打开你家的门。</p>
+    
+    <h2>为什么需要多租户？</h2>
+    <p>如果没有多租户，每个客户都需要独立部署一套系统，就像每个人都需要自己建一栋房子。有了多租户，大家可以共享基础设施，成本大大降低。</p>
+    
+    <table style="width:100%; border-collapse: collapse; margin: 1rem 0;">
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">对比维度</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">传统模式（每客户一套系统）</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">多租户模式（共享系统）</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">成本</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">高（每个客户都需要服务器、运维）</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">低（共享基础设施）</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">维护</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">复杂（需要维护多套系统）</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">简单（只需维护一套系统）</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">升级</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">困难（需要逐个升级）</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">简单（一次升级，所有客户生效）</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">扩展</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">慢（新客户需要从零开始）</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">快（新客户可以快速接入）</td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <h2>多租户数据隔离策略</h2>
+    <p>多租户的核心挑战是：如何确保每个租户的数据只能被自己访问，而不能被其他租户或平台管理员随意访问？这就是<strong>数据隔离</strong>。</p>
+    
+    <p>想象一下：你住在公寓楼里，你的房间有门锁，你的信件有邮箱，你的快递有取件码。这些就是"隔离"手段。在软件系统中，数据隔离也有三种主要策略：</p>
+    
+    <h3>策略一：独立数据库（Database per Tenant）</h3>
+    <p>每个租户拥有完全独立的数据库实例。</p>
+    
+    <p><strong>打个比方：</strong> 每个租户拥有自己独立的房子，连邻居都没有。</p>
+    
+    <ul>
+        <li><strong>优点：</strong> 隔离性最好，安全性最高，备份恢复简单</li>
+        <li><strong>缺点：</strong> 成本最高，维护复杂，跨租户查询困难</li>
+        <li><strong>适用：</strong> 对数据安全要求极高的金融、医疗行业</li>
+    </ul>
+    
+    <h3>策略二：共享数据库，独立 Schema（Schema per Tenant）</h3>
+    <p>所有租户共享同一个数据库实例，但每个租户拥有独立的 Schema（数据库模式）。</p>
+    
+    <p><strong>打个比方：</strong> 所有租户住在同一栋楼里，但每户人家有自己独立的房间和门锁。</p>
+    
+    <ul>
+        <li><strong>优点：</strong> 隔离性较好，成本适中，维护相对简单</li>
+        <li><strong>缺点：</strong> 跨租户查询需要切换 Schema，性能有一定影响</li>
+        <li><strong>适用：</strong> 中型企业 SaaS，数据安全要求较高</li>
+    </ul>
+    
+    <h3>策略三：共享数据库，共享 Schema（Shared Database, Shared Schema）</h3>
+    <p>所有租户共享同一个数据库和 Schema，通过 tenant_id 字段区分数据归属。</p>
+    
+    <p><strong>打个比方：</strong> 所有租户住在同一个大房间里，但每个人有自己的床和柜子，通过名字标签区分。</p>
+    
+    <ul>
+        <li><strong>优点：</strong> 成本最低，维护最简单，跨租户查询方便</li>
+        <li><strong>缺点：</strong> 隔离性最差，需要应用层严格控制数据访问</li>
+        <li><strong>适用：</strong> 小型 SaaS，对隔离性要求不高</li>
+    </ul>
+    
+    <div class="callout warning">
+        <strong>InterviewMentorAI 的选择：</strong> 我们采用<strong>策略二：共享数据库，独立 Schema</strong>。平台数据（用户、租户、订阅）放在 platform schema，业务数据（面试、评估、报告）放在 tenant_{id} schema。这样既保证了数据隔离，又控制了成本。
+    </div>
+    
+    <h2>多租户架构的核心组件</h2>
+    <p>一个完整的多租户系统通常包含以下核心组件：</p>
+    
+    <h3>1. 租户上下文（Tenant Context）</h3>
+    <p>租户上下文负责在请求处理过程中传递当前租户信息。你可以把它想象成"门禁卡"——每个请求都需要刷卡才能进入，系统通过门禁卡知道你是哪个租户。</p>
+    
+    <pre><code>// 伪代码示例
+public class TenantContext {
+    // 使用 ThreadLocal 存储当前租户信息
+    private static final ThreadLocal&lt;Long&gt; TENANT_ID = new ThreadLocal&lt;&gt;();
+    
+    // 设置当前租户
+    public static void setTenantId(Long tenantId) {
+        TENANT_ID.set(tenantId);
+    }
+    
+    // 获取当前租户
+    public static Long getTenantId() {
+        return TENANT_ID.get();
+    }
+    
+    // 清除当前租户（请求结束后）
+    public static void clear() {
+        TENANT_ID.remove();
+    }
+}</code></pre>
+    
+    <h3>2. 租户解析器（Tenant Resolver）</h3>
+    <p>租户解析器负责从请求中提取租户标识。就像门禁系统需要识别你的门禁卡一样，系统需要知道当前请求属于哪个租户。</p>
+    
+    <p>常见的解析方式：</p>
+    <ul>
+        <li><strong>请求头：</strong> 从 HTTP Header 中读取 X-Tenant-ID</li>
+        <li><strong>JWT Token：</strong> 从 JWT claims 中提取 tenantId</li>
+        <li><strong>子域名：</strong> 从 URL 子域名中解析（如 tenant1.app.com）</li>
+        <li><strong>URL 参数：</strong> 从请求参数中获取（如 /api/data?tenantId=1）</li>
+    </ul>
+    
+    <h3>3. 数据访问层（Data Access Layer）</h3>
+    <p>数据访问层需要根据租户上下文自动切换数据源或 Schema。就像公寓楼的物业系统需要知道你住哪个房间，才能帮你处理你的事务。</p>
+    
+    <h3>4. 权限控制（Permission Control）</h3>
+    <p>多租户系统需要严格的权限控制，确保租户只能访问自己的数据。就像你不能用你的门禁卡打开邻居家的门一样。</p>
+    
+    <h2>InterviewMentorAI 的多租户设计</h2>
+    <p>在 InterviewMentorAI 项目中，我们的多租户设计如下：</p>
+    
+    <h3>数据流示意图</h3>
+    <pre><code>HTTP 请求
+  ↓
+JwtAuthenticationFilter  → 解析 JWT，提取用户名
+  ↓
+TenantFilter             → 从 JWT/请求头解析 tenantId
+  ↓                         → 查询 schemaName
+TenantContext.set()      → ThreadLocal 存储 { tenantId, schemaName }
+  ↓
+Controller / Service     → 通过 TenantContext.getTenantId() 获取当前租户
+  ↓
+TenantContext.clear()    → 请求结束，清理 ThreadLocal</code></pre>
+    
+    <h3>数据库表结构</h3>
+    <table>
+        <tr>
+            <th>Schema</th>
+            <th>表名</th>
+            <th>说明</th>
+        </tr>
+        <tr>
+            <td rowspan="7">platform（平台库）</td>
+            <td>t_tenant</td>
+            <td>租户表</td>
+        </tr>
+        <tr>
+            <td>t_user</td>
+            <td>用户表</td>
+        </tr>
+        <tr>
+            <td>t_role</td>
+            <td>角色表</td>
+        </tr>
+        <tr>
+            <td>t_permission</td>
+            <td>权限表</td>
+        </tr>
+        <tr>
+            <td>t_user_role</td>
+            <td>用户角色关联</td>
+        </tr>
+        <tr>
+            <td>t_role_permission</td>
+            <td>角色权限关联</td>
+        </tr>
+        <tr>
+            <td>t_subscription</td>
+            <td>订阅计划</td>
+        </tr>
+        <tr>
+            <td rowspan="8">tenant_{id}（租户库）</td>
+            <td>t_interview</td>
+            <td>面试记录</td>
+        </tr>
+        <tr>
+            <td>t_evaluation</td>
+            <td>逐条评估</td>
+        </tr>
+        <tr>
+            <td>t_report</td>
+            <td>复盘报告</td>
+        </tr>
+        <tr>
+            <td>t_interview_session</td>
+            <td>面试会话（邀请码）</td>
+        </tr>
+        <tr>
+            <td>t_knowledge_base</td>
+            <td>知识库</td>
+        </tr>
+        <tr>
+            <td>t_knowledge_doc</td>
+            <td>知识库文档</td>
+        </tr>
+        <tr>
+            <td>knowledge_chunk</td>
+            <td>文档片段</td>
+        </tr>
+        <tr>
+            <td>audit_log</td>
+            <td>操作日志</td>
+        </tr>
+    </table>
+    
+    <div class="callout success">
+        <strong>关键理解：</strong> 多租户的核心是"共享但隔离"——所有租户共享同一个软件实例和基础设施，但每个租户的数据和业务逻辑是完全隔离的。这就像公寓楼里的住户，共享大楼的水电煤，但每户人家有自己独立的房间和门锁。
+    </div>
+    
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>以下哪种多租户数据隔离策略最适合 InterviewMentorAI？</p>
+        <option onclick="checkAnswer(this, false)">A. 独立数据库（每个租户一个数据库）</option>
+        <option onclick="checkAnswer(this, true)">B. 共享数据库，独立 Schema（平台库 + 租户库）</option>
+        <option onclick="checkAnswer(this, false)">C. 共享数据库，共享 Schema（所有数据混在一起）</option>
+        <option onclick="checkAnswer(this, false)">D. 以上都不适合</option>
+    </div>
+    
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了多租户核心概念后，我们将学习 Spring Boot 3 + Java 17 的基础设施搭建，理解如何在 Java 后端实现多租户架构。请阅读<a href="https://spring.io/projects/spring-boot">Spring Boot 官方文档</a>作为补充材料。
+    </div>
+    
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+    </div>
+    
+    <script>
+        function checkAnswer(element, isCorrect) {
+            const options = element.parentElement.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+                opt.style.pointerEvents = 'none';
+            });
+            
+            if (isCorrect) {
+                element.classList.add('correct');
+                element.innerHTML += ' ✓ 正确！共享数据库 + 独立 Schema 是 InterviewMentorAI 的最佳选择，既保证隔离性又控制成本。';
+            } else {
+                element.classList.add('incorrect');
+                element.innerHTML += ' ✗ 不正确。InterviewMentorAI 采用共享数据库 + 独立 Schema 策略。';
+            }
+        }
+    </script>
+    </main>
+</body>
+</html>

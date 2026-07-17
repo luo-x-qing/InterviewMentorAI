@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWT认证与RBAC权限体系 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="with-sidebar">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>InterviewMentorAI</h2>
+            <div class="subtitle">教学工作区</div>
+        </div>
+        
+        <div class="sidebar-learning-record">
+            <a href="../learning-records/0002-saas-backend-learning-start.md">
+                <span class="icon">&#128213;</span>
+                <span>学习记录</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title rag">RAG 技术课程</div>
+            <nav class="sidebar-nav">
+                <a href="0001-rag-core-concepts.html">0001 - RAG核心概念</a>
+                <a href="0002-document-chunking.html">0002 - 文档分块策略</a>
+                <a href="0003-vector-embeddings.html">0003 - 向量嵌入技术</a>
+                <a href="0004-retrieval-strategies.html">0004 - 检索策略与优化</a>
+                <a href="0005-rag-evaluation.html">0005 - RAG系统评估</a>
+                <a href="0006-interview-mentor-integration.html">0006 - InterviewMentorAI集成</a>
+                <a href="0007-implementation-guide.html">0007 - 实现指南</a>
+                <a href="0008-optimization-extension.html">0008 - 优化与扩展</a>
+                <a href="0009-summary-next-steps.html">0009 - 总结与下一步</a>
+            </nav>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title saas">SaaS 后端架构</div>
+            <nav class="sidebar-nav">
+                <a href="0010-saas-multi-tenant-core.html">0010 - SaaS多租户架构核心概念</a>
+                <a href="0011-springboot3-java17-infra.html">0011 - Spring Boot 3 + Java 17</a>
+                <a href="0012-jwt-auth-rbac.html" class="active">0012 - JWT认证与RBAC权限体系</a>
+                <a href="0013-multi-tenant-data-isolation.html">0013 - 多租户数据隔离设计</a>
+                <a href="0014-mybatis-plus-db-design.html">0014 - MyBatis-Plus与数据库设计</a>
+                <a href="0015-async-websocket-push.html">0015 - 异步调用与WebSocket推送</a>
+                <a href="0016-restful-api-controller.html">0016 - RESTful API设计</a>
+                <a href="0017-business-logic-implementation.html">0017 - 业务逻辑实现</a>
+                <a href="0018-architecture-review-exercises.html">0018 - 架构回顾与实战</a>
+            </nav>
+        </div>
+    </aside>
+    
+    <main class="main-content">
+    <h1>JWT 认证与 RBAC 权限体系</h1>
+
+    <div class="callout info">
+        <strong>学习目标：</strong>
+        <ul>
+            <li>理解认证（Authentication）和授权（Authorization）的区别</li>
+            <li>掌握 JWT（JSON Web Token）的结构和工作原理</li>
+            <li>理解双 Token 机制的安全优势</li>
+            <li>掌握 RBAC 权限模型和三层角色设计</li>
+            <li>学会在 Spring Security 中实现 JWT 认证和权限控制</li>
+        </ul>
+    </div>
+
+    <h2>认证 vs 授权：身份证 vs 门禁卡</h2>
+    <p>先来搞清楚两个经常被混淆的概念。想象你搬进了一个高档小区：</p>
+    <ul>
+        <li><strong>认证（Authentication）</strong> = 出示身份证，证明"我是小区业主张三"</li>
+        <li><strong>授权（Authorization）</strong> = 刷门禁卡，系统检查"张三的卡能不能进健身房？"</li>
+    </ul>
+    <p>没有身份证（认证），保安根本不让你进门。有了身份证但没有健身房权限（授权），你只能去花园散步。</p>
+
+    <div class="callout success">
+        <strong>记忆技巧：</strong> 认证是"确认你是谁"，授权是"决定你能干嘛"。先认证，后授权。
+    </div>
+
+    <h2>JWT：你的"电子身份证"</h2>
+    <p>JWT（JSON Web Token）就像一张电子身份证，它把用户信息编码成一个加密字符串，服务器通过检查这张"电子身份证"来确认你的身份。</p>
+
+    <h3>JWT 长什么样？</h3>
+    <p>一个 JWT Token 由三部分组成，用点号分隔：</p>
+    <pre><code>Header.Payload.Signature
+
+eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyMSIsImV4cCI6MTcwMDAwMDAwMH0.signature</code></pre>
+
+    <p>把它想象成一张演唱会门票：</p>
+    <table>
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">JWT 部分</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">演唱会门票类比</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">实际内容</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Header（头部）</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">票面印刷方式</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">算法（HS256）和令牌类型（JWT）</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Payload（载荷）</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">门票上的信息</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">用户ID、角色、过期时间等</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Signature（签名）</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">防伪标识/二维码</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">用密钥加密的签名，防止伪造</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Payload 里装了什么？</h3>
+    <p>Payload 是 JWT 的"信息载体"，就像门票上印着你的姓名、座位号、演出时间等：</p>
+    <pre><code>{
+  "sub": "user1",              // 用户标识（相当于门票上的姓名）
+  "username": "张三",          // 用户名
+  "tenantId": 1,               // 租户ID（你在哪个小区）
+  "roles": ["TENANT_MEMBER"],  // 角色（你的门禁权限级别）
+  "iat": 1700000000,           // 签发时间（门票印制日期）
+  "exp": 1700007200            // 过期时间（门票有效期）
+}</code></pre>
+
+    <h3>Signature 防伪机制</h3>
+    <p>签名确保门票没有被PS过。服务器用只有自己知道的密钥来验证：</p>
+    <pre><code>HMACSHA256(
+  base64UrlEncode(header) + "." + base64UrlEncode(payload),  // 票面信息
+  secret                                                      // 服务器的密钥
+)</code></pre>
+
+    <div class="callout warning">
+        <strong>安全提醒：</strong> JWT 的 Payload 部分只是 Base64 编码，不是加密！任何人都能读取其中的内容。所以不要在 Payload 中存放密码等敏感信息。
+    </div>
+
+    <h2>双 Token 机制：安全的"双保险"</h2>
+    <p>在 InterviewMentorAI 中，我们采用<strong>双 Token 机制</strong>。这就像你的手机同时有"指纹锁"和"密码锁"——指纹锁日常使用（短期），密码锁在指纹锁失效时使用（长期）。</p>
+
+    <table>
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">Token 类型</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">有效期</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">用途</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">类比</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>accessToken</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">2 小时</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">API 鉴权</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">临时工牌，用完就扔</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>refreshToken</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">7 天</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">刷新 accessToken</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">补办卡，可以换新工牌</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>完整认证流程</h3>
+    <p>想象你去公司上班的一天：</p>
+    <pre><code>1. 登录（到公司前台）
+   POST /auth/login { username, password }
+   ↓
+2. 服务器验证密码，生成双 Token
+   { accessToken(2小时), refreshToken(7天), userInfo }
+   ↓
+3. 客户端存储 Token，后续请求携带 accessToken
+   Authorization: Bearer eyJhbGci...
+   ↓
+4. 服务器验证 accessToken，解析用户信息
+   JwtAuthenticationFilter → 解析 JWT → SecurityContext
+   ↓
+5. accessToken 过期（工牌到期），使用 refreshToken 刷新
+   POST /auth/refresh?refreshToken=xxx
+   ↓
+6. refreshToken 过期（补办卡也到期），需要重新登录
+   POST /auth/login  ← 重新去前台</code></pre>
+
+    <h3>JWT Token 生成代码</h3>
+    <p>下面是生成和验证 Token 的核心代码：</p>
+    <pre><code>@Component
+public class JwtTokenProvider {
+
+    private final SecretKey key;
+    private final long accessTokenExpiration;
+    private final long refreshTokenExpiration;
+
+    public JwtTokenProvider(
+            @Value("${jwt.secret}") String secret,
+            @Value("${jwt.access-token-expiration}") long accessTokenExpiration,
+            @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration) {
+        this.key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(
+                java.util.Base64.getEncoder().encodeToString(secret.getBytes())));
+        this.accessTokenExpiration = accessTokenExpiration;
+        this.refreshTokenExpiration = refreshTokenExpiration;
+    }
+
+    public String generateAccessToken(Authentication authentication) {
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + accessTokenExpiration);
+
+        return Jwts.builder()
+                .subject(userDetails.getUsername())
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(key)
+                .compact();
+    }
+
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+    }
+}</code></pre>
+
+    <h2>RBAC 权限模型：酒店钥匙卡系统</h2>
+    <p>RBAC（Role-Based Access Control，基于角色的访问控制）就像酒店的钥匙卡系统。你不是直接拿到"打开所有房间"的万能钥匙，而是根据你的身份（房客/经理/总经理）拿到不同权限的钥匙卡。</p>
+
+    <pre><code>用户 (User)  ←→  角色 (Role)  ←→  权限 (Permission)
+  ↓                  ↓                  ↓
+张三            TENANT_MEMBER      interview:create
+李四            TENANT_ADMIN       report:edit
+王五            PLATFORM_ADMIN     tenant:manage</code></pre>
+
+    <h3>三层角色设计</h3>
+    <p>InterviewMentorAI 设计了三层角色，就像酒店的三个管理层级：</p>
+
+    <table>
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">角色</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">酒店类比</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">权限范围</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>PLATFORM_ADMIN</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">酒店总经理</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">管理所有租户、订阅计划、系统配置</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>TENANT_ADMIN</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">楼层经理</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">管理本租户成员、知识库、查看所有面试报告</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>TENANT_MEMBER</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">普通房客</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">创建面试、上传音频、查看自己报告</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>权限矩阵</h3>
+    <table>
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">功能</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">PLATFORM_ADMIN</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">TENANT_ADMIN</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">TENANT_MEMBER</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">创建租户</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">❌</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">❌</td></tr>
+            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">管理租户成员</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">❌</td></tr>
+            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">查看所有面试</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">❌</td></tr>
+            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">创建面试</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td></tr>
+            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">查看自己报告</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td></tr>
+            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">HR 修正评估</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">❌</td></tr>
+            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">管理知识库</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">❌</td></tr>
+            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">管理订阅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">✅</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">❌</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">❌</td></tr>
+        </tbody>
+    </table>
+
+    <h3>预置权限码</h3>
+    <p>权限码就像酒店每个门锁的编号，每个操作对应一个唯一的权限码：</p>
+    <pre><code>interview:create    # 创建面试 - 相当于"进入会议室"
+interview:view      # 查看面试记录 - 相当于"查看会议室预约表"
+interview:view_all  # 查看租户所有面试 - 相当于"查看整栋楼会议室"
+report:view         # 查看评估报告 - 相当于"查看入住评价"
+report:edit         # 人工修正评估 - 相当于"修改评价"
+report:export       # 导出报告 - 相当于"打印评价报告"
+knowledge:manage    # 知识库管理 - 相当于"管理酒店服务手册"
+tenant:manage       # 租户管理 - 相当于"管理楼层"
+member:manage       # 成员管理 - 相当于"管理房客"
+subscription:manage # 订阅管理 - 相当于"管理套餐"</code></pre>
+
+    <h2>Spring Security Filter Chain</h2>
+    <p>每个 HTTP 请求进入系统后，会经过一系列"关卡"检查。就像你进入酒店时：先过门卫（CorsFilter），再验工牌（JwtAuthenticationFilter），然后查楼层（TenantFilter），最后到房间时再查房间权限。</p>
+
+    <pre><code>HTTP Request
+  ↓
+CorsFilter                 → 处理跨域（门卫检查外来人员）
+  ↓
+JwtAuthenticationFilter    → 解析 JWT（验工牌真伪）
+  ↓                         → 加载用户角色和权限（查你的权限级别）
+  ↓                         → 注入 SecurityContext（记录到访客簿）
+TenantFilter               → 解析租户 ID（确定你在哪个楼层）
+  ↓                         → 设置 TenantContext
+FilterSecurityInterceptor  → RBAC 权限校验（查你有没有进这个房间的权限）
+  ↓                         → @PreAuthorize 注解检查
+Controller                 → 业务处理（进入房间做事）</code></pre>
+
+    <h3>JwtAuthenticationFilter 代码</h3>
+    <p>这是"验工牌"的门卫，每个请求都要经过他：</p>
+    <pre><code>@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtTokenProvider tokenProvider;
+    private final CustomUserDetailsService userDetailsService;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain) throws ServletException, IOException {
+        String token = extractToken(request);  // 从请求中提取工牌
+
+        if (StringUtils.hasText(token) && tokenProvider.validateToken(token)) {
+            String username = tokenProvider.getUsernameFromToken(token);
+            // 去住户信息库查这个人的权限
+            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+            // 把验证结果写入访客簿
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities());
+            authentication.setDetails(
+                    new WebAuthenticationDetailsSource().buildDetails(request));
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+        }
+
+        filterChain.doFilter(request, response);  // 放行，让后面的关卡继续检查
+    }
+
+    private String extractToken(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
+}</code></pre>
+
+    <h3>权限注解使用</h3>
+    <p>使用 @PreAuthorize 注解可以在方法级别进行权限控制，就像每个房间门口贴了"仅限XX进入"的牌子：</p>
+    <pre><code>@RestController
+@RequestMapping("/tenant")
+public class TenantController {
+
+    @PostMapping("/create")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")  // 仅总经理可操作
+    public Result&lt;Map&lt;String, Object&gt;&gt; createTenant(@RequestBody Map&lt;String, String&gt; request) {
+        // ...
+    }
+
+    @GetMapping("/members")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN', 'TENANT_ADMIN')")  // 总经理或楼层经理
+    public Result&lt;IPage&lt;User&gt;&gt; listMembers(...) {
+        // ...
+    }
+}</code></pre>
+
+    <h2>用户详情加载</h2>
+    <p>当系统需要知道"张三有哪些权限"时，会调用这个服务去数据库查询：</p>
+    <pre><code>@Service
+public class CustomUserDetailsService implements UserDetailsService {
+
+    private final UserMapper userMapper;
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        // 去住户信息库找这个人
+        User user = userMapper.selectOne(
+                new LambdaQueryWrapper&lt;User&gt;().eq(User::getUsername, username));
+
+        if (user == null) {
+            throw new UsernameNotFoundException("用户不存在: " + username);
+        }
+
+        // 查询这个人的所有角色（楼层权限）
+        List&lt;SimpleGrantedAuthority&gt; authorities = userMapper.selectRoleCodesByUserId(user.getId())
+                .stream()
+                .map(SimpleGrantedAuthority::new)
+                .toList();
+
+        return new org.springframework.security.core.userdetails.User(
+                user.getUsername(),
+                user.getPassword(),
+                authorities
+        );
+    }
+}</code></pre>
+
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>如果一个 accessToken 过期了，用户接下来应该怎么做？</p>
+        <option onclick="checkAnswer(this, false)">A. 重新输入用户名密码登录</option>
+        <option onclick="checkAnswer(this, true)">B. 使用 refreshToken 获取新的 accessToken</option>
+        <option onclick="checkAnswer(this, false)">C. 忽略错误，继续发送请求</option>
+        <option onclick="checkAnswer(this, false)">D. 清除浏览器缓存</option>
+    </div>
+
+    <h2>Next Step Learning</h2>
+    <p>掌握了认证和授权机制后，建议你进一步学习：</p>
+    <ul>
+        <li><a href="https://jwt.io/introduction" target="_blank">JWT 官方介绍</a> - 了解 JWT 的规范和工具</li>
+        <li><a href="https://spring.io/guides/gs/securing-web/" target="_blank">Spring Security 官方教程</a> - 深入理解 Spring Security 的配置和使用</li>
+        <li><a href="https://datatracker.ietf.org/doc/html/rfc7519" target="_blank">JWT RFC 7519 标准</a> - 如果你想深入了解技术细节</li>
+    </ul>
+
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了 JWT 认证和 RBAC 权限后，我们将深入探讨多租户数据隔离设计。请阅读<a href="https://spring.io/guides/gs/serving-web-content/">Spring 官方文档</a>作为补充材料。
+    </div>
+
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <p>
+            <a href="0011-springboot3-java17-infra.html">上一课: Spring Boot 3 + Java 17</a> |
+            <a href="0013-multi-tenant-data-isolation.html">下一课: 多租户数据隔离设计</a>
+        </p>
+    </div>
+    </main>
+</body>
+</html>

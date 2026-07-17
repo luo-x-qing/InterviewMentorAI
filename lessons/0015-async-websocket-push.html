@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>异步调用与WebSocket推送 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="with-sidebar">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>InterviewMentorAI</h2>
+            <div class="subtitle">教学工作区</div>
+        </div>
+        
+        <div class="sidebar-learning-record">
+            <a href="../learning-records/0002-saas-backend-learning-start.md">
+                <span class="icon">&#128213;</span>
+                <span>学习记录</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title rag">RAG 技术课程</div>
+            <nav class="sidebar-nav">
+                <a href="0001-rag-core-concepts.html">0001 - RAG核心概念</a>
+                <a href="0002-document-chunking.html">0002 - 文档分块策略</a>
+                <a href="0003-vector-embeddings.html">0003 - 向量嵌入技术</a>
+                <a href="0004-retrieval-strategies.html">0004 - 检索策略与优化</a>
+                <a href="0005-rag-evaluation.html">0005 - RAG系统评估</a>
+                <a href="0006-interview-mentor-integration.html">0006 - InterviewMentorAI集成</a>
+                <a href="0007-implementation-guide.html">0007 - 实现指南</a>
+                <a href="0008-optimization-extension.html">0008 - 优化与扩展</a>
+                <a href="0009-summary-next-steps.html">0009 - 总结与下一步</a>
+            </nav>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title saas">SaaS 后端架构</div>
+            <nav class="sidebar-nav">
+                <a href="0010-saas-multi-tenant-core.html">0010 - SaaS多租户架构核心概念</a>
+                <a href="0011-springboot3-java17-infra.html">0011 - Spring Boot 3 + Java 17</a>
+                <a href="0012-jwt-auth-rbac.html">0012 - JWT认证与RBAC权限体系</a>
+                <a href="0013-multi-tenant-data-isolation.html">0013 - 多租户数据隔离设计</a>
+                <a href="0014-mybatis-plus-db-design.html">0014 - MyBatis-Plus与数据库设计</a>
+                <a href="0015-async-websocket-push.html" class="active">0015 - 异步调用与WebSocket推送</a>
+                <a href="0016-restful-api-controller.html">0016 - RESTful API设计</a>
+                <a href="0017-business-logic-implementation.html">0017 - 业务逻辑实现</a>
+                <a href="0018-architecture-review-exercises.html">0018 - 架构回顾与实战</a>
+            </nav>
+        </div>
+    </aside>
+    
+    <main class="main-content">
+    <h1>异步调用与 WebSocket 推送</h1>
+    
+    <div class="callout info">
+        <strong>学习目标：</strong> 理解异步处理与同步处理的区别，掌握 Spring @Async 线程池配置，学会使用 STOMP WebSocket 实现实时通信，以及使用 RestClient 调用 Python AI 后端。
+    </div>
+    
+    <h2>为什么需要异步处理？</h2>
+    <p>想象一下你去餐厅点餐。有两种方式：</p>
+    <ul>
+        <li><strong>同步方式：</strong> 你站在柜台前，盯着厨师做菜，直到菜端上来才能离开。在这期间你什么都干不了，厨师也被你盯着压力山大。</li>
+        <li><strong>异步方式：</strong> 你点完餐后，服务员给你一个取餐器（buzzer）。你可以先去座位上玩手机、聊天，等取餐器响了再来取餐。厨师可以专心做菜，你也可以做自己的事。</li>
+    </ul>
+    
+    <p>在 InterviewMentorAI 中，Python AI 后端分析音频需要 30 秒到 2 分钟。如果用同步方式，用户的界面会"卡死"在那里等待。用异步方式，用户可以继续操作，等分析完成再收到通知。</p>
+    
+    <h3>同步 vs 异步对比</h3>
+    <table>
+        <tr>
+            <th>方式</th>
+            <th>用户体验</th>
+            <th>服务器资源</th>
+            <th>适用场景</th>
+            <th>类比</th>
+        </tr>
+        <tr>
+            <td><strong>同步</strong></td>
+            <td>差（需等待）</td>
+            <td>占用线程</td>
+            <td>快速操作（&lt; 1秒）</td>
+            <td>站在柜台等餐</td>
+        </tr>
+        <tr>
+            <td><strong>异步</strong></td>
+            <td>好（立即返回）</td>
+            <td>释放线程</td>
+            <td>耗时操作（&gt; 1秒）</td>
+            <td>拿取餐器等通知</td>
+        </tr>
+    </table>
+    
+    <h3>异步处理流程</h3>
+    <pre><code>用户上传音频
+  ↓
+Java 后端接收请求
+  ↓
+立即返回 "分析中" 状态  ← 用户可以继续操作
+  ↓
+异步调用 Python AI 后端（@Async）
+  ↓
+通过 STOMP 推送进度给 Flutter
+  ↓
+Python 返回结果
+  ↓
+更新数据库，推送最终结果给 Flutter  ← 用户收到通知</code></pre>
+    
+    <div class="callout warning">
+        <strong>关键点：</strong> 异步处理的核心是"立即返回，后台处理"。用户不需要等待耗时操作完成，服务器也不会因为长时间等待而阻塞。
+    </div>
+    
+    <h2>Spring @Async 异步执行</h2>
+    
+    <h3>线程池：餐厅的厨房</h3>
+    <p>想象一下餐厅的厨房。厨房里有有限数量的厨师（线程），他们同时能处理的订单数量是有限的。如果来了一百个订单，厨师们会先做前几个，剩下的排队等待。</p>
+    
+    <p>Spring 的线程池就是这样工作的：</p>
+    
+    <h3>启用异步支持</h3>
+    <pre><code>@Configuration
+@EnableAsync
+public class AsyncConfig {
+    
+    @Bean("aiAnalysisExecutor")
+    public Executor aiAnalysisExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);        // 核心厨师数（常驻）
+        executor.setMaxPoolSize(8);         // 最大厨师数（高峰期）
+        executor.setQueueCapacity(50);      // 等候区座位数
+        executor.setThreadNamePrefix("ai-analysis-");
+        executor.initialize();
+        return executor;
+    }
+}</code></pre>
+    
+    <p>这里有几个关键参数：</p>
+    <ul>
+        <li><strong>corePoolSize (4)：</strong> 常驻厨师数量，即使没活干也保持</li>
+        <li><strong>maxPoolSize (8)：</strong> 高峰期最多可以有 8 个厨师同时工作</li>
+        <li><strong>queueCapacity (50)：</strong> 等候区最多坐 50 个订单，超过就拒绝</li>
+    </ul>
+    
+    <h3>异步方法定义</h3>
+    <pre><code>@Service
+public class InterviewServiceImpl implements InterviewService {
+    
+    @Async("aiAnalysisExecutor")  // 指定使用哪个线程池
+    public void analyzeAudioAsync(Long interviewId, Long tenantId, String audioFileId) {
+        try {
+            // 1. 推送"分析中"状态
+            wsPushService.pushAnalysisStatus(tenantId, interviewId, "analyzing");
+            
+            // 2. 调用 Python AI 后端
+            String result = callPythonAiBackend(audioFileId);
+            
+            // 3. 解析结果，保存到数据库
+            Evaluation evaluation = parseAndSaveEvaluation(result, interviewId);
+            
+            // 4. 推送分析完成
+            wsPushService.pushAnalysisComplete(tenantId, interviewId, evaluation);
+            
+        } catch (Exception e) {
+            // 5. 推送分析失败
+            wsPushService.pushAnalysisError(tenantId, interviewId, e.getMessage());
+        }
+    }
+    
+    private String callPythonAiBackend(String audioFileId) {
+        RestClient restClient = RestClient.create();
+        String url = "http://localhost:8000/api/analysis";
+        
+        Map&lt;String, String&gt; request = Map.of("audio_file_id", audioFileId);
+        
+        String response = restClient.post()
+                .uri(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(String.class);
+        
+        return response;
+    }
+}</code></pre>
+    
+    <div class="callout success">
+        <strong>注意：</strong> @Async 方法的返回值如果是 void，调用者不会等待方法执行完成。这就是"发射后不管"的模式——调用者只负责触发，不负责等待结果。
+    </div>
+    
+    <h2>WebSocket STOMP 协议</h2>
+    
+    <h3>什么是 STOMP？对讲机系统</h3>
+    <p>想象一下工地上的对讲机系统：</p>
+    <ul>
+        <li>每个人都有一个对讲机（WebSocket 连接）</li>
+        <li>大家调到同一个频道（Topic）就能收到广播消息</li>
+        <li>你可以选择只听某个频道（订阅特定 Topic）</li>
+        <li>消息是结构化的（有格式的），不是乱七八糟的噪音</li>
+    </ul>
+    
+    <p>STOMP（Simple Text Oriented Messaging Protocol）就是这样一个结构化的消息协议，它基于 WebSocket，但提供了更规范的消息格式。</p>
+    
+    <h3>Socket.IO vs STOMP 对比</h3>
+    <table>
+        <tr>
+            <th>特性</th>
+            <th>Socket.IO（旧方案）</th>
+            <th>STOMP（新方案）</th>
+        </tr>
+        <tr>
+            <td>协议</td>
+            <td>自有协议</td>
+            <td>标准 STOMP 协议</td>
+        </tr>
+        <tr>
+            <td>消息格式</td>
+            <td>JSON 字符串</td>
+            <td>结构化帧</td>
+        </tr>
+        <tr>
+            <td>Spring 集成</td>
+            <td>需第三方库</td>
+            <td>原生支持</td>
+        </tr>
+        <tr>
+            <td>负载均衡</td>
+            <td>复杂</td>
+            <td>简单（使用 /topic）</td>
+        </tr>
+    </table>
+    
+    <h3>WebSocket 配置</h3>
+    <pre><code>@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+    
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry registry) {
+        // 使用内置 broker，"/topic" 前缀用于广播
+        registry.enableSimpleBroker("/topic");
+        // 客户端发送消息的前缀
+        registry.setApplicationDestinationPrefixes("/app");
+    }
+    
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // WebSocket 连接端点
+        registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns("*")
+                .withSockJS();  // 支持 SockJS 降级
+    }
+}</code></pre>
+    
+    <h3>推送服务实现</h3>
+    <pre><code>@Service
+public class WsPushService {
+    
+    private final SimpMessagingTemplate messagingTemplate;
+    
+    public WsPushService(SimpMessagingTemplate messagingTemplate) {
+        this.messagingTemplate = messagingTemplate;
+    }
+    
+    // 推送面试创建成功
+    public void pushInterviewCreated(Long tenantId, Long interviewId, Long userId) {
+        String destination = "/topic/interview/created/" + userId;
+        Map&lt;String, Object&gt; payload = Map.of(
+            "interviewId", interviewId,
+            "status", "CREATED",
+            "timestamp", LocalDateTime.now()
+        );
+        messagingTemplate.convertAndSend(destination, payload);
+    }
+    
+    // 推送音频上传成功
+    public void pushAudioUploaded(Long tenantId, Long interviewId, Long userId) {
+        String destination = "/topic/interview/audio/" + userId;
+        Map&lt;String, Object&gt; payload = Map.of(
+            "interviewId", interviewId,
+            "status", "UPLOADED",
+            "timestamp", LocalDateTime.now()
+        );
+        messagingTemplate.convertAndSend(destination, payload);
+    }
+    
+    // 推送分析状态
+    public void pushAnalysisStatus(Long tenantId, Long interviewId, String status) {
+        String destination = "/topic/interview/analysis/" + interviewId;
+        Map&lt;String, Object&gt; payload = Map.of(
+            "interviewId", interviewId,
+            "status", status,  // analyzing / completed / error
+            "timestamp", LocalDateTime.now()
+        );
+        messagingTemplate.convertAndSend(destination, payload);
+    }
+    
+    // 推送分析完成
+    public void pushAnalysisComplete(Long tenantId, Long interviewId, Evaluation evaluation) {
+        String destination = "/topic/interview/analysis/" + interviewId;
+        Map&lt;String, Object&gt; payload = Map.of(
+            "interviewId", interviewId,
+            "status", "completed",
+            "evaluation", evaluation,
+            "timestamp", LocalDateTime.now()
+        );
+        messagingTemplate.convertAndSend(destination, payload);
+    }
+    
+    // 推送分析失败
+    public void pushAnalysisError(Long tenantId, Long interviewId, String error) {
+        String destination = "/topic/interview/analysis/" + interviewId;
+        Map&lt;String, Object&gt; payload = Map.of(
+            "interviewId", interviewId,
+            "status", "error",
+            "error", error,
+            "timestamp", LocalDateTime.now()
+        );
+        messagingTemplate.convertAndSend(destination, payload);
+    }
+}</code></pre>
+    
+    <h2>Flutter 端接收</h2>
+    
+    <pre><code>// Flutter WebSocket 连接和订阅
+class WebSocketService {
+  late StompClient stompClient;
+  
+  void connect(String userId) {
+    stompClient = StompClient(
+      config: StompConfig(
+        url: 'http://localhost:8080/ws',
+        onConnect: (frame) {
+          // 订阅面试创建事件
+          stompClient.subscribe(
+            destination: '/topic/interview/created/$userId',
+            callback: (frame) {
+              final data = json.decode(frame.body!);
+              handleInterviewCreated(data);
+            },
+          );
+          
+          // 订阅分析进度事件
+          stompClient.subscribe(
+            destination: '/topic/interview/analysis/$interviewId',
+            callback: (frame) {
+              final data = json.decode(frame.body!);
+              handleAnalysisProgress(data);
+            },
+          );
+        },
+      ),
+    );
+    stompClient.activate();
+  }
+}</code></pre>
+    
+    <h2>RESTClient 调用 Python</h2>
+    
+    <p>Spring 6 提供了新的 RestClient，替代了旧的 RestTemplate。它更简洁、更现代：</p>
+    
+    <pre><code>@Service
+public class PythonAiClient {
+    
+    private final RestClient restClient;
+    
+    public PythonAiClient(@Value("${python.ai.backend.url}") String baseUrl) {
+        this.restClient = RestClient.create(baseUrl);
+    }
+    
+    public Map&lt;String, Object&gt; analyzeAudio(String audioFileId, String audioFormat) {
+        Map&lt;String, String&gt; request = Map.of(
+            "audio_file_id", audioFileId,
+            "audio_format", audioFormat
+        );
+        
+        return restClient.post()
+                .uri("/api/analysis")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(Map.class);
+    }
+}</code></pre>
+    
+    <div class="callout info">
+        <strong>RestClient vs RestTemplate：</strong> RestClient 是 Spring 6 推荐的 HTTP 客户端，API 更简洁，支持链式调用，且与 Spring 生态集成更好。
+    </div>
+    
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>在 InterviewMentorAI 中，为什么需要异步处理音频分析？</p>
+        <option onclick="checkAnswer(this, false)">A. 因为 Python 后端只能处理异步请求</option>
+        <option onclick="checkAnswer(this, true)">B. 因为音频分析需要较长时间，同步会导致用户界面卡死</option>
+        <option onclick="checkAnswer(this, false)">C. 因为 WebSocket 不支持同步通信</option>
+        <option onclick="checkAnswer(this, false)">D. 因为 Spring Boot 不支持同步方法</option>
+    </div>
+    
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>STOMP 协议中的 "/topic" 前缀表示什么？</p>
+        <option onclick="checkAnswer(this, false)">A. 点对点通信</option>
+        <option onclick="checkAnswer(this, true)">B. 广播模式（一对多）</option>
+        <option onclick="checkAnswer(this, false)">C. 文件传输</option>
+        <option onclick="checkAnswer(this, false)">D. 数据库查询</option>
+    </div>
+    
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了异步处理和 WebSocket 通信后，我们将学习如何设计清晰规范的 RESTful API 接口。请阅读 <a href="https://spring.io/guides/gs/messaging-stomp-websocket">Spring 官方 WebSocket 教程</a> 作为补充材料。
+    </div>
+    
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <div class="navigation">
+            <a href="0014-mybatis-plus-db-design.html">上一课：MyBatis-Plus与数据库设计</a>
+            <a href="0016-restful-api-controller.html">下一课：RESTful API设计</a>
+        </div>
+    </div>
+    
+    <script>
+        function checkAnswer(element, isCorrect) {
+            const options = element.parentElement.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+                opt.style.pointerEvents = 'none';
+            });
+            
+            if (isCorrect) {
+                element.classList.add('correct');
+                element.innerHTML += ' ✓ 正确！';
+            } else {
+                element.classList.add('incorrect');
+                element.innerHTML += ' ✗ 不正确。';
+            }
+        }
+    </script>
+    </main>
+</body>
+</html>

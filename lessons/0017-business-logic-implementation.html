@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>业务逻辑实现 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="with-sidebar">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>InterviewMentorAI</h2>
+            <div class="subtitle">教学工作区</div>
+        </div>
+        
+        <div class="sidebar-learning-record">
+            <a href="../learning-records/0002-saas-backend-learning-start.md">
+                <span class="icon">&#128213;</span>
+                <span>学习记录</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title rag">RAG 技术课程</div>
+            <nav class="sidebar-nav">
+                <a href="0001-rag-core-concepts.html">0001 - RAG核心概念</a>
+                <a href="0002-document-chunking.html">0002 - 文档分块策略</a>
+                <a href="0003-vector-embeddings.html">0003 - 向量嵌入技术</a>
+                <a href="0004-retrieval-strategies.html">0004 - 检索策略与优化</a>
+                <a href="0005-rag-evaluation.html">0005 - RAG系统评估</a>
+                <a href="0006-interview-mentor-integration.html">0006 - InterviewMentorAI集成</a>
+                <a href="0007-implementation-guide.html">0007 - 实现指南</a>
+                <a href="0008-optimization-extension.html">0008 - 优化与扩展</a>
+                <a href="0009-summary-next-steps.html">0009 - 总结与下一步</a>
+            </nav>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title saas">SaaS 后端架构</div>
+            <nav class="sidebar-nav">
+                <a href="0010-saas-multi-tenant-core.html">0010 - SaaS多租户架构核心概念</a>
+                <a href="0011-springboot3-java17-infra.html">0011 - Spring Boot 3 + Java 17</a>
+                <a href="0012-jwt-auth-rbac.html">0012 - JWT认证与RBAC权限体系</a>
+                <a href="0013-multi-tenant-data-isolation.html">0013 - 多租户数据隔离设计</a>
+                <a href="0014-mybatis-plus-db-design.html">0014 - MyBatis-Plus与数据库设计</a>
+                <a href="0015-async-websocket-push.html">0015 - 异步调用与WebSocket推送</a>
+                <a href="0016-restful-api-controller.html">0016 - RESTful API设计</a>
+                <a href="0017-business-logic-implementation.html" class="active">0017 - 业务逻辑实现</a>
+                <a href="0018-architecture-review-exercises.html">0018 - 架构回顾与实战</a>
+            </nav>
+        </div>
+    </aside>
+    
+    <main class="main-content">
+    <h1>业务逻辑实现（核心模块串联）</h1>
+    
+    <div class="callout info">
+        <strong>学习目标：</strong> 理解 InterviewMentorAI 完整的面试分析流程，掌握各 Service 模块如何协同工作，学会从面试创建到报告生成的完整链路实现。
+    </div>
+    
+    <h2>核心业务流程：一次完整的面试</h2>
+    
+    <p>想象一下你是一名 HR，要组织一场面试。整个流程就像一条流水线：</p>
+    
+    <pre><code>1. HR 创建面试会话（预约面试）
+   POST /session/create { title: "产品经理终面" }
+   ↓ 返回 { sessionId, inviteCode: "A1B2C3" }
+   
+2. HR 将邀请码发给候选人（发邀请函）
+
+3. 候选人使用邀请码加入面试（到场签到）
+   GET /session/code/{inviteCode}
+   ↓ 返回 { sessionId, title, is_valid: true }
+   
+4. 候选人录制并上传音频（开始面试）
+   POST /interview/{id}/audio (FormData: audio.wav)
+   ↓
+   Java 后端:
+     1. 保存音频文件到 MinIO
+     2. 创建面试记录
+     3. 异步调用 Python AI 后端
+     4. 立即返回 { interviewId, status: "uploaded" }
+   
+5. Python AI 分析中...（面试官记录笔记）
+   Java 通过 STOMP 推送进度
+   Flutter 显示 "分析中..." 动画
+   
+6. Python 分析完成，返回结果（面试结束）
+   {
+     "evaluations": [
+       { "dimension": "沟通能力", "score": 85, "summary": "表达清晰..." },
+       { "dimension": "专业能力", "score": 78, "summary": "基础知识扎实..." }
+     ]
+   }
+   
+7. Java 保存评估结果到数据库（整理面试记录）
+
+8. Java 生成综合报告（出面试报告）
+   计算加权总分，生成建议
+   
+9. Java 通过 STOMP 推送最终结果给 Flutter（发送报告）
+
+10. HR 查看报告，可选择人工修正（审核报告）
+    PUT /report/evaluation/{id}/correct
+    
+11. 系统自动更新最终分数（定稿）</code></pre>
+    
+    <h2>核心服务实现</h2>
+    
+    <h3>InterviewService（面试服务）</h3>
+    <p>InterviewService 就像面试的"总协调人"，负责整个面试流程的管理。</p>
+    
+    <pre><code>@Service
+public class InterviewServiceImpl implements InterviewService {
+    
+    private final InterviewRecordMapper interviewMapper;
+    private final InterviewSessionMapper sessionMapper;
+    private final WsPushService wsPushService;
+    private final PythonAiClient pythonAiClient;
+    
+    @Override
+    public InterviewRecord createInterview(CreateInterviewRequest request, Long currentUserId) {
+        Long tenantId = TenantContext.getTenantId();
+        
+        InterviewRecord record = new InterviewRecord();
+        record.setTenantId(tenantId);
+        record.setUserId(request.getUserId() != null ? request.getUserId() : currentUserId);
+        record.setTitle(request.getTitle());
+        record.setStatus("CREATED");
+        record.setCreatedAt(LocalDateTime.now());
+        
+        interviewMapper.insert(record);
+        
+        // 推送面试创建成功
+        wsPushService.pushInterviewCreated(tenantId, record.getId(), currentUserId);
+        
+        return record;
+    }
+    
+    @Async("aiAnalysisExecutor")
+    @Override
+    public void uploadAudioAndAnalyze(Long interviewId, MultipartFile file, Long currentUserId) {
+        Long tenantId = TenantContext.getTenantId();
+        
+        try {
+            // 1. 上传音频到 MinIO
+            String audioFileId = uploadToMinio(file);
+            
+            // 2. 更新面试记录
+            InterviewRecord record = interviewMapper.selectById(interviewId);
+            record.setAudioFileId(audioFileId);
+            record.setStatus("UPLOADED");
+            interviewMapper.updateById(record);
+            
+            // 3. 推送音频上传成功
+            wsPushService.pushAudioUploaded(tenantId, interviewId, currentUserId);
+            
+            // 4. 调用 Python AI 后端
+            wsPushService.pushAnalysisStatus(tenantId, interviewId, "analyzing");
+            
+            Map&lt;String, Object&gt; aiResult = pythonAiClient.analyzeAudio(audioFileId, "wav");
+            
+            // 5. 解析并保存评估结果
+            List&lt;Evaluation&gt; evaluations = parseEvaluations(aiResult, interviewId);
+            for (Evaluation eval : evaluations) {
+                evaluationMapper.insert(eval);
+            }
+            
+            // 6. 生成综合报告
+            Report report = generateReport(interviewId, evaluations);
+            reportMapper.insert(report);
+            
+            // 7. 推送分析完成
+            record.setStatus("COMPLETED");
+            interviewMapper.updateById(record);
+            
+            wsPushService.pushAnalysisComplete(tenantId, interviewId, evaluations.get(0));
+            
+        } catch (Exception e) {
+            log.error("音频分析失败", e);
+            wsPushService.pushAnalysisError(tenantId, interviewId, e.getMessage());
+        }
+    }
+    
+    private Report generateReport(Long interviewId, List&lt;Evaluation&gt; evaluations) {
+        // 计算加权总分
+        int totalScore = evaluations.stream()
+                .mapToInt(Evaluation::getAiScore)
+                .sum() / evaluations.size();
+        
+        // 生成综合建议
+        String recommendation = totalScore >= 80 ? "强烈推荐" :
+                               totalScore >= 60 ? "推荐" : "待定";
+        
+        Report report = new Report();
+        report.setInterviewId(interviewId);
+        report.setTotalScore(totalScore);
+        report.setSummary("综合评估报告...");
+        report.setRecommendation(recommendation);
+        report.setCreatedAt(LocalDateTime.now());
+        
+        return report;
+    }
+}</code></pre>
+    
+    <h3>InterviewSessionService（面试会话服务）</h3>
+    <p>InterviewSessionService 就像面试的"前台接待"，负责面试会话的创建和邀请码管理。</p>
+    
+    <pre><code>@Service
+public class InterviewSessionServiceImpl implements InterviewSessionService {
+    
+    private final InterviewSessionMapper sessionMapper;
+    
+    @Override
+    public Map&lt;String, Object&gt; createSession(Long userId, String title) {
+        Long tenantId = TenantContext.getTenantId();
+        
+        // 生成6位邀请码
+        String inviteCode = generateInviteCode();
+        
+        InterviewSession session = new InterviewSession();
+        session.setTenantId(tenantId);
+        session.setCreatedBy(userId);
+        session.setTitle(title);
+        session.setInviteCode(inviteCode);
+        session.setStatus("WAITING");
+        session.setCreatedAt(LocalDateTime.now());
+        
+        sessionMapper.insert(session);
+        
+        return Map.of(
+            "sessionId", session.getId(),
+            "inviteCode", inviteCode,
+            "title", title
+        );
+    }
+    
+    private String generateInviteCode() {
+        // 生成6位大写字母和数字
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        Random random = new Random();
+        StringBuilder code = new StringBuilder();
+        for (int i = 0; i < 6; i++) {
+            code.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        return code.toString();
+    }
+    
+    @Override
+    public Map&lt;String, Object&gt; getSessionByCode(String inviteCode) {
+        InterviewSession session = sessionMapper.selectByInviteCode(inviteCode);
+        
+        if (session == null) {
+            throw new BusinessException("邀请码无效");
+        }
+        
+        // 检查邀请码是否有效（24小时内）
+        long hoursSinceCreation = ChronoUnit.HOURS.between(
+            session.getCreatedAt(), LocalDateTime.now());
+        if (hoursSinceCreation > 24) {
+            throw new BusinessException("邀请码已过期");
+        }
+        
+        return Map.of(
+            "sessionId", session.getId(),
+            "title", session.getTitle(),
+            "is_valid", true
+        );
+    }
+}</code></pre>
+    
+    <h3>ReportService（报告服务）</h3>
+    <p>ReportService 就像面试的"档案管理员"，负责报告的查看和人工修正。</p>
+    
+    <pre><code>@Service
+public class ReportServiceImpl implements ReportService {
+    
+    private final EvaluationMapper evaluationMapper;
+    private final ReportMapper reportMapper;
+    private final WsPushService wsPushService;
+    
+    @Override
+    public List&lt;Evaluation&gt; getEvaluations(Long interviewId) {
+        return evaluationMapper.selectByInterviewId(interviewId);
+    }
+    
+    @Override
+    public void correctEvaluation(Long evaluationId, HrCorrectionRequest request) {
+        Evaluation evaluation = evaluationMapper.selectById(evaluationId);
+        if (evaluation == null) {
+            throw new BusinessException("评估记录不存在");
+        }
+        
+        // HR 人工修正
+        evaluation.setHrScore(request.getHrScore());
+        evaluation.setHrRemark(request.getHrRemark());
+        
+        // 使用人工修正后的分数
+        evaluation.setFinalScore(request.getHrScore());
+        evaluation.setFinalSummary(request.getHrRemark());
+        
+        evaluationMapper.updateById(evaluation);
+        
+        // 推送修正结果
+        Long tenantId = TenantContext.getTenantId();
+        wsPushService.pushEvaluationCorrected(tenantId, evaluation.getInterviewId(), evaluation);
+    }
+    
+    @Override
+    public Report getReport(Long interviewId) {
+        return reportMapper.selectByInterviewId(interviewId);
+    }
+}</code></pre>
+    
+    <h2>数据流转图</h2>
+    
+    <p>整个系统的数据流转就像一条工厂流水线：</p>
+    
+    <pre><code>┌─────────────────────────────────────────────────────────────────┐
+│                        InterviewMentorAI 数据流                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────┐    ┌──────────┐    ┌──────────┐    ┌─────────┐   │
+│  │ Flutter │◄──►│  Java    │◄──►│ Python   │◄──►│  MySQL  │   │
+│  │  App    │    │ Backend  │    │   AI     │    │   DB    │   │
+│  └─────────┘    └──────────┘    └──────────┘    └─────────┘   │
+│       │              │               │               │         │
+│       │              │               │               │         │
+│  1. HTTP Request ──►│               │               │         │
+│  2. HTTP Response ◄──│               │               │         │
+│  3. WebSocket ◄─────│               │               │         │
+│                     │  4. RestClient ──►│               │         │
+│                     │  5. Response  ◄──│               │         │
+│                     │               │  6. Query   ──►│         │
+│                     │               │  7. Result   ◄──│         │
+│                     │  8. STOMP Push ──►│               │         │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘</code></pre>
+    
+    <div class="callout info">
+        <strong>数据流说明：</strong>
+        <ol>
+            <li>Flutter 通过 HTTP 请求与 Java 后端通信</li>
+            <li>Java 后端通过 RestClient 调用 Python AI 后端</li>
+            <li>Python AI 后端通过 JDBC 查询 MySQL 数据库</li>
+            <li>Java 后端通过 STOMP 推送实时消息给 Flutter</li>
+        </ol>
+    </div>
+    
+    <h2>Service 层设计原则</h2>
+    
+    <h3>单一职责：每个 Service 只做一件事</h3>
+    <table>
+        <tr>
+            <th>Service</th>
+            <th>职责</th>
+            <th>类比</th>
+        </tr>
+        <tr>
+            <td><strong>InterviewService</strong></td>
+            <td>面试的创建、上传、分析触发</td>
+            <td>面试总协调人</td>
+        </tr>
+        <tr>
+            <td><strong>InterviewSessionService</strong></td>
+            <td>面试会话和邀请码管理</td>
+            <td>前台接待</td>
+        </tr>
+        <tr>
+            <td><strong>ReportService</strong></td>
+            <td>报告查看和人工修正</td>
+            <td>档案管理员</td>
+        </tr>
+        <tr>
+            <td><strong>SubscriptionService</strong></td>
+            <td>订阅额度管理</td>
+            <td>财务人员</td>
+        </tr>
+    </table>
+    
+    <h3>依赖注入：使用构造器注入</h3>
+    <pre><code>@Service
+public class InterviewServiceImpl implements InterviewService {
+    
+    // 只注入必要的依赖
+    private final InterviewRecordMapper interviewMapper;
+    private final WsPushService wsPushService;
+    private final PythonAiClient pythonAiClient;
+    
+    // 使用构造器注入（推荐）
+    public InterviewServiceImpl(
+            InterviewRecordMapper interviewMapper,
+            WsPushService wsPushService,
+            PythonAiClient pythonAiClient) {
+        this.interviewMapper = interviewMapper;
+        this.wsPushService = wsPushService;
+        this.pythonAiClient = pythonAiClient;
+    }
+}</code></pre>
+    
+    <h3>事务管理：保证数据一致性</h3>
+    <pre><code>@Override
+@Transactional  // 事务注解
+public void correctEvaluation(Long evaluationId, HrCorrectionRequest request) {
+    // 数据库操作在同一事务中
+    Evaluation evaluation = evaluationMapper.selectById(evaluationId);
+    evaluation.setHrScore(request.getHrScore());
+    evaluationMapper.updateById(evaluation);
+    
+    // 如果抛出异常，整个事务回滚
+}</code></pre>
+    
+    <div class="callout warning">
+        <strong>事务注意：</strong> @Transactional 只对数据库操作有效。如果方法中调用了外部服务（如 REST API），这些调用不会被事务管理。需要考虑分布式事务或最终一致性方案。
+    </div>
+    
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>在面试分析流程中，哪个步骤是异步执行的？</p>
+        <option onclick="checkAnswer(this, false)">A. 创建面试记录</option>
+        <option onclick="checkAnswer(this, true)">B. 调用 Python AI 分析音频</option>
+        <option onclick="checkAnswer(this, false)">C. 生成面试报告</option>
+        <option onclick="checkAnswer(this, false)">D. HR 人工修正评估</option>
+    </div>
+    
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>InterviewSessionService 的主要职责是什么？</p>
+        <option onclick="checkAnswer(this, false)">A. 管理面试的创建和上传</option>
+        <option onclick="checkAnswer(this, true)">B. 管理面试会话和邀请码</option>
+        <option onclick="checkAnswer(this, false)">C. 管理评估报告和修正</option>
+        <option onclick="checkAnswer(this, false)">D. 管理用户订阅和额度</option>
+    </div>
+    
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了业务逻辑实现后，我们将进行整体架构回顾和实战练习，巩固所学知识。请阅读 <a href="https://spring.io/guides/gs/serving-web-content">Spring Boot 官方教程</a> 作为补充材料。
+    </div>
+    
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <div class="navigation">
+            <a href="0016-restful-api-controller.html">上一课：RESTful API设计</a>
+            <a href="0018-architecture-review-exercises.html">下一课：架构回顾与实战</a>
+        </div>
+    </div>
+    
+    <script>
+        function checkAnswer(element, isCorrect) {
+            const options = element.parentElement.querySelectorAll('option');
+            options.forEach(opt => {
+                opt.classList.remove('correct', 'incorrect');
+                opt.style.pointerEvents = 'none';
+            });
+            
+            if (isCorrect) {
+                element.classList.add('correct');
+                element.innerHTML += ' ✓ 正确！';
+            } else {
+                element.classList.add('incorrect');
+                element.innerHTML += ' ✗ 不正确。';
+            }
+        }
+    </script>
+    </main>
+</body>
+</html>

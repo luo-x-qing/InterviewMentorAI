@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多租户数据隔离设计 - InterviewMentorAI教学工作区</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="with-sidebar">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>InterviewMentorAI</h2>
+            <div class="subtitle">教学工作区</div>
+        </div>
+        
+        <div class="sidebar-learning-record">
+            <a href="../learning-records/0002-saas-backend-learning-start.md">
+                <span class="icon">&#128213;</span>
+                <span>学习记录</span>
+            </a>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title rag">RAG 技术课程</div>
+            <nav class="sidebar-nav">
+                <a href="0001-rag-core-concepts.html">0001 - RAG核心概念</a>
+                <a href="0002-document-chunking.html">0002 - 文档分块策略</a>
+                <a href="0003-vector-embeddings.html">0003 - 向量嵌入技术</a>
+                <a href="0004-retrieval-strategies.html">0004 - 检索策略与优化</a>
+                <a href="0005-rag-evaluation.html">0005 - RAG系统评估</a>
+                <a href="0006-interview-mentor-integration.html">0006 - InterviewMentorAI集成</a>
+                <a href="0007-implementation-guide.html">0007 - 实现指南</a>
+                <a href="0008-optimization-extension.html">0008 - 优化与扩展</a>
+                <a href="0009-summary-next-steps.html">0009 - 总结与下一步</a>
+            </nav>
+        </div>
+        
+        <div class="sidebar-section">
+            <div class="sidebar-module-title saas">SaaS 后端架构</div>
+            <nav class="sidebar-nav">
+                <a href="0010-saas-multi-tenant-core.html">0010 - SaaS多租户架构核心概念</a>
+                <a href="0011-springboot3-java17-infra.html">0011 - Spring Boot 3 + Java 17</a>
+                <a href="0012-jwt-auth-rbac.html">0012 - JWT认证与RBAC权限体系</a>
+                <a href="0013-multi-tenant-data-isolation.html" class="active">0013 - 多租户数据隔离设计</a>
+                <a href="0014-mybatis-plus-db-design.html">0014 - MyBatis-Plus与数据库设计</a>
+                <a href="0015-async-websocket-push.html">0015 - 异步调用与WebSocket推送</a>
+                <a href="0016-restful-api-controller.html">0016 - RESTful API设计</a>
+                <a href="0017-business-logic-implementation.html">0017 - 业务逻辑实现</a>
+                <a href="0018-architecture-review-exercises.html">0018 - 架构回顾与实战</a>
+            </nav>
+        </div>
+    </aside>
+    
+    <main class="main-content">
+    <h1>多租户数据隔离设计</h1>
+
+    <div class="callout info">
+        <strong>学习目标：</strong>
+        <ul>
+            <li>理解多租户数据隔离的三种策略及其适用场景</li>
+            <li>掌握 TenantContext（租户上下文）的设计思想</li>
+            <li>理解 TenantFilter（租户过滤器）的工作原理</li>
+            <li>掌握 Schema 初始化流程</li>
+            <li>学会在查询层面实现租户数据隔离</li>
+        </ul>
+    </div>
+
+    <h2>回顾：三种隔离策略</h2>
+    <p>在多租户架构中，数据隔离是最核心的问题。就像一个商场里有很多商铺，怎么保证A商铺看不到B商铺的账本？有三种主流方案：</p>
+
+    <table>
+        <thead>
+            <tr style="background-color: var(--code-background);">
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">策略</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">商场类比</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">隔离级别</th>
+                <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">成本</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>独立数据库</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">每个商铺有自己的仓库大楼</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">最高</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">最高</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>独立 Schema</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">同一栋楼，但每个商铺有自己的楼层</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">高</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">中</td>
+            </tr>
+            <tr>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>共享表 + 租户ID</strong></td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">同一栋楼，同一层，靠编号区分</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">中</td>
+                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">低</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="callout success">
+        <strong>InterviewMentorAI 的选择：</strong> 我们采用<strong>混合方案</strong>——共享数据库 + 独立 Schema + tenant_id 字段。就像一栋大楼里，一楼是公共区域（平台库），每个租户在自己的楼层有独立的办公空间（租户库），同时每个人的桌子上都贴着自己的工号（tenant_id）。
+    </div>
+
+    <h2>混合方案架构图</h2>
+    <p>来看看我们的数据库结构：</p>
+
+    <pre><code>MySQL Server（整栋大楼）
+├── platform 数据库（一楼公共大厅）
+│   ├── t_tenant          # 租户注册表（住户登记簿）
+│   ├── t_user            # 用户表（住户信息）
+│   ├── t_user_role       # 用户角色关联（住户权限卡）
+│   ├── t_role            # 角色表（权限级别定义）
+│   ├── t_role_permission # 角色权限关联（权限卡对应的钥匙）
+│   └── t_permission      # 权限表（所有可用的钥匙类型）
+│
+├── tenant_1 数据库（二楼租户A的独立空间）
+│   ├── t_interview         # 面试记录
+│   ├── t_evaluation        # 评估记录
+│   ├── t_report            # 面试报告
+│   ├── t_interview_session # 面试会话
+│   ├── t_knowledge_base    # 知识库
+│   ├── t_knowledge_doc     # 知识库文档
+│   └── audit_log           # 审计日志
+│
+└── tenant_2 数据库（三楼租户B的独立空间）
+    └── ...（和 tenant_1 结构完全一样）</code></pre>
+
+    <h2>TenantContext：你的"房间号"</h2>
+    <p>TenantContext 就像你进入大楼后，门卫给你的一个"房间号"。在整个工作过程中（一个请求的生命周期），你随时可以查看自己的房间号，确保你在正确的楼层工作。</p>
+
+    <p>技术上，我们使用 <strong>ThreadLocal</strong> 来存储当前请求的租户 ID。ThreadLocal 就像一个"个人便签本"，只有当前线程（当前工作人员）能看到，别人看不到。</p>
+
+    <pre><code>public class TenantContext {
+
+    // ThreadLocal - 每个线程自己的便签本
+    private static final ThreadLocal&lt;Long&gt; CURRENT_TENANT_ID = new ThreadLocal&lt;&gt;();
+
+    // 写入房间号（门卫分配房间）
+    public static void setTenantId(Long tenantId) {
+        CURRENT_TENANT_ID.set(tenantId);
+    }
+
+    // 读取房间号（随时查看自己在哪个房间）
+    public static Long getTenantId() {
+        return CURRENT_TENANT_ID.get();
+    }
+
+    // 清除房间号（下班时擦掉便签，防止泄漏给下一个人）
+    public static void clear() {
+        CURRENT_TENANT_ID.remove();
+    }
+}</code></pre>
+
+    <div class="callout warning">
+        <strong>关键点：</strong> 必须在请求结束时调用 <code>clear()</code> 清除 ThreadLocal，否则可能造成内存泄漏或数据串租户（A租户看到B租户的数据）。
+    </div>
+
+    <h2>TenantFilter：楼层门禁</h2>
+    <p>TenantFilter 就像每个楼层的门禁系统——每个请求进来时，它会检查你的工牌（JWT Token），确定你在哪个楼层，然后把楼层号记录下来。</p>
+
+    <pre><code>@Component
+public class TenantFilter implements Filter {
+
+    private final TenantService tenantService;
+
+    @Override
+    public void doFilterInternal(HttpServletRequest request,
+                                 HttpServletResponse response,
+                                 FilterChain filterChain) throws ServletException, IOException {
+        try {
+            // 从门禁卡（JWT Token）中提取楼层号（tenantId）
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
+                Long tenantId = extractTenantId(authentication);
+                TenantContext.setTenantId(tenantId);  // 记录到个人便签本
+            }
+
+            filterChain.doFilter(request, response);
+        } finally {
+            TenantContext.clear();  // 下班时擦掉便签，防止内存泄漏
+        }
+    }
+}</code></pre>
+
+    <h2>Schema 初始化流程</h2>
+    <p>当新租户注册时，就像新房客搬进大楼，需要为他准备好独立的办公空间：</p>
+
+    <pre><code>1. 新租户注册（新房客来前台登记）
+   ↓
+2. 在 platform.ttenant 插入租户记录（登记到住户簿）
+   ↓
+3. 创建新 Schema: tenant_{id}（分配独立楼层）
+   ↓
+4. 执行 schema-tenant.sql 初始化表结构（摆放办公家具）
+   ↓
+5. 租户可以开始使用系统（新房客开始办公）</code></pre>
+
+    <h3>TenantService 实现</h3>
+    <p>这是"房管部门"的核心代码，负责为新租户创建独立空间：</p>
+    <pre><code>@Service
+public class TenantServiceImpl implements TenantService {
+
+    private final JdbcTemplate jdbcTemplate;
+
+    @Override
+    public Map&lt;String, Object&gt; createTenant(String tenantName, String contactEmail) {
+        // 1. 创建独立楼层（Schema）
+        String schemaName = "tenant_" + System.currentTimeMillis();
+        jdbcTemplate.execute("CREATE SCHEMA " + schemaName);
+
+        // 2. 摆放家具（执行初始化SQL）
+        Resource resource = new ClassPathResource("schema-tenant.sql");
+        String sql = new String(resource.getInputStream().readAllBytes());
+        sql = sql.replace("${schema_name}", schemaName);
+        jdbcTemplate.execute(sql);
+
+        // 3. 登记到住户簿（插入租户记录）
+        Tenant tenant = new Tenant();
+        tenant.setName(tenantName);
+        tenant.setSchemaName(schemaName);
+        tenant.setContactEmail(contactEmail);
+        tenant.setStatus(TenantStatus.ACTIVE);
+        tenantMapper.insert(tenant);
+
+        return Map.of("tenantId", tenant.getId(), "schemaName", schemaName);
+    }
+}</code></pre>
+
+    <h2>查询隔离机制</h2>
+    <p>数据隔离的最后一步是确保每次查询都只返回当前租户的数据。这就像餐厅服务员只会把你点的菜端给你，不会端给隔壁桌。</p>
+
+    <h3>MyBatis-Plus 自动填充</h3>
+    <p>插入数据时，自动加上租户ID，就像给每件物品贴上"属于XX房间"的标签：</p>
+    <pre><code>@Component
+public class MybatisPlusConfig implements MetaObjectHandler {
+
+    @Override
+    public void insertFill(MetaObject metaObject) {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId != null) {
+            // 自动贴上"房间号"标签
+            strictInsertFill(metaObject, "tenantId", Long.class, tenantId);
+        }
+    }
+}</code></pre>
+
+    <h3>Service 层手动过滤</h3>
+    <p>查询数据时，必须带上租户条件，就像查库存时必须先确认是哪个仓库：</p>
+    <pre><code>@Override
+public IPage&lt;InterviewRecord&gt; listInterviews(Long userId, String status, Page&lt;InterviewRecord&gt; page) {
+    Long tenantId = TenantContext.getTenantId();  // 获取当前楼层号
+
+    LambdaQueryWrapper&lt;InterviewRecord&gt; wrapper = new LambdaQueryWrapper&lt;&gt;()
+            .eq(InterviewRecord::getTenantId, tenantId)  // 强制只查当前楼层
+            .eq(userId != null, InterviewRecord::getUserId, userId)
+            .eq(status != null, InterviewRecord::getStatus, status)
+            .orderByDesc(InterviewRecord::getCreatedAt);
+
+    return interviewMapper.selectPage(page, wrapper);
+}</code></pre>
+
+    <div class="callout warning">
+        <strong>安全原则：</strong> 永远不要信任前端传入的 tenantId。必须从已认证的用户信息中获取，防止租户数据泄露。就像你不能让顾客自己说"我是XX房间的"，必须刷门禁卡验证。
+    </div>
+
+    <h2>实践练习</h2>
+    <div class="quiz">
+        <h4>快速测验</h4>
+        <p>TenantContext 使用 ThreadLocal 存储租户ID，为什么请求结束后必须调用 clear()？</p>
+        <option onclick="checkAnswer(this, false)">A. 为了释放数据库连接</option>
+        <option onclick="checkAnswer(this, true)">B. 防止线程复用时数据串租户（A租户看到B租户的数据）</option>
+        <option onclick="checkAnswer(this, false)">C. 为了加快响应速度</option>
+        <option onclick="checkAnswer(this, false)">D. 这只是代码规范，不调用也没问题</option>
+    </div>
+
+    <h2>Next Step Learning</h2>
+    <p>掌握了数据隔离机制后，建议你进一步学习：</p>
+    <ul>
+        <li><a href="https://mybatis.plus/" target="_blank">MyBatis-Plus 官方文档</a> - 了解 ORM 框架的高级特性</li>
+        <li><a href="https://dev.mysql.com/doc/refman/8.0/en/sql-prepared-statements.html" target="_blank">MySQL Schema 管理</a> - 深入理解数据库 Schema 的动态创建</li>
+        <li><a href="https://docs.spring.io/spring-framework/reference/core/beans/java/ambiguity-resolution.html" target="_blank">Spring Bean 作用域</a> - 理解 ThreadLocal 在 Spring 中的使用</li>
+    </ul>
+
+    <div class="callout info">
+        <strong>下一步学习：</strong> 在掌握了多租户数据隔离后，我们将深入探讨 MyBatis-Plus 与数据库设计。请阅读<a href="https://baomidou.com/guides/" target="_blank">MyBatis-Plus 官方指南</a>作为补充材料。
+    </div>
+
+    <div class="footer">
+        <p>本课程是InterviewMentorAI教学工作区的一部分。如有疑问，请向AI教师提问。</p>
+        <p>
+            <a href="0012-jwt-auth-rbac.html">上一课: JWT认证与RBAC权限体系</a> |
+            <a href="0014-mybatis-plus-db-design.html">下一课: MyBatis-Plus与数据库设计</a>
+        </p>
+    </div>
+    </main>
+</body>
+</html>
