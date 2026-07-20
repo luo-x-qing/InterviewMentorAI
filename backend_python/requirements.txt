@@ -17,3 +17,11 @@ python-dotenv>=1.0.0
 numpy==1.26
 sqlite-vec==0.1.6
 rank-bm25==0.2.2
+
+# 中文分词
+jieba>=0.42.1
+
+# 测试
+pytest>=7.0.0
+pytest-mock>=3.0.0
+pytest-cov>=4.0.0

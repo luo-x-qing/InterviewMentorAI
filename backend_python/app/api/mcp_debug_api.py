@@ -3,36 +3,17 @@ MCP调试 API 路由
 提供MCP链路测试、上下文预览等调试接口
 """
 import logging
-from typing import List
 
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
 
 from app.services.rag_service import RagService
 from app.services.rag_mcp import RagMCP
 from app.main import get_rag_service, get_rag_mcp
+from app.models.schemas import McpEvalRequest, McpRetrievalRequest
 
 logger = logging.getLogger(__name__)
 
-# 创建路由实例
 router = APIRouter(prefix="/mcp", tags=["mcp-debug"])
-
-
-# 请求/响应模型
-class McpEvalRequest(BaseModel):
-    """MCP评估测试请求"""
-    question: str
-    answer: str
-    use_hybrid: bool = True
-    use_rerank: bool = True
-
-
-class RetrievalRequest(BaseModel):
-    """检索请求（用于上下文预览）"""
-    question: str
-    top_k: int = 3
-    use_hybrid: bool = True
-    use_rerank: bool = False
 
 
 @router.post("/eval-test")
@@ -69,7 +50,7 @@ async def mcp_rag_eval_test(
 
 @router.post("/context-preview")
 async def mcp_context_preview(
-    request: RetrievalRequest,
+    request: McpRetrievalRequest,
     rag_service: RagService = Depends(get_rag_service),
     rag_mcp: RagMCP = Depends(get_rag_mcp)
 ):

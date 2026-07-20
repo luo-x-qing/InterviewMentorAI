@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Optional
 
+from pydantic import BaseModel, Field
+
 
 class Speaker(str, Enum):
     """说话人类型"""
@@ -62,15 +64,15 @@ class AgentState:
     final_report: str = ""
 
 
-@dataclass
-class AnalysisRequest:
+# ========== API 请求/响应模型 (Pydantic) ==========
+
+class AnalysisRequest(BaseModel):
     """分析请求"""
     interview_id: int
     audio_file_path: str
 
 
-@dataclass
-class AnalysisResponse:
+class AnalysisResponse(BaseModel):
     """分析响应"""
     status: AnalysisStatus
     interview_id: int
@@ -79,18 +81,32 @@ class AnalysisResponse:
     error: Optional[str] = None
 
 
-# RAG相关数据结构
-@dataclass
-class RagDoc:
+class RagDoc(BaseModel):
     """检索单条文档结构体｜0003向量存储元数据设计"""
     doc_id: int
-    title: str       # 文档片段标题（如Java集合面试题片段1）
+    title: str       # 文档片段标题
     content: str      # 知识库原文参考
-    source: str       # 来源文件名，用于溯源（解决LLM无出处幻觉）
-    score: float      # 向量相似度 0~1
+    source: str       # 来源文件名，用于溯源
+    score: float = Field(default=0.0, ge=0.0)  # 相似度（向量 0~1 / BM25 无上界）
 
-@dataclass
-class RagRetrievalResult:
+
+class RagRetrievalResult(BaseModel):
     """单道面试题检索返回包｜0004检索结果封装"""
     question: str
     docs: List[RagDoc]
+
+
+class McpEvalRequest(BaseModel):
+    """MCP评估测试请求"""
+    question: str
+    answer: str
+    use_hybrid: bool = True
+    use_rerank: bool = True
+
+
+class McpRetrievalRequest(BaseModel):
+    """MCP检索请求（用于上下文预览）"""
+    question: str
+    top_k: int = 3
+    use_hybrid: bool = True
+    use_rerank: bool = False

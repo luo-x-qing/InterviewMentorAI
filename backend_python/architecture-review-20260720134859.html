@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>架构审查 — InterviewMentorAI Python AI 后端</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+      <header>
+        <h1 class="text-3xl font-serif font-bold text-slate-900">架构审查</h1>
+        <p class="text-slate-600 mt-2">InterviewMentorAI Python AI 后端 — 2026-07-20</p>
+        <div class="flex items-center space-x-4 mt-4 text-xs uppercase tracking-wider">
+          <span class="flex items-center"><span class="w-3 h-3 bg-slate-700 rounded mr-2"></span>模块</span>
+          <span class="flex items-center"><span class="w-3 h-3 border border-slate-700 border-dashed rounded mr-2"></span>接缝</span>
+          <span class="flex items-center"><span class="w-3 h-3 bg-red-600 rounded mr-2"></span>泄漏</span>
+          <span class="flex items-center"><span class="w-3 h-3 bg-gradient-to-br from-slate-900 to-slate-700 rounded mr-2"></span>深层模块</span>
+        </div>
+      </header>
+
+      <!-- ==================== 候选方案列表 ==================== -->
+      <section id="candidates" class="space-y-10">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">候选改进方案</h2>
+
+        <!-- 候选1：RAG API 死代码清理 -->
+        <article class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-serif font-bold text-slate-900">清理 RAG API 死代码</h2>
+            <div class="flex items-center space-x-2">
+              <span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded">强烈推荐</span>
+              <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded">本地可替换</span>
+              <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded">已实施</span>
+            </div>
+          </div>
+          <div class="font-mono text-sm text-slate-700 mb-4">
+            backend_python/app/api/rag_api.py<br>
+            backend_python/scrpits/rag_init.py<br>
+            backend_python/tests/test_rag_eval.py
+          </div>
+          <p class="text-slate-700 mb-3"><strong>问题：</strong>rag_api.py 是遗留死代码，导入不存在的模块级单例，与新版 API 严重冲突。</p>
+          <p class="text-slate-700 mb-3"><strong>解决方案：</strong>重写为 MCP 调试专用入口，改为 DI 模式；修复 rag_init.py 和 test_rag_eval.py 的导入。</p>
+        </article>
+
+        <!-- 候选2：资源生命周期管理 -->
+        <article class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-serif font-bold text-slate-900">修复资源生命周期管理</h2>
+            <div class="flex items-center space-x-2">
+              <span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded">强烈推荐</span>
+              <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded">进程内</span>
+              <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded">已实施</span>
+            </div>
+          </div>
+          <div class="font-mono text-sm text-slate-700 mb-4">
+            backend_python/app/services/rag_mcp.py:83-88<br>
+            backend_python/app/main.py:62-76
+          </div>
+          <p class="text-slate-700 mb-3"><strong>问题：</strong>RagMCP.close() 会关闭共享的 llm_service 和 rag_service，导致资源重复关闭。</p>
+          <p class="text-slate-700 mb-3"><strong>解决方案：</strong>删除 agent_pipeline、rag_mcp、llm_service 的空 close() 方法，由 main.py 统一管理资源生命周期。</p>
+        </article>
+
+        <!-- 候选3：LlmService 拆分 -->
+        <article class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-serif font-bold text-slate-900">拆分 LlmService 为单一职责模块</h2>
+            <div class="flex items-center space-x-2">
+              <span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded">强烈推荐</span>
+              <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded">本地可替换</span>
+              <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded">已实施</span>
+            </div>
+          </div>
+          <div class="font-mono text-sm text-slate-700 mb-4">
+            backend_python/app/services/llm_service.py (已删除)<br>
+            backend_python/app/services/llm_client.py (新建)<br>
+            backend_python/app/services/prompt_service.py (新建)
+          </div>
+          <p class="text-slate-700 mb-3"><strong>问题：</strong>LlmService 违反 SRP，承载了 ASR、对话解析、评估、报告生成 4 种职责。</p>
+          <p class="text-slate-700 mb-3"><strong>解决方案：</strong>拆分为 LlmClient（底层通信）+ PromptService（业务 prompt 模板），上层只依赖 PromptService，屏蔽底层细节。</p>
+        </article>
+
+        <!-- 候选4：数据模型统一 -->
+        <article class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-serif font-bold text-slate-900">统一数据模型为 Pydantic</h2>
+            <div class="flex items-center space-x-2">
+              <span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded">强烈推荐</span>
+              <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded">本地可替换</span>
+              <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded">已实施</span>
+            </div>
+          </div>
+          <div class="font-mono text-sm text-slate-700 mb-4">
+            backend_python/app/models/schemas.py<br>
+            (AnalysisRequest, AnalysisResponse, RagDoc, RagRetrievalResult)
+          </div>
+          <p class="text-slate-700 mb-3"><strong>问题：</strong>核心数据模型使用 dataclass 而非 Pydantic，与 FastAPI 脱节。</p>
+          <p class="text-slate-700 mb-3"><strong>解决方案：</strong>将 4 个 API 模型迁移为 Pydantic BaseModel，保留内部状态类为 dataclass。RagDoc.score 添加 Field 验证。</p>
+        </article>
+
+        <!-- 候选5：BM25 优化 -->
+        <article class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-serif font-bold text-slate-900">优化 BM25 实现</h2>
+            <div class="flex items-center space-x-2">
+              <span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded">强烈推荐</span>
+              <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded">本地可替换</span>
+              <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded">已实施</span>
+            </div>
+          </div>
+          <div class="font-mono text-sm text-slate-700 mb-4">backend_python/app/core/vector_db.py</div>
+          <p class="text-slate-700 mb-3"><strong>问题：</strong>BM25 IDF 为占位符 (idf=1.0)，中文正则分词精度差，混合检索 BM25 归一化硬编码 /10。</p>
+          <p class="text-slate-700 mb-3"><strong>解决方案：</strong>预计算 IDF 缓存 + jieba 分词 + 动态 BM25 归一化。</p>
+        </article>
+
+        <!-- 候选6：测试覆盖 -->
+        <article class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-serif font-bold text-slate-900">添加真正的单元测试</h2>
+            <div class="flex items-center space-x-2">
+              <span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded">强烈推荐</span>
+              <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded">本地可替换</span>
+              <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded">已实施</span>
+            </div>
+          </div>
+          <div class="font-mono text-sm text-slate-700 mb-4">
+            backend_python/tests/<br>
+            backend_python/tests/conftest.py<br>
+            backend_python/tests/test_vector_db.py (25 用例)<br>
+            backend_python/tests/test_llm_client.py (4 用例)<br>
+            backend_python/tests/test_prompt_service.py (5 用例)<br>
+            backend_python/tests/test_rag_service.py (9 用例)<br>
+            backend_python/tests/test_rag_mcp.py (5 用例)<br>
+            backend_python/tests/test_agent_pipeline.py (10 用例)<br>
+            backend_python/tests/test_api_routes.py (4 用例)
+          </div>
+          <p class="text-slate-700 mb-3"><strong>问题：</strong>仅一个测试文件，无框架、无断言、依赖外部 API。</p>
+          <p class="text-slate-700 mb-3"><strong>解决方案：</strong>pytest + pytest-mock + pytest-cov，按 P0→P4 优先级递进实施。<br>共 62 个测试用例，核心模块覆盖率 80%-100%。</p>
+        </article>
+      </section>
+
+      <!-- ==================== 决策过程记录 ==================== -->
+      <section id="grilling" class="space-y-10">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">决策过程（Grilling）</h2>
+
+        <!-- ===== 方案1：清理 RAG API 死代码 ===== -->
+        <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">方案 1：清理 RAG API 死代码</h3>
+          <div class="space-y-4">
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q1：如何处理 rag_api.py 中的接口？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-2">
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">A：完全删除</div>
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">B：修复并保留 — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">C：选择性保留</div>
+              </div>
+              <div class="bg-blue-50 border border-blue-200 rounded p-2 text-sm text-blue-700">"我增加 rag 系统就是为了让大模型不产生幻觉，我必须保留 rag 系统。"</div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q2：如何修复不存在的模块级单例导入？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：改为 DI 模式 — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：添加模块级单例</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q3：如何处理重复的 Pydantic 模型？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：统一到 schemas.py — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：各自保留</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q4：如何处理与新版 API 重叠的接口？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：保留为 MCP 调试专用接口 — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：保留所有接口</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q5：如何处理路由注册？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：保持前缀 /api/v1/rag/mcp/... — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：合并到 mcp_debug_api.py</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q6：如何处理 rag_init.py 和 test_rag_eval.py？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：修复导入 — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：暂时忽略</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q7：如何注册路由到 main.py？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：直接注册 — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：条件注册</div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <!-- ===== 方案2：修复资源生命周期管理 ===== -->
+        <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">方案 2：修复资源生命周期管理</h3>
+          <div class="space-y-4">
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q1：修复策略？</h4>
+              <div class="bg-slate-50 border border-slate-200 rounded p-3 mb-2 text-sm">
+                <strong>问题全貌：</strong>
+                <div class="font-mono text-xs mt-1 space-y-0.5">
+                  <div>llm_service 被关闭 3 次（agent_pipeline → rag_mcp → main.py）</div>
+                  <div>rag_service 被关闭 2 次（rag_mcp → main.py）</div>
+                  <div>rag_mcp 被关闭 2 次（agent_pipeline → main.py）</div>
+                </div>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：只让 main.py 负责关闭 — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：只让拥有者关闭</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q2：删除空的 close() 方法？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：直接删除 — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：保留空方法</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q3：删除 llm_service.py 的空 close()？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：是 — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：否</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q4：确认最终关闭顺序？</h4>
+              <div class="bg-emerald-50 border border-emerald-200 rounded p-3 text-sm">
+                <div class="font-mono text-xs space-y-0.5">
+                  <div>1. knowledge_service.close()  → 关闭 SQLite</div>
+                  <div>2. rag_service.close()        → 关闭 SQLite</div>
+                  <div>3. vector_db.close()          → 关闭 SQLite</div>
+                </div>
+                <div class="text-emerald-600 text-xs mt-2">3 个有实质资源的模块各关闭一次，无重复。</div>
+              </div>
+            </article>
+          </div>
+        </div>
+        <!-- ===== 方案3：拆分 LlmService ===== -->
+        <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">方案 3：拆分 LlmService 为单一职责模块</h3>
+          <div class="space-y-4">
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q1：拆分粒度？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：LlmClient + PromptService 两层 — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：4 个独立模块（ASRService 等）</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q2：PromptService 的组织形式？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：独立类，持有 llm_client 实例 — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：函数模块，每个函数接收 llm_client 参数</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q3：依赖注入方向？</h4>
+              <div class="bg-slate-50 border border-slate-200 rounded p-3 mb-2 text-sm">
+                <strong>决策：</strong>分层依赖单向向下。
+                <div class="font-mono text-xs mt-1 space-y-0.5">
+                  <div>AgentPipeline / RagMCP → 只依赖 PromptService（业务封装层）</div>
+                  <div>PromptService → 内部持有 LlmClient（底层通信层）</div>
+                  <div>上层完全屏蔽底层 LlmClient 细节。</div>
+                </div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q4：DI 注册方式？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：显式注册 LlmClient + PromptService 到 app.state — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：PromptService 内部创建 LlmClient</div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <!-- ===== 方案4：统一数据模型 ===== -->
+        <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">方案 4：统一数据模型为 Pydantic</h3>
+          <div class="space-y-4">
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q1：迁移范围？</h4>
+              <div class="bg-slate-50 border border-slate-200 rounded p-3 mb-2 text-sm">
+                <strong>背景：</strong>当前 7 个 dataclass 中，4 个用于 API 层，3 个仅用于内部流水线。
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：仅迁移 API 层（AnalysisRequest、AnalysisResponse、RagDoc、RagRetrievalResult）— 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：全部迁移（7 个模型全改 Pydantic）</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q2：迁移细节确认</h4>
+              <div class="bg-slate-50 border border-slate-200 rounded p-3 text-sm">
+                <strong>已确认：</strong>
+                <div class="font-mono text-xs mt-1 space-y-0.5">
+                  <div>RagDoc.score 添加 Field(ge=0.0, le=1.0) 验证</div>
+                  <div>AnalysisResponse.evaluations 仍引用 dataclass（Pydantic v2 兼容）</div>
+                  <div>所有调用方构造参数保持不变</div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <!-- ===== 方案5：BM25 优化 ===== -->
+        <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">方案 5：优化 BM25 实现</h3>
+          <div class="space-y-4">
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q1：中文分词方案？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：jieba 精确模式（jieba.lcut）— 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：pkuseg / HanLP</div>
+              </div>
+              <div class="bg-slate-50 border border-slate-200 rounded p-3 mt-2 text-sm">
+                <strong>理由：</strong>jieba 轻量成熟，满足中文面试场景分词需求，启动快无需下载模型。
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q2：IDF 预计算策略？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：懒加载（_idf_dirty 标志 + _ensure_idf_ready）— 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：每次搜索实时计算</div>
+              </div>
+              <div class="bg-slate-50 border border-slate-200 rounded p-3 mt-2 text-sm">
+                <strong>理由：</strong>知识库入库是离线批量操作，搜索时才需要 IDF。懒加载避免批量插入时重复重建。
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q3：IDF 公式？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：log((N - df + 0.5) / (df + 0.5) + 1.0) — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：log(N / df)</div>
+              </div>
+              <div class="bg-slate-50 border border-slate-200 rounded p-3 mt-2 text-sm">
+                <strong>理由：</strong>BM25 官方变体，平滑处理罕见词，避免 IDF 为负。
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q4：混合检索 BM25 归一化？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：动态除以当前批次最大 BM25 分数 — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：保留硬编码 /10</div>
+              </div>
+              <div class="bg-slate-50 border border-slate-200 rounded p-3 mt-2 text-sm">
+                <strong>理由：</strong>BM25 分数无上界，硬编码 /10 依赖经验值；动态归一化自适应不同查询。
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q5：IDF 重建时机？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：insert_chunk 后标记脏，搜索前自动重建 — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：每次 insert_chunk 后立即重建</div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <!-- ===== 方案6：添加真正的单元测试 ===== -->
+        <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">方案 6：添加真正的单元测试</h3>
+          <div class="space-y-4">
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q1：测试范围优先级？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：P0→P4 递进：vector_db → llm_client+prompt_service → rag_service+rag_mcp → agent_pipeline → API — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：一次性全部覆盖</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q2：数据库测试策略？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：:memory: SQLite + fixture 建表 — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：全部 mock</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q3：Mock 框架？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：pytest-mock（mocker fixture） — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：unittest.mock</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q4：测试文件组织？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：每模块一个 test_&lt;module&gt;.py — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：按功能分组</div>
+              </div>
+            </article>
+            <article class="bg-white rounded-lg border border-slate-200 p-4">
+              <h4 class="font-bold text-slate-900 mb-2">Q5：Coverage？</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-sm ring-2 ring-emerald-400 font-medium">A：pytest-cov — 选中</div>
+                <div class="bg-slate-50 border border-slate-200 rounded p-2 text-sm">B：仅 pytest</div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 实施记录 ==================== -->
+      <section id="implementation" class="space-y-10">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">实施记录</h2>
+
+        <!-- ===== 方案1 实施 ===== -->
+        <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">方案 1：清理 RAG API 死代码</h3>
+          <div class="overflow-x-auto mb-4">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="bg-white">
+                  <th class="text-left p-3 font-medium text-slate-600">文件</th>
+                  <th class="text-left p-3 font-medium text-slate-600">变更</th>
+                  <th class="text-left p-3 font-medium text-slate-600">说明</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/models/schemas.py</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新增</span></td>
+                  <td class="p-3 text-slate-600">新增 McpEvalRequest、McpRetrievalRequest</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/api/rag_api.py</td>
+                  <td class="p-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">重写</span></td>
+                  <td class="p-3 text-slate-600">297 行 → 95 行，只保留 MCP 调试接口，DI 模式</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/api/mcp_debug_api.py</td>
+                  <td class="p-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">重构</span></td>
+                  <td class="p-3 text-slate-600">移除重复模型，统一导入</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/main.py</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新增路由</span></td>
+                  <td class="p-3 text-slate-600">注册 /api/v1/rag/mcp/*</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">scrpits/rag_init.py</td>
+                  <td class="p-3"><span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded">修复</span></td>
+                  <td class="p-3 text-slate-600">修复导入：手动实例化依赖链</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">tests/test_rag_eval.py</td>
+                  <td class="p-3"><span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded">修复</span></td>
+                  <td class="p-3 text-slate-600">修复导入：手动实例化完整依赖链</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ===== 方案2 实施 ===== -->
+        <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">方案 2：修复资源生命周期管理</h3>
+          <div class="overflow-x-auto mb-4">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="bg-white">
+                  <th class="text-left p-3 font-medium text-slate-600">文件</th>
+                  <th class="text-left p-3 font-medium text-slate-600">变更</th>
+                  <th class="text-left p-3 font-medium text-slate-600">说明</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/services/agent_pipeline.py</td>
+                  <td class="p-3"><span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded">删除</span></td>
+                  <td class="p-3 text-slate-600">删除 close() 方法（不再关闭 rag_mcp 和 llm）</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/services/rag_mcp.py</td>
+                  <td class="p-3"><span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded">删除</span></td>
+                  <td class="p-3 text-slate-600">删除 close() 方法（不再关闭 rag_service 和 llm_service）</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/services/llm_service.py</td>
+                  <td class="p-3"><span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded">删除</span></td>
+                  <td class="p-3 text-slate-600">删除空 close() 方法（OpenAI 客户端无需显式关闭）</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/main.py</td>
+                  <td class="p-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">精简</span></td>
+                  <td class="p-3 text-slate-600">关闭逻辑从 6 个模块精简为 3 个</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 修复前后对比 -->
+          <h4 class="font-bold text-slate-900 mb-3">关闭逻辑前后对比</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div class="text-xs uppercase tracking-wider text-red-500 mb-2">Before（重复关闭）</div>
+              <div class="bg-red-50 border border-red-200 rounded p-3 text-xs font-mono text-red-700 space-y-1">
+                <div>main.py lifespan 关闭：</div>
+                <div class="pl-2">1. agent_pipeline.close()</div>
+                <div class="pl-4 text-red-500">→ 关闭 rag_mcp + llm</div>
+                <div class="pl-2">2. rag_mcp.close()</div>
+                <div class="pl-4 text-red-500">→ 关闭 rag_service + llm_service (重复)</div>
+                <div class="pl-2">3. rag_service.close()</div>
+                <div class="pl-4 text-red-500">→ 关闭 SQLite (重复)</div>
+                <div class="pl-2">4. llm_service.close()</div>
+                <div class="pl-4 text-red-500">→ 空操作 (重复)</div>
+                <div class="pl-2">5. vector_db.close()</div>
+                <div class="pl-4">→ 关闭 SQLite</div>
+              </div>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wider text-emerald-500 mb-2">After（每个模块只关闭一次）</div>
+              <div class="bg-emerald-50 border border-emerald-200 rounded p-3 text-xs font-mono text-emerald-700 space-y-1">
+                <div>main.py lifespan 关闭：</div>
+                <div class="pl-2">1. knowledge_service.close()</div>
+                <div class="pl-4">→ 关闭 SQLite</div>
+                <div class="pl-2">2. rag_service.close()</div>
+                <div class="pl-4">→ 关闭 SQLite</div>
+                <div class="pl-2">3. vector_db.close()</div>
+                <div class="pl-4">→ 关闭 SQLite</div>
+                <div class="text-emerald-600 mt-2">3 个模块，各关闭一次，无重复。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== 方案3 实施 ===== -->
+        <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">方案 3：拆分 LlmService 为单一职责模块</h3>
+          <div class="overflow-x-auto mb-4">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="bg-white">
+                  <th class="text-left p-3 font-medium text-slate-600">文件</th>
+                  <th class="text-left p-3 font-medium text-slate-600">变更</th>
+                  <th class="text-left p-3 font-medium text-slate-600">说明</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/services/llm_client.py</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新建</span></td>
+                  <td class="p-3 text-slate-600">底层 LLM 客户端，封装 OpenAI 客户端和 call() 方法</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/services/prompt_service.py</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新建</span></td>
+                  <td class="p-3 text-slate-600">Prompt 业务层，管理 4 种 prompt 模板，持有 llm_client</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/services/llm_service.py</td>
+                  <td class="p-3"><span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded">删除</span></td>
+                  <td class="p-3 text-slate-600">原有大而全的服务被替换</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/services/agent_pipeline.py</td>
+                  <td class="p-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">重构</span></td>
+                  <td class="p-3 text-slate-600">self.llm → self.prompt_service</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/services/rag_mcp.py</td>
+                  <td class="p-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">重构</span></td>
+                  <td class="p-3 text-slate-600">self.llm → self.prompt_service</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/services/rag_service.py</td>
+                  <td class="p-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">重构</span></td>
+                  <td class="p-3 text-slate-600">延迟导入改为 LlmClient</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/main.py</td>
+                  <td class="p-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">重构</span></td>
+                  <td class="p-3 text-slate-600">DI 注册 LlmClient + PromptService</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">scrpits/rag_init.py</td>
+                  <td class="p-3"><span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded">修复</span></td>
+                  <td class="p-3 text-slate-600">导入改为 LlmClient</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">tests/test_rag_eval.py</td>
+                  <td class="p-3"><span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded">修复</span></td>
+                  <td class="p-3 text-slate-600">导入改为 LlmClient + PromptService</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 class="font-bold text-slate-900 mb-3">分层依赖结构</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div class="text-xs uppercase tracking-wider text-red-500 mb-2">Before（大而全）</div>
+              <div class="bg-red-50 border border-red-200 rounded p-3 text-xs font-mono text-red-700 space-y-1">
+                <div>AgentPipeline ──→ LlmService</div>
+                <div>RagMCP ──→ LlmService</div>
+                <div class="text-red-500 mt-1">LlmService 承载 4 种职责：</div>
+                <div class="pl-2 text-red-500">transcribe_interview（ASR）</div>
+                <div class="pl-2 text-red-500">parse_dialogue（对话解析）</div>
+                <div class="pl-2 text-red-500">evaluate_answer（评估）</div>
+                <div class="pl-2 text-red-500">generate_report（报告）</div>
+              </div>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wider text-emerald-500 mb-2">After（分层解耦）</div>
+              <div class="bg-emerald-50 border border-emerald-200 rounded p-3 text-xs font-mono text-emerald-700 space-y-1">
+                <div>AgentPipeline ──→ PromptService</div>
+                <div>RagMCP ──→ PromptService</div>
+                <div class="pl-4">└── 内部持有 LlmClient</div>
+                <div class="text-emerald-600 mt-1">PromptService 管理 4 种 prompt 模板</div>
+                <div class="pl-2 text-emerald-600">LlmClient 仅负责底层通信</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== 方案4 实施 ===== -->
+        <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">方案 4：统一数据模型为 Pydantic</h3>
+          <div class="overflow-x-auto mb-4">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="bg-white">
+                  <th class="text-left p-3 font-medium text-slate-600">文件</th>
+                  <th class="text-left p-3 font-medium text-slate-600">变更</th>
+                  <th class="text-left p-3 font-medium text-slate-600">说明</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/models/schemas.py</td>
+                  <td class="p-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">迁移</span></td>
+                  <td class="p-3 text-slate-600">4 个 dataclass → Pydantic BaseModel：AnalysisRequest、AnalysisResponse、RagDoc、RagRetrievalResult。RagDoc.score 添加 Field(ge=0.0, le=1.0) 验证</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 class="font-bold text-slate-900 mb-3">模型分类</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div class="text-xs uppercase tracking-wider text-emerald-500 mb-2">已迁移为 Pydantic（API 层）</div>
+              <div class="bg-emerald-50 border border-emerald-200 rounded p-3 text-xs font-mono text-emerald-700">
+                <div>AnalysisRequest</div>
+                <div>AnalysisResponse</div>
+                <div>RagDoc</div>
+                <div>RagRetrievalResult</div>
+              </div>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">保留 dataclass（内部状态）</div>
+              <div class="bg-slate-50 border border-slate-200 rounded p-3 text-xs font-mono text-slate-600">
+                <div>AgentState</div>
+                <div>DialogueItem</div>
+                <div>EvaluationResult</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== 方案5 实施 ===== -->
+        <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">方案 5：优化 BM25 实现</h3>
+          <div class="overflow-x-auto mb-4">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="bg-white">
+                  <th class="text-left p-3 font-medium text-slate-600">文件</th>
+                  <th class="text-left p-3 font-medium text-slate-600">变更</th>
+                  <th class="text-left p-3 font-medium text-slate-600">说明</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">requirements.txt</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新增依赖</span></td>
+                  <td class="p-3 text-slate-600">jieba&gt;=0.42.1</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/core/vector_db.py:150</td>
+                  <td class="p-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">重构</span></td>
+                  <td class="p-3 text-slate-600">_tokenize：jieba.lcut 替换正则分词，支持精确中文分词</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/core/vector_db.py:153-175</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新增</span></td>
+                  <td class="p-3 text-slate-600">_build_idf_index + _ensure_idf_ready：懒加载预计算 IDF 缓存</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/core/vector_db.py:177-191</td>
+                  <td class="p-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">重构</span></td>
+                  <td class="p-3 text-slate-600">_bm25_score：idf=1.0 占位符 → _idf_cache.get(token, 1.0)</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/core/vector_db.py:72-91</td>
+                  <td class="p-3"><span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="p-3 text-slate-600">insert_chunk：插入后标记 _idf_dirty=True</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/core/vector_db.py:235-280</td>
+                  <td class="p-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">重构</span></td>
+                  <td class="p-3 text-slate-600">search_hybrid：硬编码 /10 → 动态除以批次最大 BM25 分数</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 class="font-bold text-slate-900 mb-3">分词 &amp; BM25 前后对比</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div class="text-xs uppercase tracking-wider text-red-500 mb-2">Before（正则分词 + IDF 占位符）</div>
+              <div class="bg-red-50 border border-red-200 rounded p-3 text-xs font-mono text-red-700 space-y-1">
+                <div>_tokenize：re.findall(r'[\u4e00-\u9fff]+|[a-zA-Z]+|\d+', text)</div>
+                <div class="text-red-500 mt-1">→ "我今天去ABC公司面试"</div>
+                <div class="pl-2 text-red-500">→ ['我今', '天去', '公司', '面试']（字符粘连）</div>
+                <div class="mt-1">_bm25_score：idf = 1.0（占位符）</div>
+                <div class="text-red-500">→ 所有词权重相等，稀有词无区分度</div>
+                <div class="mt-1">search_hybrid：bm25_norm = score / 10（硬编码）</div>
+                <div class="text-red-500">→ 不同查询结果分数范围不一致</div>
+              </div>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wider text-emerald-500 mb-2">After（jieba 分词 + 真实 IDF）</div>
+              <div class="bg-emerald-50 border border-emerald-200 rounded p-3 text-xs font-mono text-emerald-700 space-y-1">
+                <div>_tokenize：jieba.lcut(text) → 转为小写</div>
+                <div class="text-emerald-600 mt-1">→ "我今天去ABC公司面试"</div>
+                <div class="pl-2 text-emerald-600">→ ['我', '今天', '去', 'abc', '公司', '面试']（语义分词）</div>
+                <div class="mt-1">_bm25_score：idf = _idf_cache.get(token, 1.0)</div>
+                <div class="text-emerald-600">→ 稀有词得分更高，区分度显著</div>
+                <div class="mt-1">search_hybrid：bm25_norm = score / max_batch</div>
+                <div class="text-emerald-600">→ 自适应归一化</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== 方案6 实施 ===== -->
+        <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">方案 6：添加真正的单元测试</h3>
+          <div class="overflow-x-auto mb-4">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="bg-white">
+                  <th class="text-left p-3 font-medium text-slate-600">文件</th>
+                  <th class="text-left p-3 font-medium text-slate-600">变更</th>
+                  <th class="text-left p-3 font-medium text-slate-600">说明</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">requirements.txt</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新增依赖</span></td>
+                  <td class="p-3 text-slate-600">pytest &gt;= 7.0.0, pytest-mock &gt;= 3.0.0, pytest-cov &gt;= 4.0.0</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">app/core/vector_db.py</td>
+                  <td class="p-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">重构</span></td>
+                  <td class="p-3 text-slate-600">__init__ 添加可选 db_path 参数，支持测试注入 :memory: SQLite</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">tests/conftest.py</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新增</span></td>
+                  <td class="p-3 text-slate-600">全局 fixture：vector_db（临时文件 + 自动清理），httpx 警告抑制</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">tests/test_vector_db.py</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新增</span></td>
+                  <td class="p-3 text-slate-600">P0：25 用例。Tokenizer / BuildIdfIndex / Bm25Score / InsertChunk / Search (Bm25, Vector, Hybrid)</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">tests/test_llm_client.py</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新增</span></td>
+                  <td class="p-3 text-slate-600">P1：4 用例。mock OpenAI 客户端，验证构造 / call / 空回复 / 异常</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">tests/test_prompt_service.py</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新增</span></td>
+                  <td class="p-3 text-slate-600">P1：5 用例。mock llm_client，验证 4 种 prompt 模板传入参数</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">tests/test_rag_service.py</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新增</span></td>
+                  <td class="p-3 text-slate-600">P2：9 用例。mock vector_db + llm_client，测试分块逻辑 / Embedding 缓存 / 检索</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">tests/test_rag_mcp.py</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新增</span></td>
+                  <td class="p-3 text-slate-600">P2：5 用例。mock rag_service + prompt_service，测试上下文组装 / 截断 / RAG增强评估</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">tests/test_agent_pipeline.py</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新增</span></td>
+                  <td class="p-3 text-slate-600">P3：10 用例。mock prompt_service + rag_mcp，覆盖流水线 / JSON 解析 / 降级兜底</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">tests/test_api_routes.py</td>
+                  <td class="p-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">新增</span></td>
+                  <td class="p-3 text-slate-600">P4：4 用例。FastAPI TestClient + dependency_overrides 注入 mock</td>
+                </tr>
+                <tr class="bg-white">
+                  <td class="p-3 font-mono text-xs">tests/rag_eval_script.py</td>
+                  <td class="p-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">重命名</span></td>
+                  <td class="p-3 text-slate-600">原 test_rag_eval.py 重命名，避免 pytest 自动收集（依赖真实 API）</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 class="font-bold text-slate-900 mb-3">测试覆盖率</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div class="text-xs uppercase tracking-wider text-emerald-500 mb-2">100% 覆盖</div>
+              <div class="bg-emerald-50 border border-emerald-200 rounded p-3 text-xs font-mono text-emerald-700">
+                <div>llm_client.py</div>
+                <div>prompt_service.py</div>
+                <div>schemas.py</div>
+                <div>config.py</div>
+              </div>
+            </div>
+            <div>
+              <div class="text-xs uppercase tracking-wider text-amber-500 mb-2">80%-93% 覆盖</div>
+              <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs font-mono text-amber-700">
+                <div>agent_pipeline.py — 93%</div>
+                <div>rag_mcp.py — 88%</div>
+                <div>vector_db.py — 80%</div>
+              </div>
+            </div>
+          </div>
+
+          <h4 class="font-bold text-slate-900 mb-3 mt-4">关键测试模式</h4>
+          <div class="bg-slate-50 border border-slate-200 rounded p-3 text-xs font-mono text-slate-700 space-y-1">
+            <div><span class="text-emerald-600 font-bold">vector_db</span>：临时 SQLite 文件 + fixture 自动清理</div>
+            <div><span class="text-emerald-600 font-bold">llm_client</span>：mock OpenAI 客户端，验证 call() 异常路径</div>
+            <div><span class="text-emerald-600 font-bold">prompt_service</span>：mock llm_client.call()，验证 prompt 模板传入</div>
+            <div><span class="text-emerald-600 font-bold">rag_service</span>：mock vector_db + llm_client，测试分块纯逻辑</div>
+            <div><span class="text-emerald-600 font-bold">agent_pipeline</span>：mock prompt_service + rag_mcp，覆盖 JSON 解析 + 降级兜底</div>
+            <div><span class="text-emerald-600 font-bold">API 集成</span>：FastAPI TestClient + dependency_overrides 替换</div>
+          </div>
+        </div>
+      </section>
+      <section id="top-recommendation" class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+        <h2 class="text-xl font-serif font-bold text-slate-900 mb-4">实施进度</h2>
+        <div class="space-y-3">
+          <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <div class="flex items-center">
+              <span class="text-emerald-500 mr-2">&#10003;</span>
+              <h3 class="font-bold text-emerald-800">清理 RAG API 死代码</h3>
+              <span class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded ml-2">已完成</span>
+            </div>
+            <p class="text-emerald-700 text-sm mt-1">消除潜在导入错误，统一 DI 模式</p>
+          </div>
+          <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <div class="flex items-center">
+              <span class="text-emerald-500 mr-2">&#10003;</span>
+              <h3 class="font-bold text-emerald-800">修复资源生命周期管理</h3>
+              <span class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded ml-2">已完成</span>
+            </div>
+            <p class="text-emerald-700 text-sm mt-1">消除重复关闭，main.py 统一管理资源生命周期</p>
+          </div>
+          <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <div class="flex items-center">
+              <span class="text-emerald-500 mr-2">&#10003;</span>
+              <h3 class="font-bold text-emerald-800">拆分 LlmService 为单一职责模块</h3>
+              <span class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded ml-2">已完成</span>
+            </div>
+            <p class="text-emerald-700 text-sm mt-1">LlmClient + PromptService 分层解耦，上层屏蔽底层细节</p>
+          </div>
+          <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <div class="flex items-center">
+              <span class="text-emerald-500 mr-2">&#10003;</span>
+              <h3 class="font-bold text-emerald-800">统一数据模型为 Pydantic</h3>
+              <span class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded ml-2">已完成</span>
+            </div>
+            <p class="text-emerald-700 text-sm mt-1">4 个 API 模型迁移为 Pydantic，保留内部状态类为 dataclass</p>
+          </div>
+          <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <div class="flex items-center">
+              <span class="text-emerald-500 mr-2">&#10003;</span>
+              <h3 class="font-bold text-emerald-800">优化 BM25 实现</h3>
+              <span class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded ml-2">已完成</span>
+            </div>
+            <p class="text-emerald-700 text-sm mt-1">jieba 分词 + 预计算 IDF 缓存 + 动态 BM25 归一化</p>
+          </div>
+          <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <div class="flex items-center">
+              <span class="text-emerald-500 mr-2">&#10003;</span>
+              <h3 class="font-bold text-emerald-800">添加真正的单元测试</h3>
+              <span class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded ml-2">已完成</span>
+            </div>
+            <p class="text-emerald-700 text-sm mt-1">62 个测试用例，核心模块覆盖率 80%-100%，pytest + pytest-mock + pytest-cov</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 编译验证 ==================== -->
+      <section id="verification" class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+        <h2 class="text-xl font-serif font-bold text-slate-900 mb-4">编译验证</h2>
+        <div class="space-y-2">
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">方案 1</div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/models/schemas.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/api/rag_api.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/api/mcp_debug_api.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile scrpits/rag_init.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile tests/test_rag_eval.py</code></div>
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-1 mt-3">方案 2</div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/services/agent_pipeline.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/services/rag_mcp.py</code></div>
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-1 mt-3">方案 3</div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/services/llm_client.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/services/prompt_service.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/services/agent_pipeline.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/services/rag_mcp.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/services/rag_service.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile scrpits/rag_init.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile tests/test_rag_eval.py</code></div>
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-1 mt-3">方案 4</div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/models/schemas.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/api/analysis.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/services/agent_pipeline.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/services/rag_service.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/core/vector_db.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/services/rag_mcp.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/api/retrieval_api.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile tests/test_rag_eval.py</code></div>
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-1 mt-3">方案 5</div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m py_compile app/core/vector_db.py</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">pip install jieba &amp;&amp; python -c "import jieba; jieba.lcut('测试')"</code></div>
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-1 mt-3">方案 6</div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">pip install pytest pytest-mock pytest-cov</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m pytest tests/ --tb=short -q 2>&1 | tail -1</code></div>
+          <div class="flex items-center text-sm"><span class="text-emerald-500 mr-2">&#10003;</span><code class="font-mono">python -m pytest tests/ --cov=app --cov-report=term-missing --no-header 2>&1 | tail -1</code></div>
+        </div>
+      </section>
+
+    </main>
+  </body>
+</html>

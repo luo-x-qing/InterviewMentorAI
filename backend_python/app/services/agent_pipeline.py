@@ -26,13 +26,13 @@ class AgentPipeline:
     """AI Agent 流水线"""
 
     #初始化
-    def __init__(self, llm_service=None, rag_mcp=None):
+    def __init__(self, prompt_service=None, rag_mcp=None):
         # 延迟导入，避免循环依赖
-        if llm_service is None:
-            from app.services.llm_service import LlmService
-            self.llm = LlmService()
+        if prompt_service is None:
+            from app.services.prompt_service import PromptService
+            self.prompt_service = PromptService()
         else:
-            self.llm = llm_service
+            self.prompt_service = prompt_service
             
         if rag_mcp is None:
             from app.services.rag_mcp import RagMCP
@@ -64,7 +64,7 @@ class AgentPipeline:
             
             # Step 1: 语音识别 - 将音频转为文字
             logger.info("[Step 2] 开始语音识别")
-            state.raw_transcript = self.llm.transcribe_interview(request.audio_file_path)
+            state.raw_transcript = self.prompt_service.transcribe_interview(request.audio_file_path)
             logger.info(f"[Step 2] 语音识别完成, text_length={len(state.raw_transcript)}")
             
             # Step 2: 说话人分离 - 解析对话结构
@@ -106,7 +106,7 @@ class AgentPipeline:
         说话人分离
         使用 LLM 分析对话语义，区分面试官和面试者
         """
-        response = self.llm.parse_dialogue(state.raw_transcript)
+        response = self.prompt_service.parse_dialogue(state.raw_transcript)
         
         # 解析JSON响应
         try:
@@ -242,12 +242,5 @@ class AgentPipeline:
 """
         
         # 调用 LLM 生成报告
-        return self.llm.generate_report(evaluations_text)
+        return self.prompt_service.generate_report(evaluations_text)
 
-    def close(self):
-        """清理资源"""
-        if hasattr(self.rag_mcp, 'close'):
-            self.rag_mcp.close()
-        if hasattr(self.llm, 'close'):
-            self.llm.close()
-        logger.info("Agent流水线资源清理完成")

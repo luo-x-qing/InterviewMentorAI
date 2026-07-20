@@ -2,6 +2,7 @@
 import sqlite3
 import numpy as np
 import math
+import jieba
 from collections import Counter
 from app.core.config import settings
 from app.models.schemas import RagDoc
@@ -17,13 +18,16 @@ except ImportError:
     logger.warning("sqlite_vec未安装，将使用备选向量检索方案")
 
 class VectorDB:
-    def __init__(self):
-        self.db_path = settings.sqlite_db_path
+    def __init__(self, db_path: str | None = None):
+        self.db_path = db_path if db_path is not None else settings.sqlite_db_path
         self.conn = self._get_conn()
         self._init_table()
+        jieba.initialize()
         # BM25参数
         self.k1 = 1.5
         self.b = 0.75
+        self._idf_cache: dict[str, float] = {}
+        self._idf_dirty = True
 
     def _get_conn(self):
         # 加载sqlite-vec向量扩展
@@ -66,7 +70,6 @@ class VectorDB:
         logger.info("向量数据表初始化完成")
 
     def insert_chunk(self, title: str, content: str, source: str, embedding: list[float]) -> int:
-        """写入分块文本+向量｜离线入库阶段 0001"""
         try:
             cur = self.conn.cursor()
             cur.execute(
@@ -80,6 +83,7 @@ class VectorDB:
                 (doc_id, vec_bin)
             )
             self.conn.commit()
+            self._idf_dirty = True
             return doc_id
         except Exception as e:
             logger.error(f"插入文档失败: {e}")
@@ -144,35 +148,51 @@ class VectorDB:
             return []
 
     def _tokenize(self, text: str) -> list[str]:
-        """简单的中文分词｜按字符和常见词分割"""
-        import re
-        # 简单分词：按标点和空格分割，同时保留单个字符
-        tokens = re.findall(r'[\u4e00-\u9fff]+|[a-zA-Z]+|\d+', text)
-        return tokens
+        return [w.lower() for w in jieba.lcut(text) if w.strip()]
+
+    def _ensure_idf_ready(self):
+        if self._idf_dirty:
+            self._build_idf_index()
+
+    def _build_idf_index(self):
+        N = self.conn.execute("SELECT COUNT(*) FROM rag_docs").fetchone()[0]
+        if N == 0:
+            self._idf_cache = {}
+            self._idf_dirty = False
+            return
+
+        df_counter: dict[str, int] = {}
+        rows = self.conn.execute("SELECT content FROM rag_docs").fetchall()
+        for (content,) in rows:
+            for token in set(self._tokenize(content)):
+                df_counter[token] = df_counter.get(token, 0) + 1
+
+        new_cache = {
+            token: math.log((N - df + 0.5) / (df + 0.5) + 1.0)
+            for token, df in df_counter.items()
+        }
+        self._idf_cache = new_cache
+        self._idf_dirty = False
 
     def _bm25_score(self, query_tokens: list[str], doc_tokens: list[str], avg_dl: float) -> float:
-        """计算单个文档的BM25分数"""
         doc_len = len(doc_tokens)
         doc_counter = Counter(doc_tokens)
-        
+
         score = 0.0
         for token in query_tokens:
             if token in doc_counter:
                 tf = doc_counter[token]
-                # IDF计算
-                # 这里简化处理，实际应该从数据库统计
-                idf = 1.0  # 占位，后面会优化
-                
-                # BM25公式
+                idf = self._idf_cache.get(token, 1.0)
+
                 numerator = tf * (self.k1 + 1)
                 denominator = tf + self.k1 * (1 - self.b + self.b * doc_len / avg_dl)
                 score += idf * numerator / denominator
-        
+
         return score
 
     def search_bm25(self, query: str, top_k: int) -> list[RagDoc]:
-        """BM25稀疏检索｜关键词匹配"""
         try:
+            self._ensure_idf_ready()
             query_tokens = self._tokenize(query)
             
             cur = self.conn.cursor()
@@ -212,28 +232,22 @@ class VectorDB:
             logger.error(f"BM25检索失败: {e}")
             return []
 
-    def search_hybrid(self, query: str, query_emb: list[float], top_k: int, threshold: float, 
+    def search_hybrid(self, query: str, query_emb: list[float], top_k: int, threshold: float,
                      vector_weight: float = 0.7, bm25_weight: float = 0.3) -> list[RagDoc]:
-        """混合检索｜结合向量检索和BM25检索"""
         try:
-            # 向量检索
             vector_results = self.search_vector(query_emb, top_k * 2, threshold)
-            
-            # BM25检索
+
             bm25_results = self.search_bm25(query, top_k * 2)
-            
-            # 合并结果，使用加权分数
+
             doc_scores = {}
-            
-            # 处理向量检索结果
+
             for doc in vector_results:
                 doc_scores[doc.doc_id] = {
                     'doc': doc,
                     'vector_score': doc.score,
                     'bm25_score': 0
                 }
-            
-            # 处理BM25结果
+
             for doc in bm25_results:
                 if doc.doc_id in doc_scores:
                     doc_scores[doc.doc_id]['bm25_score'] = doc.score
@@ -243,28 +257,26 @@ class VectorDB:
                         'vector_score': 0,
                         'bm25_score': doc.score
                     }
-            
-            # 计算加权总分
+
+            max_bm25 = max((v['bm25_score'] for v in doc_scores.values()), default=0)
+
             final_results = []
             for doc_id, scores in doc_scores.items():
-                # 归一化分数
                 vector_norm = scores['vector_score']
-                bm25_norm = scores['bm25_score'] / 10 if scores['bm25_score'] > 0 else 0  # 简单归一化
-                
+                bm25_norm = scores['bm25_score'] / max_bm25 if max_bm25 > 0 else 0
+
                 total_score = vector_weight * vector_norm + bm25_weight * bm25_norm
-                
+
                 if total_score >= threshold:
                     doc = scores['doc']
                     doc.score = total_score
                     final_results.append(doc)
-            
-            # 按总分排序
+
             final_results.sort(key=lambda x: x.score, reverse=True)
-            
+
             return final_results[:top_k]
         except Exception as e:
             logger.error(f"混合检索失败: {e}")
-            # 降级到纯向量检索
             return self.search_vector(query_emb, top_k, threshold)
 
     def close(self):

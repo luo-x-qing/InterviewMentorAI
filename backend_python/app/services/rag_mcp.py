@@ -10,7 +10,7 @@ from app.models.schemas import RagRetrievalResult
 logger = logging.getLogger(__name__)
 
 class RagMCP:
-    def __init__(self, rag_service=None, llm_service=None):
+    def __init__(self, rag_service=None, prompt_service=None):
         # 延迟导入，避免循环依赖
         if rag_service is None:
             from app.services.rag_service import RagService
@@ -18,11 +18,11 @@ class RagMCP:
         else:
             self.rag = rag_service
             
-        if llm_service is None:
-            from app.services.llm_service import LlmService
-            self.llm = LlmService()
+        if prompt_service is None:
+            from app.services.prompt_service import PromptService
+            self.prompt_service = PromptService()
         else:
-            self.llm = llm_service
+            self.prompt_service = prompt_service
 
     def build_rag_context(self, retrieval_res: RagRetrievalResult) -> str:
         """MCP专属：标准化拼接检索参考上下文"""
@@ -72,18 +72,11 @@ class RagMCP:
         # 3. 上下文窗口截断优化
         final_ref = self.limit_context_length(raw_ref)
 
-        # 4. 调用LLM，传入增强上下文
-        llm_response = self.llm.evaluate_answer(
+        # 4. 调用PromptService，传入增强上下文
+        llm_response = self.prompt_service.evaluate_answer(
             question=question,
             answer=answer,
             ref_text=final_ref
         )
         return llm_response
 
-    def close(self):
-        """清理资源"""
-        if hasattr(self.rag, 'close'):
-            self.rag.close()
-        if hasattr(self.llm, 'close'):
-            self.llm.close()
-        logger.info("MCP服务资源清理完成")

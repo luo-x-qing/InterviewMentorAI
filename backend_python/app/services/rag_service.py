@@ -30,8 +30,8 @@ class RagService:
             self.vector_db = vector_db
             
         if llm_service is None:
-            from app.services.llm_service import LlmService
-            self.llm_service = LlmService()
+            from app.services.llm_client import LlmClient
+            self.llm_service = LlmClient()
         else:
             self.llm_service = llm_service
             

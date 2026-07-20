@@ -1,7 +1,25 @@
 #rag效果评估脚本
-from app.services.rag_service import rag_service
-from app.services.agent_pipeline import agent_pipeline
+import sys
+import os
+
+# 将backend_python目录添加到Python路径
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from app.core.vector_db import VectorDB
+from app.services.llm_client import LlmClient
+from app.services.prompt_service import PromptService
+from app.services.rag_service import RagService
+from app.services.rag_mcp import RagMCP
+from app.services.agent_pipeline import AgentPipeline
 from app.models.schemas import AnalysisRequest
+
+# 构造实例
+vector_db = VectorDB()
+llm_client = LlmClient()
+prompt_service = PromptService(llm_client=llm_client)
+rag_service = RagService(vector_db=vector_db, llm_service=llm_client)
+rag_mcp = RagMCP(rag_service=rag_service, prompt_service=prompt_service)
+agent_pipeline = AgentPipeline(prompt_service=prompt_service, rag_mcp=rag_mcp)
 
 # 测试用面试问题（标准答案存在知识库中）
 test_questions = [
