@@ -7,7 +7,7 @@ from app.models.schemas import AnalysisResponse, AnalysisStatus, EvaluationResul
 @pytest.fixture
 def mock_agent_pipeline(mocker):
     mock = mocker.MagicMock()
-    mock.run.return_value = AnalysisResponse(
+    mock.run = mocker.AsyncMock(return_value=AnalysisResponse(
         status=AnalysisStatus.COMPLETED,
         interview_id=1,
         report="# 报告",
@@ -17,7 +17,7 @@ def mock_agent_pipeline(mocker):
                 strengths="好", weaknesses="",
             ),
         ],
-    )
+    ))
     return mock
 
 

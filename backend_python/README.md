@@ -24,14 +24,14 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                       分层架构                               │
 ├─────────────────────────────────────────────────────────────┤
-│  5. API 层         analysis.py / rag_api.py                 │
+│  5. API 层         analysis.py / knowledge_api.py           │
 │       ↓                    ↓                                │
 │  4. 业务流水线     agent_pipeline.py   编排完整分析流程      │
 │       ↓                                                     │
 │  3. MCP 调度层    rag_mcp.py          检索+上下文+LLM 统一  │
 │       ↓                        ↓                            │
 │  2. RAG 工具层  rag_service.py    LLM 通用层  llm_service   │
-│       ↓                                                     │
+│       ↓                        ↓                            │
 │  1. 底层存储层    vector_db.py        SQLite + sqlite-vec   │
 │       ↓                                                     │
 │  0. 数据源层      data/rag_docs/      面试题库知识库         │
@@ -211,15 +211,17 @@ backend_python/
 │   │   └── schemas.py              # Pydantic 数据模型
 │   ├── api/
 │   │   ├── analysis.py             # 分析 API
-│   │   ├── rag_api.py              # RAG API
 │   │   ├── knowledge_api.py        # 知识库 API
 │   │   ├── retrieval_api.py        # 检索 API
 │   │   └── mcp_debug_api.py        # MCP 调试 API
 │   └── services/
-│       ├── llm_service.py          # LLM 调用封装
-│       ├── rag_service.py          # RAG 业务层
+│       ├── llm_client.py           # LLM 通信层
+│       ├── chunking_service.py     # 文档分块
+│       ├── embedding_service.py    # 向量化 + 缓存
+│       ├── reranker_service.py     # 重排序
+│       ├── rag_service.py          # RAG 检索编排
 │       ├── rag_mcp.py              # MCP 调度层
-│       ├── knowledge_service.py    # 知识库服务
+│       ├── knowledge_service.py    # 知识库管理
 │       ├── agent_pipeline.py       # Agent 流水线
 │       └── doc_converter/          # 文档转换工具
 ├── data/

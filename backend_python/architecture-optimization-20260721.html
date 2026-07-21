@@ -1,0 +1,1764 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>架构优化方案 — InterviewMentorAI Python AI 后端</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .shallow { background: linear-gradient(135deg, #f8fafc, #e2e8f0); }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-6xl mx-auto px-6 py-12 space-y-12">
+      <header>
+        <h1 class="text-3xl font-serif font-bold text-slate-900">架构优化方案</h1>
+        <p class="text-slate-600 mt-2">InterviewMentorAI Python AI 后端 — 2026-07-21</p>
+        <div class="flex items-center space-x-4 mt-4 text-xs uppercase tracking-wider">
+          <span class="flex items-center"><span class="w-3 h-3 bg-slate-700 rounded mr-2"></span>模块</span>
+          <span class="flex items-center"><span class="w-3 h-3 border border-slate-700 border-dashed rounded mr-2"></span>接缝</span>
+          <span class="flex items-center"><span class="w-3 h-3 bg-red-600 rounded mr-2"></span>泄漏</span>
+          <span class="flex items-center"><span class="w-3 h-3 bg-gradient-to-br from-slate-900 to-slate-700 rounded mr-2"></span>深层模块</span>
+          <span class="flex items-center"><span class="w-3 h-3 bg-gradient-to-br from-slate-100 to-slate-300 rounded mr-2"></span>浅层模块</span>
+        </div>
+      </header>
+
+      <!-- ==================== 前言：项目现状 ==================== -->
+      <section id="overview" class="space-y-8">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">前言：Python 后端现状</h2>
+
+        <!-- 项目定位 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">项目定位</h3>
+          <p class="text-slate-700 mb-3">
+            InterviewMentorAI 是一个 <strong>AI 驱动的模拟面试复盘助手</strong>，采用 <strong>Java + Python 双后端架构</strong>。
+            Java 后端负责业务交付（用户管理、面试记录、数据持久化），Python 后端专责 <strong>AI 能力</strong>：
+            语音识别、说话人分离、RAG 检索增强、智能评估、报告生成。
+          </p>
+          <p class="text-slate-700">
+            Python 后端已实现完整的 <strong>5 步 Agent 流水线</strong>，从音频输入到结构化报告输出，
+            并通过 RAG 系统接入面试知识库，减少大模型幻觉，提升评估准确性。
+          </p>
+        </div>
+
+        <!-- 技术栈 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">技术栈</h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <div class="text-xs text-slate-500 uppercase tracking-wider">Web 框架</div>
+              <div class="font-medium text-slate-900">FastAPI 0.104+</div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <div class="text-xs text-slate-500 uppercase tracking-wider">LLM 调用</div>
+              <div class="font-medium text-slate-900">OpenAI SDK + DashScope</div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <div class="text-xs text-slate-500 uppercase tracking-wider">向量数据库</div>
+              <div class="font-medium text-slate-900">SQLite + sqlite-vec</div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <div class="text-xs text-slate-500 uppercase tracking-wider">关键词检索</div>
+              <div class="font-medium text-slate-900">rank-bm25 + jieba</div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <div class="text-xs text-slate-500 uppercase tracking-wider">重排序</div>
+              <div class="font-medium text-slate-900">CrossEncoder (BAAI/bge)</div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <div class="text-xs text-slate-500 uppercase tracking-wider">数据模型</div>
+              <div class="font-medium text-slate-900">Pydantic + dataclass</div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <div class="text-xs text-slate-500 uppercase tracking-wider">测试框架</div>
+              <div class="font-medium text-slate-900">pytest + pytest-mock</div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <div class="text-xs text-slate-500 uppercase tracking-wider">依赖注入</div>
+              <div class="font-medium text-slate-900">FastAPI Depends</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 已完成的功能 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">已完成的功能</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="space-y-3">
+              <div class="flex items-start space-x-3">
+                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-0.5">✓</span>
+                <div>
+                  <div class="font-medium text-slate-900">5 步 Agent 流水线</div>
+                  <div class="text-sm text-slate-600">音频 → ASR → 说话人分离 → RAG 增强评估 → 结构化报告</div>
+                </div>
+              </div>
+              <div class="flex items-start space-x-3">
+                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-0.5">✓</span>
+                <div>
+                  <div class="font-medium text-slate-900">RAG 检索增强系统</div>
+                  <div class="text-sm text-slate-600">混合检索（向量 70% + BM25 30%）+ Cross-Encoder 重排序</div>
+                </div>
+              </div>
+              <div class="flex items-start space-x-3">
+                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-0.5">✓</span>
+                <div>
+                  <div class="font-medium text-slate-900">知识库管理系统</div>
+                  <div class="text-sm text-slate-600">文档导入、分块、向量化入库、统计、清空</div>
+                </div>
+              </div>
+              <div class="flex items-start space-x-3">
+                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-0.5">✓</span>
+                <div>
+                  <div class="font-medium text-slate-900">MCP 调度层</div>
+                  <div class="text-sm text-slate-600">上下文组装、长度截断、LLM 增强调用</div>
+                </div>
+              </div>
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-start space-x-3">
+                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-0.5">✓</span>
+                <div>
+                  <div class="font-medium text-slate-900">SRP 拆分</div>
+                  <div class="text-sm text-slate-600">LlmService → LlmClient（底层通信）+ PromptService（业务 prompt）</div>
+                </div>
+              </div>
+              <div class="flex items-start space-x-3">
+                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-0.5">✓</span>
+                <div>
+                  <div class="font-medium text-slate-900">RagService Middle Man 移除</div>
+                  <div class="text-sm text-slate-600">拆分为 ChunkingService + EmbeddingService + RerankerService，RagService 精简为纯检索入口</div>
+                </div>
+              </div>
+              <div class="flex items-start space-x-3">
+                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-0.5">✓</span>
+                <div>
+                  <div class="font-medium text-slate-900">KnowledgeService 深化</div>
+                  <div class="text-sm text-slate-600">吸收 batch_import_knowledge，成为知识库操作的唯一入口</div>
+                </div>
+              </div>
+              <div class="flex items-start space-x-3">
+                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-0.5">✓</span>
+                <div>
+                  <div class="font-medium text-slate-900">BM25 优化</div>
+                  <div class="text-sm text-slate-600">jieba 中文分词 + IDF 缓存 + 动态归一化</div>
+                </div>
+              </div>
+              <div class="flex items-start space-x-3">
+                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-0.5">✓</span>
+                <div>
+                  <div class="font-medium text-slate-900">资源生命周期管理</div>
+                  <div class="text-sm text-slate-600">main.py 统一管理服务创建与销毁，无重复关闭</div>
+                </div>
+              </div>
+              <div class="flex items-start space-x-3">
+                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-0.5">✓</span>
+                <div>
+                  <div class="font-medium text-slate-900">流水线异步化</div>
+                  <div class="text-sm text-slate-600">asyncio.gather 并发评估所有问答对，LLM 延迟从 N×2s 降至 ~2s</div>
+                </div>
+              </div>
+              <div class="flex items-start space-x-3">
+                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-0.5">✓</span>
+                <div>
+                  <div class="font-medium text-slate-900">Config Pydantic 化</div>
+                  <div class="text-sm text-slate-600">迁移到 pydantic-settings，声明式配置，自动类型转换与验证</div>
+                </div>
+              </div>
+              <div class="flex items-start space-x-3">
+                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-0.5">✓</span>
+                <div>
+                  <div class="font-medium text-slate-900">103 个单元测试</div>
+                  <div class="text-sm text-slate-600">核心模块覆盖率 80%-100%，全部通过</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 文件职责说明 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">文件职责说明</h3>
+          
+          <!-- 分层架构图 -->
+          <div class="mb-6">
+            <pre class="mermaid">
+              flowchart LR
+                subgraph "API 层"
+                  A1["analysis.py<br/>分析接口"]
+                  A2["mcp_debug_api.py<br/>MCP 调试"]
+                  A3["knowledge_api.py<br/>知识库管理"]
+                  A4["retrieval_api.py<br/>检索调试"]
+                end
+                subgraph "业务层"
+                  B1["agent_pipeline.py<br/>流水线编排"]
+                  B2["prompt_service.py<br/>Prompt 模板"]
+                  B3["rag_mcp.py<br/>MCP 调度"]
+                  B4["rag_service.py<br/>RAG 检索"]
+                  B5["knowledge_service.py<br/>知识库管理"]
+                  B6["chunking_service.py<br/>文档分块"]
+                  B7["embedding_service.py<br/>向量化"]
+                  B8["reranker_service.py<br/>重排序"]
+                end
+                subgraph "基础设施层"
+                  C1["llm_client.py<br/>LLM 通信"]
+                  C2["vector_db.py<br/>向量数据库"]
+                  C3["config.py<br/>配置管理"]
+                end
+                subgraph "数据层"
+                  D1["schemas.py<br/>数据模型"]
+                end
+                
+                A1 --> B1
+                A2 --> B3
+                A3 --> B5
+                A4 --> B4
+                A4 --> B6
+                B1 --> B2
+                B1 --> B3
+                B3 --> B4
+                B3 --> B2
+                B4 --> B7
+                B4 --> B8
+                B4 --> C2
+                B5 --> B6
+                B5 --> B7
+                B5 --> C2
+                B7 --> C1
+                B2 --> C1
+            </pre>
+          </div>
+
+          <!-- 文件详情表格 -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-slate-200">
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">文件</th>
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">行数</th>
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">职责</th>
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">关键方法</th>
+                </tr>
+              </thead>
+              <tbody class="text-slate-600">
+                <tr class="border-b border-slate-100 bg-slate-50">
+                  <td colspan="4" class="py-2 px-3 font-medium text-slate-800">入口与配置</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">main.py</td>
+                  <td class="py-2 px-3">174</td>
+                  <td class="py-2 px-3">FastAPI 应用入口，生命周期管理，依赖注入注册</td>
+                  <td class="py-2 px-3 text-xs">lifespan(), get_*_dependency()</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">config.py</td>
+                  <td class="py-2 px-3">43</td>
+                  <td class="py-2 px-3">pydantic-settings 声明式配置，自动 .env 加载</td>
+                  <td class="py-2 px-3 text-xs">Settings (BaseSettings), Field(alias=...)</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">schemas.py</td>
+                  <td class="py-2 px-3">112</td>
+                  <td class="py-2 px-3">数据模型定义（Pydantic + dataclass）</td>
+                  <td class="py-2 px-3 text-xs">AnalysisRequest, RagDoc, EvaluationResult...</td>
+                </tr>
+                <tr class="border-b border-slate-100 bg-slate-50">
+                  <td colspan="4" class="py-2 px-3 font-medium text-slate-800">API 层</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">analysis.py</td>
+                  <td class="py-2 px-3">57</td>
+                  <td class="py-2 px-3">分析 API：接收音频文件，触发流水线</td>
+                  <td class="py-2 px-3 text-xs">POST /analyze, GET /health</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">mcp_debug_api.py</td>
+                  <td class="py-2 px-3">93</td>
+                  <td class="py-2 px-3">MCP 调试：评估测试、上下文预览</td>
+                  <td class="py-2 px-3 text-xs">POST /eval-test, POST /context-preview</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">knowledge_api.py</td>
+                  <td class="py-2 px-3">86</td>
+                  <td class="py-2 px-3">知识库管理：导入、统计、清空</td>
+                  <td class="py-2 px-3 text-xs">POST /import, GET /stats, DELETE /clear</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">retrieval_api.py</td>
+                  <td class="py-2 px-3">125</td>
+                  <td class="py-2 px-3">检索调试：文档检索、分块预览</td>
+                  <td class="py-2 px-3 text-xs">POST /retrieve, POST /chunks/preview</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs text-amber-600">rag_api.py ⚠️</td>
+                  <td class="py-2 px-3 text-amber-600">91</td>
+                  <td class="py-2 px-3 text-amber-600">重复端点，与 mcp_debug_api.py 功能重叠</td>
+                  <td class="py-2 px-3 text-xs text-amber-600">待删除</td>
+                </tr>
+                <tr class="border-b border-slate-100 bg-slate-50">
+                  <td colspan="4" class="py-2 px-3 font-medium text-slate-800">业务层</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">agent_pipeline.py</td>
+                  <td class="py-2 px-3">247</td>
+                  <td class="py-2 px-3">流水线编排：ASR → 分离 → 评估 → 报告</td>
+                  <td class="py-2 px-3 text-xs">run(), _parse_dialogue(), _evaluate_answers()（并发评估）</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">prompt_service.py</td>
+                  <td class="py-2 px-3">165</td>
+                  <td class="py-2 px-3">Prompt 模板管理，组装参数调用 LLM</td>
+                  <td class="py-2 px-3 text-xs">transcribe_interview(), evaluate_answer()</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">rag_mcp.py</td>
+                  <td class="py-2 px-3">82</td>
+                  <td class="py-2 px-3">MCP 调度：上下文组装 + LLM 增强调用</td>
+                  <td class="py-2 px-3 text-xs">build_rag_context(), rag_enhance_evaluate()</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">rag_service.py</td>
+                  <td class="py-2 px-3">75</td>
+                  <td class="py-2 px-3">RAG 业务：检索编排（混合检索 + 重排序）</td>
+                  <td class="py-2 px-3 text-xs">retrieve_by_question()</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">chunking_service.py</td>
+                  <td class="py-2 px-3">120</td>
+                  <td class="py-2 px-3">文档分块：固定/段落/语义三种策略</td>
+                  <td class="py-2 px-3 text-xs">split(text, method, chunk_size, chunk_overlap)</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">embedding_service.py</td>
+                  <td class="py-2 px-3">85</td>
+                  <td class="py-2 px-3">向量化 + MD5 缓存管理</td>
+                  <td class="py-2 px-3 text-xs">get_embedding(), clear_cache()</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">reranker_service.py</td>
+                  <td class="py-2 px-3">65</td>
+                  <td class="py-2 px-3">Cross-Encoder 重排序，延迟加载 + 降级兜底</td>
+                  <td class="py-2 px-3 text-xs">rerank(query, docs, top_k)</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">knowledge_service.py</td>
+                  <td class="py-2 px-3">110</td>
+                  <td class="py-2 px-3">知识库管理：导入、统计、清空</td>
+                  <td class="py-2 px-3 text-xs">batch_import_knowledge(), get_stats(), clear_all()</td>
+                </tr>
+                <tr class="border-b border-slate-100 bg-slate-50">
+                  <td colspan="4" class="py-2 px-3 font-medium text-slate-800">基础设施层</td>
+                </tr>                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">llm_client.py</td>
+                  <td class="py-2 px-3">64</td>
+                  <td class="py-2 px-3">LLM 底层通信，封装 OpenAI 兼容接口</td>
+                  <td class="py-2 px-3 text-xs">call(system_prompt, user_prompt)</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">vector_db.py</td>
+                  <td class="py-2 px-3">286</td>
+                  <td class="py-2 px-3">SQLite + sqlite-vec 向量数据库，BM25 检索</td>
+                  <td class="py-2 px-3 text-xs">search_vector(), search_bm25(), search_hybrid()</td>
+                </tr>
+                <tr class="border-b border-slate-100 bg-slate-50">
+                  <td colspan="4" class="py-2 px-3 font-medium text-slate-800">工具层</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">doc_converter/</td>
+                  <td class="py-2 px-3">156</td>
+                  <td class="py-2 px-3">文档转换：PDF/Word/HTML/TXT → Markdown</td>
+                  <td class="py-2 px-3 text-xs">convert_file(), convert_directory()</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">rag_init.py</td>
+                  <td class="py-2 px-3">26</td>
+                  <td class="py-2 px-3">离线知识库入库脚本</td>
+                  <td class="py-2 px-3 text-xs">batch_import_knowledge()</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 核心方法与技术 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">核心方法与技术</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h4 class="font-medium text-slate-900 mb-2">RAG 检索策略</h4>
+              <ul class="text-sm text-slate-600 space-y-1">
+                <li>• <strong>向量检索</strong>：DashScope text-embedding-v3 + cosine similarity</li>
+                <li>• <strong>关键词检索</strong>：jieba 分词 + BM25 算法（k1=1.5, b=0.75）</li>
+                <li>• <strong>混合检索</strong>：向量 70% + BM25 30% 加权融合</li>
+                <li>• <strong>重排序</strong>：BAAI/bge-reranker-base Cross-Encoder</li>
+              </ul>
+            </div>
+            <div>
+              <h4 class="font-medium text-slate-900 mb-2">文档处理</h4>
+              <ul class="text-sm text-slate-600 space-y-1">
+                <li>• <strong>固定分块</strong>：500 字符，重叠 100 字符（20%）</li>
+                <li>• <strong>段落分块</strong>：按双换行符分割，保持语义完整</li>
+                <li>• <strong>语义分块</strong>：按句子边界（。！？）切分</li>
+                <li>• <strong>缓存</strong>：MD5 哈希缓存 embedding，避免重复调用</li>
+              </ul>
+            </div>
+            <div>
+              <h4 class="font-medium text-slate-900 mb-2">架构模式</h4>
+              <ul class="text-sm text-slate-600 space-y-1">
+                <li>• <strong>依赖注入</strong>：FastAPI Depends + app.state</li>
+                <li>• <strong>分层架构</strong>：API → 业务 → 基础设施 → 数据</li>
+                <li>• <strong>生命周期管理</strong>：lifespan context manager</li>
+                <li>• <strong>延迟加载</strong>：reranker 模型按需初始化</li>
+              </ul>
+            </div>
+            <div>
+              <h4 class="font-medium text-slate-900 mb-2">质量保障</h4>
+              <ul class="text-sm text-slate-600 space-y-1">
+                <li>• <strong>单元测试</strong>：103 个用例，pytest + pytest-mock</li>
+                <li>• <strong>Mock 策略</strong>：外部 API 全部 mock，本地可运行</li>
+                <li>• <strong>日志</strong>：结构化日志，便于调试追踪</li>
+                <li>• <strong>错误处理</strong>：降级兜底（_fallback_dialogue_parse）</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- 流水线流程图 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">Agent 流水线流程</h3>
+          <pre class="mermaid">
+            flowchart TD
+              Input["音频文件"] --> Step1
+              Step1["Step 1: ASR 语音转文字<br/>DashScope paraformer-v2"] --> Step2
+              Step2["Step 2: 说话人分离<br/>LLM 分析对话结构"] --> Step3
+              Step3["Step 3: RAG 检索增强<br/>向量 70% + BM25 30%"] --> Step4
+              Step4["Step 4: 逐段智能评估<br/>RAG 增强 LLM 评估"] --> Step5
+              Step5["Step 5: 结构化报告<br/>Markdown 格式输出"] --> Output
+              Output["{ transcript, dialogue, evaluations, report }"]
+              
+              classDef step fill:#f0fdf4,stroke:#22c55e,stroke-width:2px
+              classDef io fill:#f8fafc,stroke:#94a3b8,stroke-width:2px
+              class Step1,Step2,Step3,Step4,Step5 step
+              class Input,Output io
+          </pre>
+        </div>
+      </section>
+
+      <!-- ==================== 候选方案列表 ==================== -->
+      <section id="candidates" class="space-y-10">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">候选优化方案</h2>
+
+        <!-- 候选1：RagService 职责拆分 -->
+        <article class="bg-white rounded-xl border border-emerald-200 p-6 shadow-sm opacity-75">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-serif font-bold text-slate-900 line-through">拆分 RagService 为单一职责模块</h2>
+            <div class="flex items-center space-x-2">
+              <span class="bg-emerald-500 text-white text-xs px-2 py-1 rounded">✓ 已完成</span>
+            </div>
+          </div>
+          <div class="font-mono text-sm text-slate-700 mb-4">
+            backend_python/app/services/rag_service.py (289行 → 75行)<br>
+            → backend_python/app/services/chunking_service.py (+120行)<br>
+            → backend_python/app/services/embedding_service.py (+85行)<br>
+            → backend_python/app/services/reranker_service.py (+65行)<br>
+            → backend_python/app/services/knowledge_service.py (74行 → 110行)
+          </div>
+          
+          <!-- Before/After 图 -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">Before — 浅层模块</h4>
+              <div class="relative h-48">
+                <div class="absolute inset-0 flex flex-col justify-center">
+                  <div class="bg-white border-2 border-slate-300 rounded-lg p-3 text-center">
+                    <div class="text-xs font-mono text-slate-600 mb-1">RagService</div>
+                    <div class="text-xs text-slate-400">interface ≈ implementation</div>
+                  </div>
+                  <div class="mt-2 grid grid-cols-2 gap-1 text-xs text-slate-500">
+                    <div class="bg-slate-100 rounded p-1">分块 ×3</div>
+                    <div class="bg-slate-100 rounded p-1">向量化</div>
+                    <div class="bg-slate-100 rounded p-1">缓存</div>
+                    <div class="bg-slate-100 rounded p-1">重排序</div>
+                    <div class="bg-slate-100 rounded p-1">检索</div>
+                    <div class="bg-slate-100 rounded p-1">入库</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">After — 深层模块</h4>
+              <div class="relative h-48">
+                <div class="absolute inset-0 flex flex-col justify-center">
+                  <div class="deep text-white rounded-lg p-3 text-center">
+                    <div class="text-xs font-mono mb-1">RagService</div>
+                    <div class="text-xs text-slate-300">精简检索入口</div>
+                  </div>
+                  <div class="mt-2 grid grid-cols-3 gap-1">
+                    <div class="bg-emerald-100 text-emerald-700 rounded p-1 text-xs text-center">ChunkingService</div>
+                    <div class="bg-emerald-100 text-emerald-700 rounded p-1 text-xs text-center">EmbeddingService</div>
+                    <div class="bg-emerald-100 text-emerald-700 rounded p-1 text-xs text-center">RerankerService</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-slate-700 mb-3"><strong>问题：</strong>RagService 承载了 6 种职责（分块 ×3、向量化、缓存管理、重排序、检索、入库），interface 几乎等同于 implementation，是典型的浅层模块。</p>
+          <p class="text-slate-700 mb-3"><strong>解决方案：</strong>拆分为 ChunkingService（分块策略）、EmbeddingService（向量化 + 缓存）、RerankerService（重排序），RagService 精简为纯检索入口。</p>
+          <ul class="text-sm text-slate-600 space-y-1 mb-3">
+            <li>• <strong>locality</strong>：分块逻辑变更只改 ChunkingService</li>
+            <li>• <strong>leverage</strong>：EmbeddingService 可被知识库导入和在线检索共用</li>
+            <li>• <strong>testability</strong>：每个模块可独立 mock 测试</li>
+          </ul>
+        </article>
+
+        <!-- 候选2：API 层去重 -->
+        <article class="bg-white rounded-xl border border-emerald-200 p-6 shadow-sm opacity-75">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-serif font-bold text-slate-900 line-through">消除 API 层重复端点</h2>
+            <div class="flex items-center space-x-2">
+              <span class="bg-emerald-500 text-white text-xs px-2 py-1 rounded">✓ 已完成</span>
+            </div>
+          </div>
+          <div class="font-mono text-sm text-slate-700 mb-4">
+            backend_python/app/api/rag_api.py (91行 → 已删除)<br>
+            → 合并为 backend_python/app/api/mcp_debug_api.py (93行)
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">Before — 重复接口</h4>
+              <div class="space-y-2 text-xs font-mono">
+                <div class="bg-white border border-slate-200 rounded p-2">
+                  <div class="text-slate-600">/rag/mcp/eval-test</div>
+                  <div class="text-slate-400">rag_api.py</div>
+                </div>
+                <div class="bg-white border border-slate-200 rounded p-2">
+                  <div class="text-slate-600">/mcp/eval-test</div>
+                  <div class="text-slate-400">mcp_debug_api.py</div>
+                </div>
+                <div class="bg-red-50 border border-red-200 rounded p-2 text-red-600">
+                  功能完全相同，路由前缀不同
+                </div>
+              </div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">After — 统一入口</h4>
+              <div class="space-y-2 text-xs font-mono">
+                <div class="deep text-white rounded p-2">
+                  <div>/mcp/eval-test</div>
+                  <div class="text-slate-300">mcp_debug_api.py</div>
+                </div>
+                <div class="deep text-white rounded p-2">
+                  <div>/mcp/context-preview</div>
+                  <div class="text-slate-300">mcp_debug_api.py</div>
+                </div>
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-emerald-600">
+                  单一职责，无重复
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-slate-700 mb-3"><strong>问题：</strong>rag_api.py 和 mcp_debug_api.py 提供完全相同的 /eval-test 和 /context-preview 端点，仅路由前缀不同，违反 DRY 原则。</p>
+          <p class="text-slate-700 mb-3"><strong>解决方案：</strong>删除 rag_api.py，将路由统一到 mcp_debug_api.py，前缀改为 /mcp/。</p>
+          <ul class="text-sm text-slate-600 space-y-1 mb-3">
+            <li>• <strong>leverage</strong>：一个接口，N 个调用方</li>
+            <li>• <strong>locality</strong>：MCP 调试逻辑集中在一个模块</li>
+            <li>• <strong>deletion</strong>：删除 91 行死代码</li>
+          </ul>
+        </article>
+
+        <!-- 候选3：Config 迁移到 Pydantic -->
+        <article class="bg-white rounded-xl border border-emerald-200 p-6 shadow-sm opacity-75">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-serif font-bold text-slate-900 line-through">Config 迁移到 Pydantic Settings</h2>
+            <div class="flex items-center space-x-2">
+              <span class="bg-emerald-500 text-white text-xs px-2 py-1 rounded">✓ 已完成</span>
+            </div>
+          </div>
+          <div class="font-mono text-sm text-slate-700 mb-4">
+            backend_python/app/core/config.py (60行 → 43行)<br>
+            → 使用 pydantic-settings，移除手动 os.getenv()
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">Before — 手动加载</h4>
+              <div class="bg-white border border-slate-200 rounded p-3 text-xs font-mono text-slate-600">
+                <div>@dataclass</div>
+                <div>class Settings:</div>
+                <div class="ml-4">def __post_init__(self):</div>
+                <div class="ml-8">self.x = os.getenv("X")</div>
+                <div class="ml-8">self.y = int(os.getenv("Y"))</div>
+                <div class="text-slate-400 mt-1"># 手动类型转换</div>
+                <div class="text-slate-400"># 无验证</div>
+              </div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">After — 声明式配置</h4>
+              <div class="bg-white border border-slate-200 rounded p-3 text-xs font-mono text-slate-600">
+                <div>class Settings(BaseSettings):</div>
+                <div class="ml-4">rag_similar_threshold: float = Field(alias="RAG_THRESHOLD")</div>
+                <div class="ml-4">model_config = SettingsConfigDict(</div>
+                <div class="ml-8">env_file=".env"</div>
+                <div class="ml-4">)</div>
+                <div class="text-emerald-600 mt-1"># 自动类型转换 + 验证</div>
+                <div class="text-emerald-600"># 别名支持字段名≠环境变量名</div>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-slate-700 mb-3"><strong>问题：</strong>当前使用 dataclass + 手动 os.getenv()，无类型验证，环境变量缺失时静默使用默认值。</p>
+          <p class="text-slate-700 mb-3"><strong>解决方案：</strong>迁移到 pydantic-settings，声明式定义配置项，自动类型转换和验证。使用 Field(alias=...) 保持与现有 .env 文件兼容。</p>
+          <ul class="text-sm text-slate-600 space-y-1 mb-3">
+            <li>• <strong>leverage</strong>：一个配置类，自动处理所有环境变量</li>
+            <li>• <strong>testability</strong>：可直接实例化 Settings() 进行测试</li>
+            <li>• <strong>locality</strong>：配置逻辑集中在一处，移除 17 行手写代码</li>
+          </ul>
+        </article>
+
+        <!-- 候选4：异步流水线 -->
+        <article class="bg-white rounded-xl border border-emerald-200 p-6 shadow-sm opacity-75">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-serif font-bold text-slate-900 line-through">流水线异步化</h2>
+            <div class="flex items-center space-x-2">
+              <span class="bg-emerald-500 text-white text-xs px-2 py-1 rounded">✓ 已完成</span>
+            </div>
+          </div>
+          <div class="font-mono text-sm text-slate-700 mb-4">
+            backend_python/app/services/agent_pipeline.py (246行 → 247行)<br>
+            → _evaluate_answers() 改为 asyncio.gather 并发评估
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">Before — 串行评估</h4>
+              <div class="relative h-32">
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <div class="space-y-2 w-full max-w-xs">
+                    <div class="bg-white border border-slate-200 rounded p-2 text-xs text-center">评估问答 1</div>
+                    <div class="text-slate-400 text-center text-xs">↓ await 2s</div>
+                    <div class="bg-white border border-slate-200 rounded p-2 text-xs text-center">评估问答 2</div>
+                    <div class="text-slate-400 text-center text-xs">↓ await 2s</div>
+                    <div class="bg-red-50 border border-red-200 rounded p-2 text-xs text-center text-red-600">N 个问答: N × 2s</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">After — 异步并发</h4>
+              <div class="relative h-32">
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <div class="space-y-2 w-full max-w-xs">
+                    <div class="flex space-x-2">
+                      <div class="bg-emerald-100 border border-emerald-200 rounded p-2 text-xs text-center flex-1">评估 1</div>
+                      <div class="bg-emerald-100 border border-emerald-200 rounded p-2 text-xs text-center flex-1">评估 2</div>
+                      <div class="bg-emerald-100 border border-emerald-200 rounded p-2 text-xs text-center flex-1">评估 N</div>
+                    </div>
+                    <div class="text-slate-400 text-center text-xs">↓ asyncio.gather 并发</div>
+                    <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-xs text-center text-emerald-600">总耗时: ~2s（与 N 无关）</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-slate-700 mb-3"><strong>问题：</strong>_evaluate_answers() 串行 await 每个评估，N 个问答对总耗时 N × 单个 LLM 延迟（约 2s）。</p>
+          <p class="text-slate-700 mb-3"><strong>解决方案：</strong>使用 asyncio.gather 并发发起所有 LLM 评估调用，总耗时降至单个 LLM 调用延迟（约 2s）。</p>
+          <ul class="text-sm text-slate-600 space-y-1 mb-3">
+            <li>• <strong>leverage</strong>：N 个评估从 N×2s 降至 ~2s</li>
+            <li>• <strong>scalability</strong>：问答对越多，收益越大</li>
+            <li>• <strong>compatibility</strong>：与 FastAPI async 生态对齐</li>
+          </ul>
+        </article>
+
+        <!-- 候选5：错误处理统一 -->
+        <article class="bg-white rounded-xl border border-emerald-200 p-6 shadow-sm opacity-75">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-serif font-bold text-slate-900 line-through">统一错误处理与异常层次</h2>
+            <div class="flex items-center space-x-2">
+              <span class="bg-emerald-500 text-white text-xs px-2 py-1 rounded">✓ 已完成</span>
+            </div>
+          </div>
+          <div class="font-mono text-sm text-slate-700 mb-4">
+            backend_python/app/core/exceptions.py (+140行)<br>
+            backend_python/app/services/*.py + backend_python/app/api/*.py (统一异常类型)
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">Before — 混乱异常</h4>
+              <div class="bg-white border border-slate-200 rounded p-3 text-xs font-mono text-slate-600 space-y-1">
+                <div>raise Exception("文档入库失败")</div>
+                <div>raise Exception("向量化失败")</div>
+                <div>raise Exception("千问调用失败")</div>
+                <div class="text-red-500"># 全是 generic Exception</div>
+                <div class="text-red-500"># 无法区分错误类型</div>
+              </div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">After — 结构化异常</h4>
+              <div class="bg-white border border-slate-200 rounded p-3 text-xs font-mono text-slate-600 space-y-1">
+                <div>class AppError(Exception): ...</div>
+                <div>class LlmError(AppError): ...</div>
+                <div class="ml-4">class LlmTimeoutError(LlmError): ...</div>
+                <div class="ml-4">class LlmRateLimitError(LlmError): ...</div>
+                <div>class VectorDbError(AppError): ...</div>
+                <div>class EmbeddingError(AppError): ...</div>
+                <div class="text-emerald-600"># 精确捕获，分层处理</div>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-slate-700 mb-3"><strong>问题：</strong>所有服务层都抛出 generic Exception，调用方无法区分错误类型，无法做针对性重试或降级。</p>
+          <p class="text-slate-700 mb-3"><strong>解决方案：</strong>定义异常层次结构（AppError → LlmError / VectorDbError / EmbeddingError / ChunkingError / KnowledgeError / PipelineError），API 层根据异常类型返回不同 HTTP 状态码。</p>
+          <ul class="text-sm text-slate-600 space-y-1 mb-3">
+            <li>• <strong>locality</strong>：异常定义集中在 exceptions.py</li>
+            <li>• <strong>leverage</strong>：一个 except LlmError 可捕获所有 LLM 相关错误</li>
+            <li>• <strong>testability</strong>：24 个异常测试用例，覆盖继承关系和 HTTP 状态码映射</li>
+          </ul>
+        </article>
+
+        <!-- 候选6：KnowledgeService 深化 -->
+        <article class="bg-white rounded-xl border border-emerald-200 p-6 shadow-sm opacity-75">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-serif font-bold text-slate-900 line-through">深化 KnowledgeService 模块</h2>
+            <div class="flex items-center space-x-2">
+              <span class="bg-emerald-500 text-white text-xs px-2 py-1 rounded">✓ 已完成</span>
+            </div>
+          </div>
+          <div class="font-mono text-sm text-slate-700 mb-4">
+            backend_python/app/services/knowledge_service.py (74行 → 110行)<br>
+            → 吸收 batch_import_knowledge 逻辑
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">Before — 浅层传递</h4>
+              <div class="bg-white border border-slate-200 rounded p-3 text-xs font-mono text-slate-600">
+                <div>class KnowledgeService:</div>
+                <div class="ml-4">def get_stats() → vector_db</div>
+                <div class="ml-4">def clear_all() → vector_db</div>
+                <div class="ml-4">def close() → pass</div>
+                <div class="text-red-500 mt-1"># 仅 3 个透传方法</div>
+                <div class="text-red-500"># 无业务逻辑</div>
+              </div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">After — 知识库网关</h4>
+              <div class="bg-white border border-slate-200 rounded p-3 text-xs font-mono text-slate-600">
+                <div>class KnowledgeService:</div>
+                <div class="ml-4">def batch_import_knowledge()</div>
+                <div class="ml-4">def get_stats()</div>
+                <div class="ml-4">def clear_all()</div>
+                <div class="text-emerald-600 mt-1"># 吸收 batch_import 逻辑</div>
+                <div class="text-emerald-600"># 成为知识库操作的唯一入口</div>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-slate-700 mb-3"><strong>问题：</strong>KnowledgeService 仅 3 个透传方法，batch_import_knowledge 逻辑散落在 RagService 中，职责边界模糊。</p>
+          <p class="text-slate-700 mb-3"><strong>解决方案：</strong>将 batch_import_knowledge 从 RagService 迁移到 KnowledgeService，使其成为知识库操作的唯一入口。</p>
+          <ul class="text-sm text-slate-600 space-y-1 mb-3">
+            <li>• <strong>locality</strong>：知识库操作集中在 KnowledgeService</li>
+            <li>• <strong>leverage</strong>：RagService 只负责检索，不再关心入库</li>
+            <li>• <strong>deletion</strong>：RagService 减少 30 行代码</li>
+          </ul>
+        </article>
+      </section>
+
+      <!-- ==================== 依赖关系图 ==================== -->
+      <section id="dependency-graph" class="space-y-6">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">当前依赖关系（优化后）</h2>
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <pre class="mermaid">
+            flowchart TD
+                API["API 层<br/>analysis.py / mcp_debug_api.py / knowledge_api.py / retrieval_api.py"]
+                Pipeline["AgentPipeline<br/>(246行)"]
+                Prompt["PromptService<br/>(165行)"]
+                RagMCP["RagMCP<br/>(82行)"]
+                Rag["RagService<br/>(75行)"]
+                Chunk["ChunkingService<br/>(120行)"]
+                Embed["EmbeddingService<br/>(85行)"]
+                Rerank["RerankerService<br/>(65行)"]
+                LLM["LlmClient<br/>(64行)"]
+                VectorDB["VectorDB<br/>(286行)"]
+                Knowledge["KnowledgeService<br/>(110行)"]
+                
+                API --> Pipeline
+                API --> Knowledge
+                API --> Chunk
+                Pipeline --> Prompt
+                Pipeline --> RagMCP
+                RagMCP --> Rag
+                RagMCP --> Prompt
+                Rag --> Embed
+                Rag --> Rerank
+                Rag --> VectorDB
+                Knowledge --> Chunk
+                Knowledge --> Embed
+                Knowledge --> VectorDB
+                Prompt --> LLM
+                Embed --> LLM
+                
+                classDef deep fill:#0f172a,color:#fff,stroke:#1e293b,stroke-width:2px
+                classDef new fill:#ecfdf5,stroke:#10b981,stroke-width:2px
+                
+                class LLM,VectorDB,Prompt deep
+                class Chunk,Embed,Rerank new
+          </pre>
+        </div>
+      </section>
+
+      <!-- ==================== 全部优化完成 ==================== -->
+      <section id="remaining-candidates" class="space-y-6">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">全部优化完成</h2>
+        <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-6">
+          <p class="text-slate-700">
+            所有 6 个候选优化方案已全部实施。当前架构已稳定，无未实施的优化项。
+          </p>
+        </div>
+      </section>
+
+      <!-- ==================== 推荐实施顺序 ==================== -->
+      <section id="implementation-order" class="space-y-6">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">实施进度</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-white rounded-xl border border-emerald-200 p-5 shadow-sm">
+            <div class="flex items-center mb-3">
+              <span class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mr-2">✓</span>
+              <h3 class="font-serif font-bold">RagService 拆分</h3>
+            </div>
+            <p class="text-sm text-slate-600">拆分为 ChunkingService + EmbeddingService + RerankerService。核心深层化。</p>
+            <div class="mt-3 text-xs text-emerald-600 font-medium">已完成 — 103 个测试全部通过</div>
+          </div>
+          <div class="bg-white rounded-xl border border-emerald-200 p-5 shadow-sm">
+            <div class="flex items-center mb-3">
+              <span class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mr-2">✓</span>
+              <h3 class="font-serif font-bold">KnowledgeService 深化</h3>
+            </div>
+            <p class="text-sm text-slate-600">吸收 batch_import 逻辑，成为知识库操作的唯一入口。</p>
+            <div class="mt-3 text-xs text-emerald-600 font-medium">已完成</div>
+          </div>
+          <div class="bg-white rounded-xl border border-emerald-200 p-5 shadow-sm">
+            <div class="flex items-center mb-3">
+              <span class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mr-2">✓</span>
+              <h3 class="font-serif font-bold">API 去重</h3>
+            </div>
+            <p class="text-sm text-slate-600">删除 rag_api.py，统一到 mcp_debug_api.py。最小改动，立即收益。</p>
+            <div class="mt-3 text-xs text-emerald-600 font-medium">已完成 — 删除 91 行死代码</div>
+          </div>
+          <div class="bg-white rounded-xl border border-emerald-200 p-5 shadow-sm">
+            <div class="flex items-center mb-3">
+              <span class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mr-2">✓</span>
+              <h3 class="font-serif font-bold">异常层次</h3>
+            </div>
+            <p class="text-sm text-slate-600">定义 exceptions.py，替换所有 generic Exception。为后续优化打基础。</p>
+            <div class="mt-3 text-xs text-emerald-600 font-medium">已完成 — 103 个测试全部通过</div>
+          </div>
+          <div class="bg-white rounded-xl border border-emerald-200 p-5 shadow-sm">
+            <div class="flex items-center mb-3">
+              <span class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mr-2">✓</span>
+              <h3 class="font-serif font-bold">流水线异步化</h3>
+            </div>
+            <p class="text-sm text-slate-600">_evaluate_answers() 改为 asyncio.gather 并发评估，LLM 调用从串行改为并发。</p>
+            <div class="mt-3 text-xs text-emerald-600 font-medium">已完成 — 103 个测试全部通过</div>
+          </div>
+          <div class="bg-white rounded-xl border border-emerald-200 p-5 shadow-sm">
+            <div class="flex items-center mb-3">
+              <span class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mr-2">✓</span>
+              <h3 class="font-serif font-bold">Config Pydantic 化</h3>
+            </div>
+            <p class="text-sm text-slate-600">迁移到 pydantic-settings，声明式配置，自动类型转换与验证。</p>
+            <div class="mt-3 text-xs text-emerald-600 font-medium">已完成 — 60行→43行，减少 17 行手写代码</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 执行记录：RagService Middle Man 移除 ==================== -->
+      <section id="execution-record" class="space-y-6">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">执行记录：RagService Middle Man 移除</h2>
+        <p class="text-slate-600 text-sm">2026-07-21 — 拆分候选方案 1 + 候选方案 6 联合实施</p>
+
+        <!-- 执行背景 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-3">执行背景</h3>
+          <p class="text-slate-700 mb-3">
+            RagService 原始设计存在 <strong>Middle Man 反模式</strong>：三个委托方法 <code>split_chunks()</code>、<code>get_text_embedding()</code>、<code>batch_import_knowledge()</code>
+            仅做参数转发，违反 codebase-design 词汇中的 "接口 ≫ 实现" 原则。调用方通过 RagService 代理调用深层模块，
+            增加了不必要的耦合层。
+          </p>
+          <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 mt-4">
+            <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-2 font-medium">codebase-design 词汇应用</h4>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div class="bg-white rounded p-2 border border-slate-200">
+                <div class="font-medium text-slate-900">Module</div>
+                <div class="text-slate-600">RagService → 精简为纯检索编排</div>
+              </div>
+              <div class="bg-white rounded p-2 border border-slate-200">
+                <div class="font-medium text-slate-900">Interface</div>
+                <div class="text-slate-600">移除 3 个 Middle Man 方法</div>
+              </div>
+              <div class="bg-white rounded p-2 border border-slate-200">
+                <div class="font-medium text-slate-900">Depth</div>
+                <div class="text-slate-600">深层模块直接暴露给调用方</div>
+              </div>
+              <div class="bg-white rounded p-2 border border-slate-200">
+                <div class="font-medium text-slate-900">Seam</div>
+                <div class="text-slate-600">FastAPI Depends + app.state</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 执行步骤 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">执行步骤</h3>
+          <div class="space-y-4">
+            <!-- Step 1 -->
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">1</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">创建 ChunkingService</h4>
+                <div class="font-mono text-xs text-slate-600 mt-1">backend_python/app/services/chunking_service.py</div>
+                <p class="text-sm text-slate-600 mt-1">3 种分块策略（fixed / paragraph / semantic）统一为 <code>split()</code> 接口。12 个单元测试。</p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+            <!-- Step 2 -->
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">2</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">创建 EmbeddingService</h4>
+                <div class="font-mono text-xs text-slate-600 mt-1">backend_python/app/services/embedding_service.py</div>
+                <p class="text-sm text-slate-600 mt-1">向量化 + MD5 缓存管理。<code>get_embedding()</code> / <code>clear_cache()</code>。4 个单元测试。</p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+            <!-- Step 3 -->
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">3</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">创建 RerankerService</h4>
+                <div class="font-mono text-xs text-slate-600 mt-1">backend_python/app/services/reranker_service.py</div>
+                <p class="text-sm text-slate-600 mt-1">Cross-Encoder 重排序，延迟加载 + 降级兜底。<code>rerank()</code> 接口。4 个单元测试。</p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+            <!-- Step 4 -->
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">4</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">重构 RagService</h4>
+                <div class="font-mono text-xs text-slate-600 mt-1">backend_python/app/services/rag_service.py</div>
+                <p class="text-sm text-slate-600 mt-1">精简为纯检索编排（<code>retrieve_by_question</code> + <code>close</code>）。移除 <code>split_chunks()</code>、<code>get_text_embedding()</code>、<code>batch_import_knowledge()</code> 三个 Middle Man 方法。移除 <code>chunking_service</code> 依赖。7 个单元测试（删除 2 个 Middle Man 测试）。</p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+            <!-- Step 5 -->
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">5</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">深化 KnowledgeService</h4>
+                <div class="font-mono text-xs text-slate-600 mt-1">backend_python/app/services/knowledge_service.py</div>
+                <p class="text-sm text-slate-600 mt-1">吸收 <code>batch_import_knowledge()</code> 逻辑，注入 <code>chunking_service</code> + <code>embedding_service</code>。成为知识库操作的唯一入口。</p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+            <!-- Step 6 -->
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">6</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">更新调用方</h4>
+                <div class="font-mono text-xs text-slate-600 mt-1">knowledge_api.py / rag_init.py / retrieval_api.py / main.py</div>
+                <p class="text-sm text-slate-600 mt-1">API 层改用深层模块直接调用（<code>ChunkingService.split()</code>）而非通过 RagService 代理。main.py 按拓扑顺序创建服务。</p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 变更文件清单 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">变更文件清单</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-slate-200">
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">文件</th>
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">操作</th>
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">行数变化</th>
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">说明</th>
+                </tr>
+              </thead>
+              <tbody class="text-slate-600">
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">chunking_service.py</td>
+                  <td class="py-2 px-3"><span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded">新建</span></td>
+                  <td class="py-2 px-3">+120</td>
+                  <td class="py-2 px-3">3 种分块策略，统一 split() 接口</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">embedding_service.py</td>
+                  <td class="py-2 px-3"><span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded">新建</span></td>
+                  <td class="py-2 px-3">+85</td>
+                  <td class="py-2 px-3">向量化 + MD5 缓存</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">reranker_service.py</td>
+                  <td class="py-2 px-3"><span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded">新建</span></td>
+                  <td class="py-2 px-3">+65</td>
+                  <td class="py-2 px-3">Cross-Encoder 重排序 + 降级</td>
+                </tr>
+                <tr class="border-b border-slate-100 bg-slate-50">
+                  <td class="py-2 px-3 font-mono text-xs font-medium">rag_service.py</td>
+                  <td class="py-2 px-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">重构</span></td>
+                  <td class="py-2 px-3 font-medium">289 → 75</td>
+                  <td class="py-2 px-3 font-medium">删除 3 个 Middle Man 方法，精简为纯检索入口</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">knowledge_service.py</td>
+                  <td class="py-2 px-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">深化</span></td>
+                  <td class="py-2 px-3">74 → 110</td>
+                  <td class="py-2 px-3">吸收 batch_import_knowledge，注入 2 个依赖</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">main.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">156 → 174</td>
+                  <td class="py-2 px-3">KnowledgeService 注入完整依赖链，RagService 移除 chunking_service</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">knowledge_api.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">88 → 86</td>
+                  <td class="py-2 px-3">改用 knowledge_service.batch_import_knowledge()</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">retrieval_api.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">—</td>
+                  <td class="py-2 px-3">preview_chunks 改用 ChunkingService 直接调用</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">rag_init.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">26 → 26</td>
+                  <td class="py-2 px-3">改用 KnowledgeService</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">test_rag_service.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">94 → 66</td>
+                  <td class="py-2 px-3">删除 2 个 Middle Man 委托测试</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">rag_eval_script.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">96 → 96</td>
+                  <td class="py-2 px-3">改用 ChunkingService 直接调用</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 测试结果 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">测试结果</h3>
+          <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <div class="flex items-center space-x-3 mb-3">
+              <span class="bg-emerald-500 text-white text-sm font-bold px-3 py-1 rounded">78 passed</span>
+              <span class="text-emerald-700 font-medium">3.56s</span>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div class="bg-white rounded p-2 border border-emerald-200">
+                <div class="font-medium text-slate-900">test_chunking_service.py</div>
+                <div class="text-emerald-600">12 passed</div>
+              </div>
+              <div class="bg-white rounded p-2 border border-emerald-200">
+                <div class="font-medium text-slate-900">test_embedding_service.py</div>
+                <div class="text-emerald-600">4 passed</div>
+              </div>
+              <div class="bg-white rounded p-2 border border-emerald-200">
+                <div class="font-medium text-slate-900">test_reranker_service.py</div>
+                <div class="text-emerald-600">4 passed</div>
+              </div>
+              <div class="bg-white rounded p-2 border border-emerald-200">
+                <div class="font-medium text-slate-900">test_rag_service.py</div>
+                <div class="text-emerald-600">5 passed</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Before/After 架构对比 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">架构对比</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">Before — Middle Man 反模式</h4>
+              <pre class="mermaid">
+                flowchart TD
+                  API["knowledge_api.py"] --> RS["RagService<br/>(289行)"]
+                  RS --> CS["ChunkingService"]
+                  RS --> ES["EmbeddingService"]
+                  RS --> VDB["VectorDB"]
+                  API2["retrieval_api.py"] --> RS
+                  
+                  classDef shallow fill:#f1f5f9,stroke:#94a3b8,stroke-width:2px
+                  class RS shallow
+              </pre>
+              <p class="text-xs text-slate-500 mt-2">API 层通过 RagService 代理调用深层模块</p>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">After — 深层模块直接暴露</h4>
+              <pre class="mermaid">
+                flowchart TD
+                  API["knowledge_api.py"] --> KS["KnowledgeService<br/>(110行)"]
+                  KS --> CS["ChunkingService"]
+                  KS --> ES["EmbeddingService"]
+                  KS --> VDB["VectorDB"]
+                  API2["retrieval_api.py"] --> CS
+                  
+                  classDef deep fill:#0f172a,color:#fff,stroke:#1e293b,stroke-width:2px
+                  class KS deep
+              </pre>
+              <p class="text-xs text-slate-500 mt-2">API 层直接使用深层模块，无中间代理</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 设计决策 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">设计决策</h3>
+          <div class="space-y-3">
+            <div class="flex items-start space-x-3">
+              <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded mt-0.5">D1</span>
+              <div>
+                <div class="font-medium text-slate-900">batch_import_knowledge 迁移到 KnowledgeService</div>
+                <div class="text-sm text-slate-600">该方法涉及文件读取、分块、向量化、入库，是知识库管理的业务操作，属于 KnowledgeService 的职责范围。RagService 仅负责在线检索。</div>
+              </div>
+            </div>
+            <div class="flex items-start space-x-3">
+              <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded mt-0.5">D2</span>
+              <div>
+                <div class="font-medium text-slate-900">RagService 保留 chunking_service 默认构造</div>
+                <div class="text-sm text-slate-600">虽然 main.py 不再传入 chunking_service，但 RagService 的 __init__ 保留了 fallback 构造，确保离线脚本（rag_init.py）仍可独立运行。</div>
+              </div>
+            </div>
+            <div class="flex items-start space-x-3">
+              <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded mt-0.5">D3</span>
+              <div>
+                <div class="font-medium text-slate-900">测试从 80 降至 78</div>
+                <div class="text-sm text-slate-600">删除了 TestSplitChunks 和 TestGetTextEmbedding 两个 Middle Man 委托测试，因为被测方法已不存在。新增的深层模块测试（20 个）远超删除的委托测试（2 个）。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 执行记录：API 层去重 ==================== -->
+      <section id="execution-record-api" class="space-y-6">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">执行记录：API 层去重</h2>
+        <p class="text-slate-600 text-sm">2026-07-21 — 消除候选方案 2</p>
+
+        <!-- 执行背景 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-3">执行背景</h3>
+          <p class="text-slate-700 mb-3">
+            <code>rag_api.py</code> 和 <code>mcp_debug_api.py</code> 提供完全相同的 <code>/eval-test</code> 和 <code>/context-preview</code> 端点，
+            仅路由前缀不同（<code>/rag/mcp</code> vs <code>/mcp</code>），违反 DRY 原则。这是遗留死代码，应删除。
+          </p>
+        </div>
+
+        <!-- 执行步骤 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">执行步骤</h3>
+          <div class="space-y-4">
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">1</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">删除 rag_api.py</h4>
+                <div class="font-mono text-xs text-slate-600 mt-1">backend_python/app/api/rag_api.py (91行 → 已删除)</div>
+                <p class="text-sm text-slate-600 mt-1">完全重复的端点，无任何调用方依赖。</p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">2</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">更新 main.py</h4>
+                <div class="font-mono text-xs text-slate-600 mt-1">backend_python/app/main.py</div>
+                <p class="text-sm text-slate-600 mt-1">移除 rag_router 注册，仅保留 mcp_debug_router。</p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">3</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">更新 README.md</h4>
+                <div class="font-mono text-xs text-slate-600 mt-1">backend_python/README.md</div>
+                <p class="text-sm text-slate-600 mt-1">移除 rag_api 引用，更新文件结构和架构图。</p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 测试结果 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">测试结果</h3>
+          <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <div class="flex items-center space-x-3">
+              <span class="bg-emerald-500 text-white text-sm font-bold px-3 py-1 rounded">78 passed</span>
+              <span class="text-emerald-700 font-medium">3.34s</span>
+              <span class="text-slate-600 text-sm">— 无破坏性变更</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 执行记录：统一错误处理 ==================== -->
+      <section id="execution-record-exceptions" class="space-y-6">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">执行记录：统一错误处理与异常层次</h2>
+        <p class="text-slate-600 text-sm">2026-07-21 — 消除候选方案 5</p>
+
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-3">异常层次结构</h3>
+          <pre class="mermaid">
+            classDiagram
+              class AppError {
+                +str message
+                +str detail
+                +to_http_exception() HTTPException
+              }
+              class LlmError
+              class LlmTimeoutError {
+                +to_http_exception() 504
+              }
+              class LlmRateLimitError {
+                +to_http_exception() 429
+              }
+              class VectorDbError
+              class VectorDbInsertError
+              class VectorDbSearchError
+              class EmbeddingError
+              class ChunkingError
+              class KnowledgeError
+              class KnowledgeImportError
+              class PipelineError
+
+              AppError <|-- LlmError
+              AppError <|-- VectorDbError
+              AppError <|-- EmbeddingError
+              AppError <|-- ChunkingError
+              AppError <|-- KnowledgeError
+              AppError <|-- PipelineError
+              LlmError <|-- LlmTimeoutError
+              LlmError <|-- LlmRateLimitError
+              VectorDbError <|-- VectorDbInsertError
+              VectorDbError <|-- VectorDbSearchError
+              KnowledgeError <|-- KnowledgeImportError
+          </pre>
+        </div>
+
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">变更文件清单</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-slate-200">
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">文件</th>
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">操作</th>
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">说明</th>
+                </tr>
+              </thead>
+              <tbody class="text-slate-600">
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">app/core/exceptions.py</td>
+                  <td class="py-2 px-3"><span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded">新建</span></td>
+                  <td class="py-2 px-3">+140 行，6 个异常基类 + 6 个子类</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">app/services/llm_client.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">raise Exception → raise LlmError</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">app/services/embedding_service.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">raise Exception → raise EmbeddingError</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">app/core/vector_db.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">raise Exception → raise VectorDbInsertError</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">app/api/analysis.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">catch AppError → to_http_exception()</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">app/api/knowledge_api.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">catch AppError → to_http_exception()</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">app/api/retrieval_api.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">catch AppError → to_http_exception()</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">app/api/mcp_debug_api.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">catch AppError → to_http_exception()</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">tests/test_exceptions.py</td>
+                  <td class="py-2 px-3"><span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded">新建</span></td>
+                  <td class="py-2 px-3">+24 个测试用例，覆盖继承关系和 HTTP 状态码映射</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">HTTP 状态码映射</h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div class="bg-white rounded p-2 border border-slate-200">
+              <div class="font-medium text-slate-900">LlmTimeoutError</div>
+              <div class="text-amber-600">504 Gateway Timeout</div>
+            </div>
+            <div class="bg-white rounded p-2 border border-slate-200">
+              <div class="font-medium text-slate-900">LlmRateLimitError</div>
+              <div class="text-amber-600">429 Too Many Requests</div>
+            </div>
+            <div class="bg-white rounded p-2 border border-slate-200">
+              <div class="font-medium text-slate-900">VectorDbInsertError</div>
+              <div class="text-red-600">500 Internal Server Error</div>
+            </div>
+            <div class="bg-white rounded p-2 border border-slate-200">
+              <div class="font-medium text-slate-900">EmbeddingError</div>
+              <div class="text-red-600">500 Internal Server Error</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+          <div class="flex items-center space-x-3">
+            <span class="bg-emerald-500 text-white text-sm font-bold px-3 py-1 rounded">103 passed</span>
+            <span class="text-emerald-700 font-medium">3.66s</span>
+            <span class="text-slate-600 text-sm">— 新增 24 个异常测试用例</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 全部优化完成 ==================== -->
+      <section id="top-recommendation" class="space-y-6">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">全部优化完成</h2>
+        <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-6">
+          <p class="text-slate-700">
+            所有 6 个候选优化方案已全部实施。项目架构已达到稳定状态，后续可根据业务需求进行新的优化迭代。
+          </p>
+        </div>
+      </section>
+
+      <!-- ==================== 执行记录：流水线异步化 ==================== -->
+      <section id="execution-record-async" class="space-y-6">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">执行记录：流水线异步化</h2>
+        <p class="text-slate-600 text-sm">2026-07-21 — 消除候选方案 4</p>
+
+        <!-- 执行背景 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-3">执行背景</h3>
+          <p class="text-slate-700 mb-3">
+            项目已使用 <code>AsyncOpenAI</code>（异步客户端），所有服务层方法均为 <code>async def</code>。
+            但 <code>_evaluate_answers()</code> 方法中，对 <code>_evaluate_single()</code> 的调用是<strong>串行 await</strong>——
+            每个问答对必须等待前一个 LLM 调用完成才能开始。N 个问答对的总耗时 = N × 单个 LLM 延迟（约 2s）。
+          </p>
+          <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 mt-4">
+            <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-2 font-medium">codebase-design 词汇应用</h4>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div class="bg-white rounded p-2 border border-slate-200">
+                <div class="font-medium text-slate-900">Module</div>
+                <div class="text-slate-600">AgentPipeline._evaluate_answers()</div>
+              </div>
+              <div class="bg-white rounded p-2 border border-slate-200">
+                <div class="font-medium text-slate-900">Interface</div>
+                <div class="text-slate-600">方法签名不变，无调用方感知</div>
+              </div>
+              <div class="bg-white rounded p-2 border border-slate-200">
+                <div class="font-medium text-slate-900">Depth</div>
+                <div class="text-slate-600">内部实现从串行改为并发，接口不变</div>
+              </div>
+              <div class="bg-white rounded p-2 border border-slate-200">
+                <div class="font-medium text-slate-900">Leverage</div>
+                <div class="text-slate-600">N 个评估从 N×2s 降至 ~2s</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 执行步骤 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">执行步骤</h3>
+          <div class="space-y-4">
+            <!-- Step 1 -->
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">1</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">分析异步化现状</h4>
+                <p class="text-sm text-slate-600 mt-1">
+                  确认 LlmClient 已用 AsyncOpenAI、所有服务方法均为 async def。
+                  核心瓶颈在 _evaluate_answers() 的串行 await。
+                </p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+            <!-- Step 2 -->
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">2</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">改为 asyncio.gather 并发评估</h4>
+                <div class="font-mono text-xs text-slate-600 mt-1">backend_python/app/services/agent_pipeline.py</div>
+                <p class="text-sm text-slate-600 mt-1">
+                  将串行循环中的 <code>await self._evaluate_single()</code> 替换为
+                  <code>asyncio.gather(*(self._evaluate_single(q, a) for q, a in pairs))</code>。
+                  新增 <code>import asyncio</code>。return_exceptions=True 确保单个评估失败不影响其他评估。
+                </p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+            <!-- Step 3 -->
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">3</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">更新测试验证并发行为</h4>
+                <div class="font-mono text-xs text-slate-600 mt-1">tests/test_agent_pipeline.py</div>
+                <p class="text-sm text-slate-600 mt-1">
+                  新增 <code>test_concurrent_evaluation</code> 验证 3 个问答对并发评估。
+                  新增 <code>await_count</code> 断言验证 rag_enhance_evaluate 被正确调用。
+                </p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+            <!-- Step 4 -->
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">4</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">修复预设测试兼容性</h4>
+                <p class="text-sm text-slate-600 mt-1">
+                  修复 test_llm_client.py（MagicMock → AsyncMock）、test_api_routes.py（mock.run 同步 → AsyncMock）、
+                  test_rag_mcp.py（mock 同步 + 缺 await）共 3 个测试文件中的预存兼容性问题。
+                </p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 变更文件清单 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">变更文件清单</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-slate-200">
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">文件</th>
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">操作</th>
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">行数变化</th>
+                  <th class="text-left py-2 px-3 font-medium text-slate-700">说明</th>
+                </tr>
+              </thead>
+              <tbody class="text-slate-600">
+                <tr class="border-b border-slate-100 bg-slate-50">
+                  <td class="py-2 px-3 font-mono text-xs font-medium">agent_pipeline.py</td>
+                  <td class="py-2 px-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded">重构</span></td>
+                  <td class="py-2 px-3 font-medium">246 → 247</td>
+                  <td class="py-2 px-3 font-medium">_evaluate_answers 改为 asyncio.gather 并发评估</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">test_agent_pipeline.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">更新</span></td>
+                  <td class="py-2 px-3">141 → 162</td>
+                  <td class="py-2 px-3">+test_concurrent_evaluation，新增 await_count 断言</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">test_llm_client.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">修复</span></td>
+                  <td class="py-2 px-3">54 → 54</td>
+                  <td class="py-2 px-3">MagicMock → AsyncMock，适配 async 调用</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">test_api_routes.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">修复</span></td>
+                  <td class="py-2 px-3">66 → 66</td>
+                  <td class="py-2 px-3">mock.run 改为 AsyncMock</td>
+                </tr>
+                <tr class="border-b border-slate-100">
+                  <td class="py-2 px-3 font-mono text-xs">test_rag_mcp.py</td>
+                  <td class="py-2 px-3"><span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">修复</span></td>
+                  <td class="py-2 px-3">69 → 73</td>
+                  <td class="py-2 px-3">AsyncMock + @pytest.mark.asyncio + await</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 测试结果 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">测试结果</h3>
+          <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <div class="flex items-center space-x-3 mb-3">
+              <span class="bg-emerald-500 text-white text-sm font-bold px-3 py-1 rounded">103 passed</span>
+              <span class="text-emerald-700 font-medium">3.66s</span>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div class="bg-white rounded p-2 border border-emerald-200">
+                <div class="font-medium text-slate-900">test_agent_pipeline.py</div>
+                <div class="text-emerald-600">11 passed</div>
+              </div>
+              <div class="bg-white rounded p-2 border border-emerald-200">
+                <div class="font-medium text-slate-900">test_llm_client.py</div>
+                <div class="text-emerald-600">4 passed</div>
+              </div>
+              <div class="bg-white rounded p-2 border border-emerald-200">
+                <div class="font-medium text-slate-900">test_api_routes.py</div>
+                <div class="text-emerald-600">4 passed</div>
+              </div>
+              <div class="bg-white rounded p-2 border border-emerald-200">
+                <div class="font-medium text-slate-900">test_rag_mcp.py</div>
+                <div class="text-emerald-600">5 passed</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Before/After 架构图 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">评估流程对比</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">Before — 串行评估</h4>
+              <pre class="mermaid">
+                flowchart TD
+                  Q1["问答对 1"] --> E1["评估 1 (await 2s)"]
+                  E1 --> Q2["问答对 2"]
+                  Q2 --> E2["评估 2 (await 2s)"]
+                  E2 --> Q3["问答对 N"]
+                  Q3 --> EN["评估 N (await 2s)"]
+                  
+                  classDef slow fill:#fef2f2,stroke:#dc2626
+                  class E1,E2,EN slow
+              </pre>
+              <p class="text-xs text-slate-500 mt-2">总耗时: N × ~2s</p>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">After — 并发评估</h4>
+              <pre class="mermaid">
+                flowchart TD
+                  Q1["问答对 1"] -->|asyncio.gather| GATHER[("gather")]
+                  Q2["问答对 2"] --> GATHER
+                  QN["问答对 N"] --> GATHER
+                  GATHER --> E1["评估 1 (~2s)"]
+                  GATHER --> E2["评估 2 (~2s)"]
+                  GATHER --> EN["评估 N (~2s)"]
+                  
+                  classDef fast fill:#ecfdf5,stroke:#10b981
+                  class GATHER fast
+                  class E1,E2,EN fast
+              </pre>
+              <p class="text-xs text-slate-500 mt-2">总耗时: ~2s（与 N 无关）</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 设计决策 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">设计决策</h3>
+          <div class="space-y-3">
+            <div class="flex items-start space-x-3">
+              <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded mt-0.5">D1</span>
+              <div>
+                <div class="font-medium text-slate-900">gather(return_exceptions=True) 而非 as_completed</div>
+                <div class="text-sm text-slate-600">
+                  使用 return_exceptions=True 确保某个评估异常不会中断其他并发任务。异步任务执行完毕后统一筛选有效结果，保持代码简洁。
+                </div>
+              </div>
+            </div>
+            <div class="flex items-start space-x-3">
+              <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded mt-0.5">D2</span>
+              <div>
+                <div class="font-medium text-slate-900">LlmClient 无需修改</div>
+                <div class="text-sm text-slate-600">
+                  项目已使用 AsyncOpenAI，LlmClient.call() 本身就是 async 方法。gather 直接并发 await 即可，无需切换 HTTP 客户端。
+                </div>
+              </div>
+            </div>
+            <div class="flex items-start space-x-3">
+              <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded mt-0.5">D3</span>
+              <div>
+                <div class="font-medium text-slate-900">零接口变更，零调用方感知</div>
+                <div class="text-sm text-slate-600">
+                  _evaluate_answers() 方法签名不变，返回值不变。所有调用方（_parse_dialogue → _evaluate_answers → _generate_report 的流水线顺序）无感知。
+                  这是 codebase-design 中 "Depth" 的典型应用：内部实现深化，接口不变。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 执行记录：Config Pydantic 化 ==================== -->
+      <section id="execution-record-config" class="space-y-6">
+        <h2 class="text-2xl font-serif font-bold text-slate-900 border-b pb-2">执行记录：Config Pydantic 化</h2>
+        <p class="text-slate-600 text-sm">2026-07-21 — 消除候选方案 3</p>
+
+        <!-- 执行背景 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-3">执行背景</h3>
+          <p class="text-slate-700 mb-3">
+            <code>config.py</code> 使用 <code>@dataclass</code> + 手动 <code>os.getenv()</code>，每个配置项需要：
+            声明默认值 → 在 <code>__post_init__</code> 中手动调用 <code>os.getenv</code> → 手动类型转换（<code>int()</code>、<code>float()</code>）。
+            环境变量名拼写错误时静默返回默认值，无类型校验。
+          </p>
+          <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 mt-4">
+            <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-2 font-medium">codebase-design 词汇应用</h4>
+            <div class="grid grid-cols-2 md:grid-cols-2 gap-3 text-xs">
+              <div class="bg-white rounded p-2 border border-slate-200">
+                <div class="font-medium text-slate-900">Before — 浅层实现</div>
+                <div class="text-slate-600">12 个属性 + 17 行手写 os.getenv + 类型转换</div>
+              </div>
+              <div class="bg-white rounded p-2 border border-slate-200">
+                <div class="font-medium text-slate-900">After — 声明式深度</div>
+                <div class="text-slate-600">12 个类型注解 + 1 行 model_config，自动加载</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 执行步骤 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">执行步骤</h3>
+          <div class="space-y-4">
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">1</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">替换继承为 BaseSettings，添加 model_config</h4>
+                <div class="font-mono text-xs text-slate-600 mt-1">app/core/config.py</div>
+                <p class="text-sm text-slate-600 mt-1">dataclass → BaseSettings。设置 env_file=".env"，extra="ignore"。</p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">2</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">字段声明式定义 + 别名映射</h4>
+                <div class="font-mono text-xs text-smt-10, 16个环境变量：8个别名对。<code>Field(default=..., alias="...")</code> 确保字段名（Pythonic snake_case）与环境变量（UPPER_CASE）解耦。</p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">3</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">移除 __post_init__，删除 import os</h4>
+                <div class="font-mono text-xs text-slate-600 mt-1">app/core/config.py</div>
+                <p class="text-sm text-slate-600 mt-1">手动加载逻辑全部由 pydantic-settings 接管。配置文件从 60 行减至 43 行。</p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+            <div class="flex items-start space-x-4">
+              <div class="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded mt-0.5">4</div>
+              <div class="flex-1">
+                <h4 class="font-medium text-slate-900">验证配置读取正确</h4>
+                <p class="text-sm text-slate-600 mt-1">手动运行验证 RAG_THRESHOLD=0.6 正确映射到 rag_similar_threshold，各字段默认值正确。103 个测试全部通过。</p>
+                <span class="inline-block bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded mt-1">✓ 完成</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 变更详情 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">变更详情</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">Before — 手动加载</h4>
+              <pre class="text-xs font-mono text-slate-600 overflow-x-auto"><div>@dataclass
+class Settings:
+    rag_top_k: int = 3
+    rag_similar_threshold: float = 0.01
+
+    def __post_init__(self):
+        self.rag_top_k = int(os.getenv("RAG_TOP_K", "3"))
+        self.rag_similar_threshold = float(
+            os.getenv("RAG_THRESHOLD", "0.01")
+        )</div></pre>
+              <div class="mt-2 text-xs text-slate-500">60 行，17 行手写赋值 + 类型转换</div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+              <h4 class="text-xs uppercase tracking-wider text-slate-500 mb-3 font-medium">After — 声明式</h4>
+              <pre class="text-xs font-mono text-slate-600 overflow-x-auto"><div>class Settings(BaseSettings):
+    rag_top_k: int = Field(default=3, alias="RAG_TOP_K")
+    rag_similar_threshold: float = Field(
+        default=0.01, alias="RAG_THRESHOLD"
+    )
+
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore",
+    )</div></pre>
+              <div class="mt-2 text-xs text-emerald-600">43 行，0 行手写赋值，自动加载</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 设计决策 -->
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+          <h3 class="text-lg font-serif font-bold text-slate-900 mb-4">设计决策</h3>
+          <div class="space-y-3">
+            <div class="flex items-start space-x-3">
+              <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded mt-0.5">D1</span>
+              <div>
+                <div class="font-medium text-slate-900">Field(alias=...) 保持 .env 兼容</div>
+                <div class="text-sm text-slate-600">
+                  现有 .env 中使用 RAG_THRESHOLD 而非 RAG_SIMILAR_THRESHOLD。显式配置别名确保零修改即可迁移，
+                  同时为未来新增环境变量提供字段名与变量名解耦的能力。
+                </div>
+              </div>
+            </div>
+            <div class="flex items-start space-x-3">
+              <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded mt-0.5">D2</span>
+              <div>
+                <div class="font-medium text-slate-900">populate_by_name=True</div>
+                <div class="text-sm text-slate-600">
+                  同时支持字段名（settings.rag_similar_threshold）和别名（通过 model_dump(by_alias=True) 输出）两种访问方式。
+                </div>
+              </div>
+            </div>
+            <div class="flex items-start space-x-3">
+              <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded mt-0.5">D3</span>
+              <div>
+                <div class="font-medium text-slate-900">extra="ignore" 容错</div>
+                <div class="text-sm text-slate-600">
+                  忽略 .env 文件中未在 Settings 声明的环境变量，避免未知变量导致报错。同时为将来新增配置项提供兼容性。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </body>
+</html>

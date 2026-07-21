@@ -2,6 +2,7 @@
 Agent 流水线服务
 编排 LLM 语音识别 -> 说话人分离 -> 回答评估 -> 报告生成 的完整流程
 """
+import asyncio
 import json
 import logging
 from typing import List
@@ -41,7 +42,7 @@ class AgentPipeline:
             self.rag_mcp = rag_mcp
     
     #外部接口收到请求之后，调用执行，启动整条链路
-    def run(self, request: AnalysisRequest) -> AnalysisResponse:
+    async def run(self, request: AnalysisRequest) -> AnalysisResponse:
         """
         执行完整的 Agent 流水线
         
@@ -64,22 +65,22 @@ class AgentPipeline:
             
             # Step 1: 语音识别 - 将音频转为文字
             logger.info("[Step 2] 开始语音识别")
-            state.raw_transcript = self.prompt_service.transcribe_interview(request.audio_file_path)
+            state.raw_transcript = await self.prompt_service.transcribe_interview(request.audio_file_path)
             logger.info(f"[Step 2] 语音识别完成, text_length={len(state.raw_transcript)}")
             
             # Step 2: 说话人分离 - 解析对话结构
             logger.info("[Step 3] 开始说话人分离")
-            state.dialogue_list = self._parse_dialogue(state)
+            state.dialogue_list = await self._parse_dialogue(state)
             logger.info(f"[Step 3] 说话人分离完成, dialogue_count={len(state.dialogue_list)}")
             
             # Step 3: 回答评估 - 评估面试者表现
             logger.info("[Step 4] 开始回答评估")
-            state.evaluation_list = self._evaluate_answers(state)
+            state.evaluation_list = await self._evaluate_answers(state)
             logger.info(f"[Step 4] 回答评估完成, evaluation_count={len(state.evaluation_list)}")
             
             # Step 4: 生成复盘报告
             logger.info("[Step 5] 开始生成复盘报告")
-            state.final_report = self._generate_report(state)
+            state.final_report = await self._generate_report(state)
             logger.info(f"[Step 5] 复盘报告生成完成, report_length={len(state.final_report)}")
             
             # 流水线完成
@@ -101,12 +102,12 @@ class AgentPipeline:
             )
     
     # 说话人分离,输出结构化数组 dialogue_list
-    def _parse_dialogue(self, state: AgentState) -> List[DialogueItem]:
+    async def _parse_dialogue(self, state: AgentState) -> List[DialogueItem]:
         """
         说话人分离
         使用 LLM 分析对话语义，区分面试官和面试者
         """
-        response = self.prompt_service.parse_dialogue(state.raw_transcript)
+        response = await self.prompt_service.parse_dialogue(state.raw_transcript)
         
         # 解析JSON响应
         try:
@@ -155,44 +156,51 @@ class AgentPipeline:
         return dialogue_list
     
     # 每组问答调用LLM进行评估，返回EvaluationResult列表
-    def _evaluate_answers(self, state: AgentState) -> List[EvaluationResult]:
+    async def _evaluate_answers(self, state: AgentState) -> List[EvaluationResult]:
         """
         回答评估
-        逐对问答进行评估
+        并发评估所有问答对，利用 asyncio.gather 提升 LLM 调用吞吐
         """
-        evaluation_list = []
-        
         # 找出所有问答对
+        pairs = []
         current_question = None
         current_answer = None
         
         for item in state.dialogue_list:
             if item.speaker == Speaker.INTERVIEWER:
-                # 如果之前有问题还没评估，先评估
                 if current_question and current_answer:
-                    eval_result = self._evaluate_single(current_question, current_answer)
-                    if eval_result:
-                        evaluation_list.append(eval_result)
-                # 记录新问题
+                    pairs.append((current_question, current_answer))
                 current_question = item.content
                 current_answer = None
             else:
-                # 记录面试者回答
                 current_answer = item.content
         
-        # 评估最后一对问答
         if current_question and current_answer:
-            eval_result = self._evaluate_single(current_question, current_answer)
-            if eval_result:
-                evaluation_list.append(eval_result)
+            pairs.append((current_question, current_answer))
+        
+        if not pairs:
+            return []
+        
+        # 并发执行所有评估
+        results = await asyncio.gather(
+            *(self._evaluate_single(q, a) for q, a in pairs),
+            return_exceptions=True
+        )
+        
+        evaluation_list = []
+        for r in results:
+            if isinstance(r, Exception):
+                logger.error(f"并发评估任务异常: {r}")
+            elif r is not None:
+                evaluation_list.append(r)
         
         return evaluation_list
     
-    def _evaluate_single(self, question: str, answer: str) -> EvaluationResult:
+    async def _evaluate_single(self, question: str, answer: str) -> EvaluationResult:
         """评估单个问答对"""
         try:
             # 仅调用MCP层，不再直接操作rag_service
-            response = self.rag_mcp.rag_enhance_evaluate(
+            response = await self.rag_mcp.rag_enhance_evaluate(
                 question=question,
                 answer=answer,
                 use_hybrid=True,
@@ -222,7 +230,7 @@ class AgentPipeline:
 
     
     # 把前面所有问答的评估结果汇总成一份复盘报告喂给LLM生成最终报告
-    def _generate_report(self, state: AgentState) -> str:
+    async def _generate_report(self, state: AgentState) -> str:
         """
         生成复盘报告
         """
@@ -242,5 +250,5 @@ class AgentPipeline:
 """
         
         # 调用 LLM 生成报告
-        return self.prompt_service.generate_report(evaluations_text)
+        return await self.prompt_service.generate_report(evaluations_text)
 

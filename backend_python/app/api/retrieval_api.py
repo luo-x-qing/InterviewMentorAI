@@ -9,41 +9,37 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from app.services.rag_service import RagService
+from app.services.chunking_service import ChunkingService
 from app.models.schemas import RagRetrievalResult
-from app.main import get_rag_service
+from app.main import get_rag_service, get_chunking_service
+from app.core.exceptions import AppError
 
 logger = logging.getLogger(__name__)
 
-# 创建路由实例
 router = APIRouter(prefix="/retrieval", tags=["retrieval"])
 
 
-# 请求/响应模型
 class RetrievalRequest(BaseModel):
-    """检索请求"""
     question: str
     top_k: int = 3
-    use_hybrid: bool = True  # 是否使用混合检索
-    use_rerank: bool = False  # 是否使用重排序
+    use_hybrid: bool = True
+    use_rerank: bool = False
 
 
 class RetrievalResponse(BaseModel):
-    """检索响应"""
     question: str
     docs: List[dict]
     total_count: int
 
 
 class ChunkPreviewRequest(BaseModel):
-    """分块预览请求"""
     text: str
     chunk_size: int = 500
     chunk_overlap: int = 100
-    method: str = "fixed"  # fixed, paragraph, semantic
+    method: str = "fixed"
 
 
 class ChunkPreviewResponse(BaseModel):
-    """分块预览响应"""
     chunks: List[str]
     total_chunks: int
     avg_length: float
@@ -54,15 +50,6 @@ async def retrieve_documents(
     request: RetrievalRequest,
     rag_service: RagService = Depends(get_rag_service)
 ):
-    """
-    检索相关文档
-    
-    根据用户问题，从知识库中检索最相关的文档片段。
-    支持三种检索模式：
-    - 混合检索（默认）：结合BM25关键词匹配和向量语义检索
-    - 仅向量检索：只使用向量相似度检索
-    - 重排序：对检索结果进行Cross-Encoder重排序
-    """
     try:
         logger.info(f"执行RAG检索: {request.question}")
         
@@ -72,7 +59,6 @@ async def retrieve_documents(
             request.use_rerank
         )
         
-        # 转换为字典格式
         docs_dict = [
             {
                 "doc_id": doc.doc_id,
@@ -89,6 +75,9 @@ async def retrieve_documents(
             docs=docs_dict,
             total_count=len(docs_dict)
         )
+    except AppError as e:
+        logger.error(f"检索失败: {e}", exc_info=True)
+        raise e.to_http_exception()
     except Exception as e:
         logger.error(f"检索失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"检索失败: {str(e)}")
@@ -97,16 +86,10 @@ async def retrieve_documents(
 @router.post("/chunks/preview", response_model=ChunkPreviewResponse)
 async def preview_chunks(
     request: ChunkPreviewRequest,
-    rag_service: RagService = Depends(get_rag_service)
+    chunking_service: ChunkingService = Depends(get_chunking_service)
 ):
-    """
-    预览分块结果
-    
-    将文本进行分块，返回分块结果供调试使用。
-    支持三种分块策略：fixed（固定长度）、paragraph（按段落）、semantic（语义分块）
-    """
     try:
-        chunks = rag_service.split_chunks(
+        chunks = chunking_service.split(
             request.text, 
             request.method,
             chunk_size=request.chunk_size,
@@ -120,6 +103,9 @@ async def preview_chunks(
             total_chunks=len(chunks),
             avg_length=round(avg_length, 2)
         )
+    except AppError as e:
+        logger.error(f"分块预览失败: {e}", exc_info=True)
+        raise e.to_http_exception()
     except Exception as e:
         logger.error(f"分块预览失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"预览失败: {str(e)}")

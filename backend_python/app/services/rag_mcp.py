@@ -48,7 +48,7 @@ class RagMCP:
         logger.warning(f"知识库上下文过长，截断至{max_chars}字符")
         return raw_context[:max_chars] + "\n【内容过长，已截断】"
 
-    def rag_enhance_evaluate(
+    async def rag_enhance_evaluate(
         self,
         question: str,
         answer: str,
@@ -60,7 +60,7 @@ class RagMCP:
         完整链路：检索→上下文构建→长度截断→调用LLM评估
         """
         # 1. 执行全套RAG检索（混合检索+重排）
-        retrieval_res = self.rag.retrieve_by_question(
+        retrieval_res = await self.rag.retrieve_by_question(
             interview_question=question,
             use_hybrid=use_hybrid,
             use_rerank=use_rerank
@@ -73,7 +73,7 @@ class RagMCP:
         final_ref = self.limit_context_length(raw_ref)
 
         # 4. 调用PromptService，传入增强上下文
-        llm_response = self.prompt_service.evaluate_answer(
+        llm_response = await self.prompt_service.evaluate_answer(
             question=question,
             answer=answer,
             ref_text=final_ref

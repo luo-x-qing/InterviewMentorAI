@@ -20,7 +20,7 @@ class PromptService:
     def __init__(self, llm_client: LlmClient):
         self.llm = llm_client
     
-    def transcribe_interview(self, audio_file_path: str) -> str:
+    async def transcribe_interview(self, audio_file_path: str) -> str:
         """
         面试录音转录
         
@@ -50,9 +50,9 @@ class PromptService:
 
         user_prompt = f"请转录以下面试录音：{audio_file_path}"
         
-        return self.llm.call(system_prompt, user_prompt)
+        return await self.llm.call(system_prompt, user_prompt)
     
-    def parse_dialogue(self, transcript: str) -> str:
+    async def parse_dialogue(self, transcript: str) -> str:
         """
         说话人分离
         
@@ -79,9 +79,9 @@ class PromptService:
 
         user_prompt = f"请解析以下面试对话：\n\n{transcript}"
         
-        return self.llm.call(system_prompt, user_prompt)
+        return await self.llm.call(system_prompt, user_prompt)
     
-    def evaluate_answer(self, question: str, answer: str, ref_text: str = "") -> str:
+    async def evaluate_answer(self, question: str, answer: str, ref_text: str = "") -> str:
         """
         评估面试者回答
         
@@ -125,9 +125,9 @@ class PromptService:
         if ref_text:
             user_prompt += f"\n\n{ref_text}"
         
-        return self.llm.call(system_prompt, user_prompt)
+        return await self.llm.call(system_prompt, user_prompt)
     
-    def generate_report(self, evaluations: str) -> str:
+    async def generate_report(self, evaluations: str) -> str:
         """
         生成面试复盘报告
         
@@ -162,4 +162,4 @@ class PromptService:
 
         user_prompt = f"请根据以下评估结果生成复盘报告：\n\n{evaluations}"
         
-        return self.llm.call(system_prompt, user_prompt)
+        return await self.llm.call(system_prompt, user_prompt)

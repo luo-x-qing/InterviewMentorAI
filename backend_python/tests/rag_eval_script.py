@@ -8,6 +8,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.core.vector_db import VectorDB
 from app.services.llm_client import LlmClient
 from app.services.prompt_service import PromptService
+from app.services.chunking_service import ChunkingService
+from app.services.embedding_service import EmbeddingService
 from app.services.rag_service import RagService
 from app.services.rag_mcp import RagMCP
 from app.services.agent_pipeline import AgentPipeline
@@ -16,8 +18,14 @@ from app.models.schemas import AnalysisRequest
 # 构造实例
 vector_db = VectorDB()
 llm_client = LlmClient()
+chunking_service = ChunkingService()
+embedding_service = EmbeddingService(llm_client=llm_client)
 prompt_service = PromptService(llm_client=llm_client)
-rag_service = RagService(vector_db=vector_db, llm_service=llm_client)
+rag_service = RagService(
+    vector_db=vector_db,
+    embedding_service=embedding_service,
+    chunking_service=chunking_service
+)
 rag_mcp = RagMCP(rag_service=rag_service, prompt_service=prompt_service)
 agent_pipeline = AgentPipeline(prompt_service=prompt_service, rag_mcp=rag_mcp)
 
@@ -70,15 +78,15 @@ def test_chunking_methods():
 第二段内容。这里有一些额外的细节。"""
     
     # 固定长度分块
-    chunks_fixed = rag_service.split_chunks(sample_text, "fixed")
+    chunks_fixed = chunking_service.split(sample_text, "fixed")
     print(f"固定长度分块：{len(chunks_fixed)} 个块")
     
     # 按段落分块
-    chunks_paragraph = rag_service.split_chunks(sample_text, "paragraph")
+    chunks_paragraph = chunking_service.split(sample_text, "paragraph")
     print(f"按段落分块：{len(chunks_paragraph)} 个块")
     
     # 语义分块
-    chunks_semantic = rag_service.split_chunks(sample_text, "semantic")
+    chunks_semantic = chunking_service.split(sample_text, "semantic")
     print(f"语义分块：{len(chunks_semantic)} 个块")
 
 def test_end_to_end_rag():

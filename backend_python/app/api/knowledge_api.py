@@ -8,9 +8,9 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
-from app.services.rag_service import RagService
 from app.services.knowledge_service import KnowledgeService
-from app.main import get_rag_service, get_knowledge_service
+from app.main import get_knowledge_service
+from app.core.exceptions import AppError
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class KnowledgeImportResponse(BaseModel):
 @router.post("/import", response_model=KnowledgeImportResponse)
 async def import_knowledge(
     request: KnowledgeImportRequest = None,
-    rag_service: RagService = Depends(get_rag_service)
+    knowledge_service: KnowledgeService = Depends(get_knowledge_service)
 ):
     """
     导入知识库文档
@@ -43,13 +43,16 @@ async def import_knowledge(
     """
     try:
         logger.info("开始知识库导入")
-        rag_service.batch_import_knowledge()
+        knowledge_service.batch_import_knowledge()
         
         return KnowledgeImportResponse(
             success=True,
             message="知识库导入完成",
             imported_count=0  # TODO: 返回实际导入数量
         )
+    except AppError as e:
+        logger.error(f"知识库导入失败: {e}", exc_info=True)
+        raise e.to_http_exception()
     except Exception as e:
         logger.error(f"知识库导入失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"导入失败: {str(e)}")
@@ -66,6 +69,9 @@ async def get_knowledge_stats(
     """
     try:
         return knowledge_service.get_stats()
+    except AppError as e:
+        logger.error(f"获取统计信息失败: {e}", exc_info=True)
+        raise e.to_http_exception()
     except Exception as e:
         logger.error(f"获取统计信息失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取统计失败: {str(e)}")
@@ -83,6 +89,9 @@ async def clear_knowledge(
     try:
         knowledge_service.clear_all()
         return {"success": True, "message": "知识库已清空"}
+    except AppError as e:
+        logger.error(f"清空知识库失败: {e}", exc_info=True)
+        raise e.to_http_exception()
     except Exception as e:
         logger.error(f"清空知识库失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"清空失败: {str(e)}")

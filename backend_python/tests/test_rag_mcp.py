@@ -5,19 +5,19 @@ from app.models.schemas import RagDoc, RagRetrievalResult
 @pytest.fixture
 def mock_rag_service(mocker):
     mock = mocker.MagicMock()
-    mock.retrieve_by_question.return_value = RagRetrievalResult(
+    mock.retrieve_by_question = mocker.AsyncMock(return_value=RagRetrievalResult(
         question="test",
         docs=[
             RagDoc(doc_id=1, title="t1", content="Java HashMap底层原理", source="src", score=0.85),
         ],
-    )
+    ))
     return mock
 
 
 @pytest.fixture
 def mock_prompt_service(mocker):
     mock = mocker.MagicMock()
-    mock.evaluate_answer.return_value = "llm评估结果"
+    mock.evaluate_answer = mocker.AsyncMock(return_value="llm评估结果")
     return mock
 
 
@@ -57,13 +57,14 @@ class TestLimitContextLength:
 
 
 class TestRagEnhanceEvaluate:
-    def test_full_pipeline(self, rag_mcp, mock_rag_service, mock_prompt_service):
-        result = rag_mcp.rag_enhance_evaluate(question="Java是什么", answer="一种语言")
+    @pytest.mark.asyncio
+    async def test_full_pipeline(self, rag_mcp, mock_rag_service, mock_prompt_service):
+        result = await rag_mcp.rag_enhance_evaluate(question="Java是什么", answer="一种语言")
         assert result == "llm评估结果"
-        mock_rag_service.retrieve_by_question.assert_called_once_with(
+        mock_rag_service.retrieve_by_question.assert_awaited_once_with(
             interview_question="Java是什么", use_hybrid=True, use_rerank=True
         )
-        mock_prompt_service.evaluate_answer.assert_called_once()
-        args = mock_prompt_service.evaluate_answer.call_args[1]
+        mock_prompt_service.evaluate_answer.assert_awaited_once()
+        args = mock_prompt_service.evaluate_answer.await_args[1]
         assert args["question"] == "Java是什么"
         assert args["answer"] == "一种语言"

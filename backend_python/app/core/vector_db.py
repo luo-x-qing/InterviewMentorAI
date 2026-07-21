@@ -5,6 +5,7 @@ import math
 import jieba
 from collections import Counter
 from app.core.config import settings
+from app.core.exceptions import VectorDbInsertError, VectorDbSearchError
 from app.models.schemas import RagDoc
 import logging
 logger = logging.getLogger(__name__)
@@ -88,7 +89,7 @@ class VectorDB:
         except Exception as e:
             logger.error(f"插入文档失败: {e}")
             self.conn.rollback()
-            raise Exception(f"文档入库失败: {str(e)}")
+            raise VectorDbInsertError(f"文档入库失败: {str(e)}")
 
     def search_vector(self, query_emb: list[float], top_k: int, threshold: float) -> list[RagDoc]:
         """稠密向量检索｜0004密集检索"""

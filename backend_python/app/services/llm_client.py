@@ -4,9 +4,10 @@ LLM 底层客户端
 """
 import logging
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from app.core.config import settings
+from app.core.exceptions import LlmError
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +26,12 @@ class LlmClient:
         self.temperature = settings.llm_temperature
         self.base_url = settings.llm_base_url
         
-        self.client = OpenAI(
+        self.client = AsyncOpenAI(
             api_key=self.api_key,
             base_url=self.base_url
         )
     
-    def call(self, system_prompt: str, user_prompt: str) -> str:
+    async def call(self, system_prompt: str, user_prompt: str) -> str:
         """
         底层 LLM 调用
         
@@ -44,7 +45,7 @@ class LlmClient:
         logger.info(f"调用千问大模型, model={self.model_name}")
         
         try:
-            completion = self.client.chat.completions.create(
+            completion = await self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -61,4 +62,4 @@ class LlmClient:
             
         except Exception as e:
             logger.error(f"千问大模型调用异常: {e}")
-            raise Exception(f"千问调用失败: {str(e)}")
+            raise LlmError(f"千问调用失败: {str(e)}")
