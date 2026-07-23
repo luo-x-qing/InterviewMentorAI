@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.interview.mentor.entity.InterviewRecord;
 import com.interview.mentor.entity.dto.req.CreateInterviewRequest;
 import com.interview.mentor.entity.dto.resp.Result;
+import com.interview.mentor.security.SecurityUtils;
 import com.interview.mentor.service.InterviewService;
 import com.interview.mentor.tenant.TenantContext;
 import jakarta.validation.Valid;
@@ -82,8 +83,7 @@ public class InterviewController {
     }
 
     private Long getCurrentUserId(Authentication authentication) {
-        // 从 JWT Claims 中获取 userId，或从数据库查询
-        // MVP 阶段简化处理：从 username 查数据库
-        return null; // TODO: 实现完整逻辑
+        // 当前用户ID 由 AuthUser principal 携带，统一从 SecurityContext 解析
+        return SecurityUtils.currentUserId();
     }
 }

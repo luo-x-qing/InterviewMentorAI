@@ -1,13 +1,11 @@
 package com.interview.mentor.tenant;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.interview.mentor.entity.Tenant;
 import com.interview.mentor.mapper.TenantMapper;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 /**
- * 租户服务 - 解析 tenantId 与 schemaName 映射
+ * 租户服务 - 租户创建与管理
  */
 @Service
 public class TenantService {
@@ -16,23 +14,6 @@ public class TenantService {
 
     public TenantService(TenantMapper tenantMapper) {
         this.tenantMapper = tenantMapper;
-    }
-
-    /**
-     * 根据 username 解析所属 tenantId
-     */
-    public String resolveTenantIdByUsername(String username) {
-        // TODO: 实际实现需要查 sys_user 表，MVP阶段先返回公共租户
-        return "1";
-    }
-
-    /**
-     * 根据 tenantId 解析 schemaName（带缓存）
-     */
-    @Cacheable(value = "tenantSchema", key = "#tenantId")
-    public String resolveSchemaName(Long tenantId) {
-        Tenant tenant = tenantMapper.selectById(tenantId);
-        return tenant != null ? tenant.getSchemaName() : "platform";
     }
 
     /**

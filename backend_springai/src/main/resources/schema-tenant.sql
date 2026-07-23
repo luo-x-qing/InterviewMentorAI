@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS t_interview (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     tenant_id       BIGINT       NOT NULL COMMENT '租户ID',
     title           VARCHAR(200) NULL     COMMENT '面试标题',
+    user_id         BIGINT       NULL     COMMENT '候选人用户ID',
+    job_role        VARCHAR(100) NULL     COMMENT '应聘岗位',
     created_by      BIGINT       NOT NULL COMMENT '创建者ID（HR或候选人自己）',
     candidate_id    BIGINT       NULL     COMMENT '候选人用户ID',
     audio_file_id   VARCHAR(36)  NULL     COMMENT '音频文件唯一ID',
@@ -22,6 +24,7 @@ CREATE TABLE IF NOT EXISTS t_interview (
     created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_tenant_id (tenant_id),
+    INDEX idx_user_id (user_id),
     INDEX idx_candidate_id (candidate_id),
     INDEX idx_created_by (created_by),
     INDEX idx_status (status),
@@ -34,6 +37,7 @@ CREATE TABLE IF NOT EXISTS t_interview (
 -- -------------------------------------------
 CREATE TABLE IF NOT EXISTS t_evaluation (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id       BIGINT       NOT NULL COMMENT '租户ID（行级隔离）',
     interview_id    BIGINT       NOT NULL COMMENT '面试记录ID',
     question_index  INT          NOT NULL COMMENT '题目序号',
     question        TEXT         NOT NULL COMMENT '题目内容',
@@ -50,6 +54,7 @@ CREATE TABLE IF NOT EXISTS t_evaluation (
     hr_edited_by    BIGINT       NULL     COMMENT 'HR修正者ID',
     hr_edited_at    DATETIME     NULL     COMMENT 'HR修正时间',
     created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_tenant_id (tenant_id),
     INDEX idx_interview_id (interview_id),
     INDEX idx_question_index (question_index)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='评估表（逐条评估）';
@@ -59,6 +64,7 @@ CREATE TABLE IF NOT EXISTS t_evaluation (
 -- -------------------------------------------
 CREATE TABLE IF NOT EXISTS t_report (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id       BIGINT       NOT NULL COMMENT '租户ID（行级隔离）',
     interview_id    BIGINT       NOT NULL COMMENT '面试记录ID(UNIQUE)',
     report_markdown LONGTEXT     NULL     COMMENT 'AI生成的原始报告(Markdown)',
     final_markdown  LONGTEXT     NULL     COMMENT 'HR修正后的最终报告(Markdown)',
@@ -69,6 +75,7 @@ CREATE TABLE IF NOT EXISTS t_report (
     hr_edited_by    BIGINT       NULL     COMMENT 'HR修正者ID',
     hr_edited_at    DATETIME     NULL     COMMENT 'HR修正时间',
     created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_tenant_id (tenant_id),
     UNIQUE KEY uk_interview_id (interview_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='复盘报告表';
 
@@ -93,54 +100,9 @@ CREATE TABLE IF NOT EXISTS t_interview_session (
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='面试会话表（HR邀请码）';
 
--- -------------------------------------------
--- 5. 知识库表 (两层结构: 知识库 → 文档)
--- -------------------------------------------
-CREATE TABLE IF NOT EXISTS t_knowledge_base (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-    tenant_id       BIGINT       NOT NULL COMMENT '租户ID',
-    name            VARCHAR(100) NOT NULL COMMENT '知识库名称',
-    description     VARCHAR(500) NULL     COMMENT '描述',
-    type            VARCHAR(30)  NOT NULL COMMENT 'job_description/interview_guide/reference_answer',
-    doc_count       INT          NOT NULL DEFAULT 0 COMMENT '文档数量',
-    status          VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
-    created_by      BIGINT       NULL     COMMENT '创建者ID',
-    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_tenant_id (tenant_id),
-    INDEX idx_type (type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库表';
-
-CREATE TABLE IF NOT EXISTS t_knowledge_doc (
-    id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-    knowledge_base_id   BIGINT       NOT NULL COMMENT '所属知识库ID',
-    title               VARCHAR(200) NOT NULL COMMENT '文档标题',
-    original_filename   VARCHAR(200) NULL     COMMENT '原始文件名',
-    file_path           VARCHAR(500) NOT NULL COMMENT '存储路径',
-    file_type           VARCHAR(20)  NOT NULL COMMENT 'pdf/docx/txt/md',
-    chunk_count         INT          NOT NULL DEFAULT 0 COMMENT '切片数量',
-    status              VARCHAR(20)  NOT NULL DEFAULT 'UPLOADED' COMMENT 'UPLOADED/INDEXING/READY/FAILED',
-    created_by          BIGINT       NULL     COMMENT '上传者ID',
-    created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_knowledge_base_id (knowledge_base_id),
-    INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库文档表';
-
--- -------------------------------------------
--- 6. 知识库文档片段表 (RAG向量检索)
--- -------------------------------------------
-CREATE TABLE IF NOT EXISTS knowledge_chunk (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
-    document_id     BIGINT       NOT NULL COMMENT '关联文档ID',
-    tenant_id       BIGINT       NOT NULL COMMENT '租户ID',
-    chunk_index     INT          NOT NULL COMMENT '片段序号',
-    chunk_text      TEXT         NOT NULL COMMENT '片段文本',
-    token_count     INT          NULL     COMMENT 'Token数量',
-    embedding_id    VARCHAR(100) NULL     COMMENT '向量存储ID',
-    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_document_id (document_id),
-    INDEX idx_tenant_id (tenant_id),
-    INDEX idx_embedding_id (embedding_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库文档片段表';
+-- 注：知识库采用扁平文档模型（见文末 t_knowledge_document），
+-- 与 Python AI 后端的扁平 chunk 模型对齐。原「知识库→文档→切片」三层表
+-- （t_knowledge_base / t_knowledge_doc / knowledge_chunk）为无业务引用的孤儿设计，已删除。
 
 -- -------------------------------------------
 -- 7. 评估模板表（可选，MVP后扩展）
@@ -175,3 +137,26 @@ CREATE TABLE IF NOT EXISTS audit_log (
     INDEX idx_user_id (user_id),
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
+
+-- -------------------------------------------
+-- 9. 知识库文档表（独立文档，非知识库附件）
+-- -------------------------------------------
+CREATE TABLE IF NOT EXISTS t_knowledge_document (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id       BIGINT       NOT NULL COMMENT '租户ID',
+    title           VARCHAR(200) NOT NULL COMMENT '文档标题',
+    content         LONGTEXT     NULL     COMMENT '文档内容',
+    doc_type        VARCHAR(50)  NULL     COMMENT '文档类型',
+    job_role        VARCHAR(50)  NULL     COMMENT '适用岗位',
+    tags            VARCHAR(500) NULL     COMMENT '标签(逗号分隔)',
+    is_public       TINYINT      NOT NULL DEFAULT 0 COMMENT '0=租户私有 1=平台公共',
+    embedding_status TINYINT     NOT NULL DEFAULT 0 COMMENT '0=待向量化 1=向量化中 2=完成',
+    uploaded_by     BIGINT       NULL     COMMENT '上传者ID',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_tenant_id (tenant_id),
+    INDEX idx_doc_type (doc_type),
+    INDEX idx_job_role (job_role),
+    INDEX idx_is_public (is_public),
+    INDEX idx_embedding_status (embedding_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库文档表';

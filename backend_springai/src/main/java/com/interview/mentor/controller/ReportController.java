@@ -6,6 +6,7 @@ import com.interview.mentor.entity.Evaluation;
 import com.interview.mentor.entity.Report;
 import com.interview.mentor.entity.dto.req.HrCorrectionRequest;
 import com.interview.mentor.entity.dto.resp.Result;
+import com.interview.mentor.security.SecurityUtils;
 import com.interview.mentor.service.ReportService;
 import com.interview.mentor.tenant.TenantContext;
 import jakarta.validation.Valid;
@@ -40,8 +41,7 @@ public class ReportController {
     public Result<Evaluation> correctEvaluation(
             @PathVariable Long id,
             @Valid @RequestBody HrCorrectionRequest request) {
-        // TODO: 从 Authentication 获取 hrUserId
-        Long hrUserId = null;
+        Long hrUserId = SecurityUtils.currentUserId();
         Evaluation corrected = reportService.correctEvaluation(id, request, hrUserId);
         return Result.success(corrected);
     }
@@ -62,8 +62,7 @@ public class ReportController {
     public Result<Report> correctReport(
             @PathVariable Long interviewId,
             @RequestBody Map<String, String> request) {
-        // TODO: 从 Authentication 获取 hrUserId
-        Long hrUserId = null;
+        Long hrUserId = SecurityUtils.currentUserId();
         Report corrected = reportService.correctReport(interviewId, request.get("finalMarkdown"), hrUserId);
         return Result.success(corrected);
     }

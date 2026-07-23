@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>架构评审 — backend_springai（InterviewMentorAI）</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      body { font-feature-settings: "tnum"; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+      <header class="space-y-4">
+        <p class="text-xs uppercase tracking-widest text-slate-400">架构评审 · Architecture Review</p>
+        <h1 class="text-4xl font-serif font-semibold leading-tight">backend_springai · InterviewMentorAI</h1>
+        <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
+          <span>分支 <span class="mono text-slate-700">feature/arch-core</span></span>
+          <span>日期 2026-07-23</span>
+          <span>Spring Boot 3.2.5 / Java 17 / MyBatis-Plus</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-4 text-xs text-slate-500 border-t border-slate-200 pt-4">
+          <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 border-2 border-slate-700 rounded-sm"></span>模块 module</span>
+          <span class="flex items-center gap-2"><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#64748b" stroke-width="2" class="seam"/></svg>接缝 seam</span>
+          <span class="flex items-center gap-2"><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#dc2626" stroke-width="2"/></svg>泄漏 leakage</span>
+          <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 rounded-sm deep"></span>深模块 deep module</span>
+        </div>
+      </header>
+      <section id="preface" class="space-y-6 bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
+        <div class="space-y-2">
+          <p class="text-xs uppercase tracking-widest text-indigo-500">前言 · 当前进度速览</p>
+          <h2 class="text-2xl font-serif font-semibold">这个项目现在走到哪了</h2>
+          <p class="text-sm text-slate-500">写给忙碌后回来、需要快速找回上下文的你。下面用三分钟把「项目是什么、Java 后端做了什么、这条分支在改什么」讲清楚。</p>
+        </div>
+
+        <div class="space-y-3 text-[15px] leading-relaxed text-slate-700">
+          <h3 class="font-semibold text-slate-900">① 项目全貌</h3>
+          <p><strong>InterviewMentorAI</strong> 是一个「AI 面试评估」SaaS 平台，一仓三端：</p>
+          <ul class="list-disc pl-6 space-y-1">
+            <li><span class="mono text-sm">frontend_flutter</span> — Flutter 客户端（候选人答题、HR 查看报告）。</li>
+            <li><span class="mono text-sm">backend_springai</span> — <strong>本次评审对象</strong>。Spring Boot 业务后端：多租户、鉴权、面试记录、报告、知识库 CRUD，负责编排。</li>
+            <li><span class="mono text-sm">backend_python</span> — AI 引擎。跑 RAG 检索 + 多 Agent 评估流水线 + LLM 接入，通过 HTTP 暴露 <span class="mono text-sm">:8000</span>。</li>
+          </ul>
+          <p>数据流是：Flutter 上传音频/答案 → Spring 落库并触发分析 → 调 Python 做转写+RAG+多 Agent 打分 → 结果回写成面试报告 → HR 可人工修正。</p>
+        </div>
+
+        <div class="space-y-3 text-[15px] leading-relaxed text-slate-700">
+          <h3 class="font-semibold text-slate-900">② Python 侧刚刚发生了什么（这是理解本分支的关键背景）</h3>
+          <p>最近两个提交把 <span class="mono text-sm">backend_python</span> 做了彻底重构：RAG 拆成 <em>Chunking / Embedding / Reranker</em> 三个独立服务，评估流水线改 <span class="mono text-sm">asyncio.gather</span> 并发，配置迁到 Pydantic，统一异常体系，测试从 78 涨到 103 个全绿。<strong>Python 端已经是一套标准的 RAG 分层模型。</strong></p>
+        </div>
+
+        <div class="space-y-3 text-[15px] leading-relaxed text-slate-700">
+          <h3 class="font-semibold text-slate-900">③ 这条分支 <span class="mono text-base">feature/arch-core</span> 正在做的事</h3>
+          <p>提交历史显示 Java 侧刚从一个电商脚手架（<span class="mono text-sm">com.ecommerce</span>）改造成面试平台（<span class="mono text-sm">com.interview.mentor</span>），并升级到 Java 17 / SB 3.2.5 的企业级多租户底座。<strong>当前这批未提交的暂存改动，方向是「让 Java 业务模型向 Python 的 RAG 能力对齐」</strong>：</p>
+          <ul class="list-disc pl-6 space-y-1">
+            <li>给 <span class="mono text-sm">InterviewRecord</span> / <span class="mono text-sm">t_interview</span> 加 <span class="mono text-sm">userId</span>、<span class="mono text-sm">jobRole</span> — 让面试记录能标记候选人与岗位，喂给 Python 做针对性评估。</li>
+            <li>新增 <span class="mono text-sm">t_knowledge_document</span> 表 + <span class="mono text-sm">KnowledgeDocument</span> 实体 + Mapper，带 <span class="mono text-sm">embedding_status</span> 字段 — 为知识库文档接入向量化流程铺路。</li>
+            <li>把 <span class="mono text-sm">TenantInfo</span> 从 record 改回普通类、修正报告分页构造 — 一些兼容性/稳健性修补。</li>
+            <li>把测试包从 <span class="mono text-sm">com.ecommerce.backend_springai</span> 迁到 <span class="mono text-sm">com.interview.mentor</span>，删掉遗留的 RecordControllerTest。</li>
+          </ul>
+        </div>
+
+        <div class="space-y-3 text-[15px] leading-relaxed text-slate-700 border-t border-slate-200 pt-5">
+          <h3 class="font-semibold text-slate-900">④ 一句话结论：你正处在「架构调整阶段」的哪个点</h3>
+          <p>你在 <strong>搭建阶段的收尾期</strong>：多租户 + 鉴权 + RAG 知识库的骨架已铺开，但<strong>骨架里塞了两套互相矛盾的设计残留，且几个核心机制处于「声明了但没接通」的半成品状态</strong>。这正是做架构深化最划算的时机——先把浅模块与死代码收敛、把没接通的接缝接通，再往上加功能。下面 5 张卡片就是本轮找到的深化机会，按「删除测试」与「深模块」原则排序。</p>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 text-center text-xs">
+            <div class="bg-stone-100 rounded-lg p-3"><div class="text-2xl font-semibold text-slate-800">60</div>Java 源文件</div>
+            <div class="bg-stone-100 rounded-lg p-3"><div class="text-2xl font-semibold text-slate-800">4→1</div>知识库实体待收敛</div>
+            <div class="bg-rose-50 rounded-lg p-3"><div class="text-2xl font-semibold text-rose-600">3</div>接缝声明未接通</div>
+            <div class="bg-rose-50 rounded-lg p-3"><div class="text-2xl font-semibold text-rose-600">1</div>跨租户泄漏（安全）</div>
+          </div>
+        </div>
+      </section>
+      <section id="candidates" class="space-y-10">
+        <div class="flex items-baseline justify-between">
+          <h2 class="text-2xl font-serif font-semibold">深化机会 · 候选清单</h2>
+          <p class="text-sm text-slate-400">按删除测试 / 深模块原则排序</p>
+        </div>
+
+        <!-- 候选 A：Report 跨租户泄漏 -->
+        <article class="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-5">
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">Strong</span>
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-100 text-rose-700">安全级</span>
+            <span class="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">in-process</span>
+            <h3 class="text-xl font-serif font-semibold w-full mt-1">A · 让报告查询的接口承诺租户隔离</h3>
+          </div>
+          <p class="text-sm mono text-slate-500">service/impl/ReportServiceImpl.java · listReports / getTenantStats / listPendingHrReview</p>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-rose-200 bg-rose-50/40 p-4">
+              <p class="text-xs uppercase tracking-wider text-rose-500 mb-3">Before — 契约与实现脱节</p>
+              <pre class="mermaid">
+flowchart TB
+  HR["HR of Tenant A"] --> S["listReports(page, tenantId=A)"]
+  S -->|"忽略 tenantId"| Q["selectPage(no where)"]
+  Q -.leak.-> RA["Tenant A reports"]
+  Q -.leak.-> RB["Tenant B reports"]
+  Q -.leak.-> RC["Tenant C reports"]
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#dc2626;
+  class Q,RB,RC leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4">
+              <p class="text-xs uppercase tracking-wider text-emerald-600 mb-3">After — 接口即测试面</p>
+              <pre class="mermaid">
+flowchart TB
+  HR["HR of Tenant A"] --> S["listReports(page, tenantId=A)"]
+  S --> J["join t_interview<br/>where tenant_id = A"]
+  J --> RA["Tenant A reports only"]
+  classDef deep fill:#0f172a,color:#fff,stroke:#0f172a;
+  class J deep
+              </pre>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-x-8 gap-y-2 text-[15px]">
+            <p><span class="font-semibold">问题</span> — 三个方法收了 <span class="mono text-sm">tenantId</span> 却完全不用，<span class="mono text-sm">Report</span> 无租户列，A 租户 HR 能读到全平台报告。</p>
+            <p><span class="font-semibold">方案</span> — 报告经 <span class="mono text-sm">t_interview</span> 关联租户，查询统一按当前租户过滤，让接口的租户承诺真正成立。</p>
+          </div>
+          <ul class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-slate-600">
+            <li class="bg-stone-100 rounded px-3 py-1.5">locality：越权收敛在一处</li>
+            <li class="bg-stone-100 rounded px-3 py-1.5">接口即测试面</li>
+            <li class="bg-stone-100 rounded px-3 py-1.5">堵住跨租户泄漏</li>
+          </ul>
+        </article>
+
+        <!-- 候选 B：知识库四实体收敛 -->
+        <article class="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-5">
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">Strong</span>
+            <span class="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">删除测试</span>
+            <h3 class="text-xl font-serif font-semibold w-full mt-1">B · 收敛知识库的两套并存设计</h3>
+          </div>
+          <p class="text-sm mono text-slate-500">entity/{KnowledgeBase,KnowledgeDoc,KnowledgeChunk,KnowledgeDocument}.java · mapper/{KnowledgeDoc,KnowledgeDocument,KnowledgeBase}Mapper.java</p>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-rose-200 bg-rose-50/40 p-4">
+              <p class="text-xs uppercase tracking-wider text-rose-500 mb-3">Before — 四实体，三个是孤儿</p>
+              <div class="space-y-2 text-xs">
+                <div class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded-sm bg-emerald-500"></span><span class="mono">KnowledgeDocument</span> <span class="text-slate-400">Controller→Service→Mapper 全链路</span></div>
+                <div class="flex items-center gap-2 opacity-50"><span class="inline-block w-3 h-3 rounded-sm bg-slate-400"></span><span class="mono line-through">KnowledgeBase</span> <span class="text-rose-500">仅 Mapper，零业务引用</span></div>
+                <div class="flex items-center gap-2 opacity-50"><span class="inline-block w-3 h-3 rounded-sm bg-slate-400"></span><span class="mono line-through">KnowledgeDoc</span> <span class="text-rose-500">仅 Mapper，零业务引用</span></div>
+                <div class="flex items-center gap-2 opacity-50"><span class="inline-block w-3 h-3 rounded-sm bg-slate-400"></span><span class="mono line-through">KnowledgeChunk</span> <span class="text-rose-500">连 Mapper 都没有</span></div>
+                <p class="text-slate-500 pt-2 leading-relaxed">两套互斥模型并存：扁平文档（Document）vs RAG 三层（Base→Doc→Chunk）。RAG 那套一行业务都没写。</p>
+              </div>
+            </div>
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4">
+              <p class="text-xs uppercase tracking-wider text-emerald-600 mb-3">After — 二选一，单一模型</p>
+              <div class="space-y-3 text-xs">
+                <div class="border border-slate-300 rounded p-2"><strong>路线甲（快）</strong>：只保留 <span class="mono">KnowledgeDocument</span>，删 3 实体 + 2 Mapper。纯复杂度净减。</div>
+                <div class="deep text-white rounded p-2"><strong>路线乙（对齐 Python）</strong>：围绕 RAG 三层建深模块，废弃扁平 Document，与 backend_python 的 Chunking/Embedding 对齐。</div>
+                <p class="text-slate-500 pt-1">删除测试：删任一套都收敛复杂度，不转移 — 信号明确。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-x-8 gap-y-2 text-[15px]">
+            <p><span class="font-semibold">问题</span> — 4 实体只有 1 个接线，其余是死代码，且分属两种互斥领域设计。</p>
+            <p><span class="font-semibold">方案</span> — 依产品方向选一套：仅扁平文档就删 RAG 三层；要接 Python RAG 就删扁平 Document 并建三层深模块。</p>
+          </div>
+          <ul class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-slate-600">
+            <li class="bg-stone-100 rounded px-3 py-1.5">删 3 实体 + 2 Mapper</li>
+            <li class="bg-stone-100 rounded px-3 py-1.5">复杂度净减不转移</li>
+            <li class="bg-stone-100 rounded px-3 py-1.5">与 Python RAG 对齐</li>
+          </ul>
+        </article>
+
+        <!-- 候选 C：多租户机制统一 -->
+        <article class="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-5">
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">Strong</span>
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-100 text-rose-700">安全级</span>
+            <span class="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">ports &amp; adapters</span>
+            <h3 class="text-xl font-serif font-semibold w-full mt-1">C · 把「租户隔离」沉成一个深模块</h3>
+          </div>
+          <p class="text-sm mono text-slate-500">tenant/{TenantContext,TenantFilter,TenantService}.java · security/JwtTokenProvider.java · 各 ServiceImpl 手写 .eq(tenantId)</p>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-rose-200 bg-rose-50/40 p-4">
+              <p class="text-xs uppercase tracking-wider text-rose-500 mb-3">Before — 两套范式碎片 + 三处断线</p>
+              <div class="space-y-1.5 text-xs">
+                <div class="h-9 border-l-4 border-slate-300 pl-2 flex items-center">TenantFilter 解析 schemaName…</div>
+                <div class="h-9 border-l-4 border-rose-400 pl-2 flex items-center text-rose-600">…但没有任何 schema 切换消费它</div>
+                <div class="h-9 border-l-4 border-rose-400 pl-2 flex items-center text-rose-600">JWT 不含 tenant，靠可伪造的 X-Tenant-ID header</div>
+                <div class="h-9 border-l-4 border-rose-400 pl-2 flex items-center text-rose-600">Filter 顺序早于 Security，JWT 路径恒失效</div>
+                <div class="h-9 border-l-4 border-amber-400 pl-2 flex items-center text-amber-700">每个 Service 手写 .eq(tenantId)，易漏（见候选 A）</div>
+              </div>
+            </div>
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4">
+              <p class="text-xs uppercase tracking-wider text-emerald-600 mb-3">After — 一层拦截，业务无感</p>
+              <div class="space-y-2 text-xs">
+                <div class="h-12 rounded flex items-center justify-center deep text-white text-center px-2">JWT 携带 tenantId claim<br/>+ TenantLineInnerInterceptor 自动注入</div>
+                <div class="text-center text-slate-400">↓ 租户过滤对 Service 完全不可见 ↓</div>
+                <div class="h-9 border border-slate-300 rounded flex items-center justify-center">Service 只写业务，不再手写 .eq(tenantId)</div>
+                <p class="text-slate-500 pt-1">删除 schemaName 全部残留，选定共享 schema 行级隔离一种范式。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-x-8 gap-y-2 text-[15px]">
+            <p><span class="font-semibold">问题</span> — schema 隔离声明与 tenant_id 行级实现并存且都没做对，租户身份可被 header 伪造。</p>
+            <p><span class="font-semibold">方案</span> — JWT 写入 tenantId，用 MyBatis-Plus 拦截器自动注入租户条件，租户隔离沉为深模块。</p>
+          </div>
+          <ul class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-slate-600">
+            <li class="bg-stone-100 rounded px-3 py-1.5">leverage：一处拦截，N 个查询</li>
+            <li class="bg-stone-100 rounded px-3 py-1.5">消除手写过滤遗漏</li>
+            <li class="bg-stone-100 rounded px-3 py-1.5">堵住 header 伪造越权</li>
+          </ul>
+        </article>
+
+        <!-- 候选 D：PythonAiClient 接缝 -->
+        <article class="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-5">
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">Worth exploring</span>
+            <span class="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">ports &amp; adapters</span>
+            <h3 class="text-xl font-serif font-semibold w-full mt-1">D · 给 Python AI 接缝一个适配器</h3>
+          </div>
+          <p class="text-sm mono text-slate-500">service/impl/InterviewServiceImpl.java · triggerAiAnalysis (124-173)</p>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-rose-200 bg-rose-50/40 p-4">
+              <p class="text-xs uppercase tracking-wider text-rose-500 mb-3">Before — HTTP 糊在业务方法里</p>
+              <pre class="mermaid">
+flowchart TB
+  M["triggerAiAnalysis()"] --> R["RestClient.create() 每次新建"]
+  R --> U["拼 URL / Map / 序列化"]
+  U --> P["POST :8000/analyze"]
+  P --> X["String response 只 log<br/>结果从不回写"]
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#dc2626;
+  class X leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4">
+              <p class="text-xs uppercase tracking-wider text-emerald-600 mb-3">After — 接口一个，两个适配器</p>
+              <pre class="mermaid">
+flowchart TB
+  M["InterviewServiceImpl"] --> I["PythonAiClient 接口"]
+  I --> H["HttpAdapter 生产"]
+  I --> F["FakeAdapter 测试"]
+  H --> P["POST :8000/analyze"]
+  P --> W["反序列化 → 回写 t_evaluation / t_report"]
+  classDef deep fill:#0f172a,color:#fff,stroke:#0f172a;
+  class I deep
+              </pre>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-x-8 gap-y-2 text-[15px]">
+            <p><span class="font-semibold">问题</span> — URL、DTO、超时、反序列化全内联，且返回值只 log 不回写，接缝不可 mock。</p>
+            <p><span class="font-semibold">方案</span> — 抽 <span class="mono text-sm">PythonAiClient</span> 接口 + Http/Fake 两个适配器，结果回写落库。</p>
+          </div>
+          <ul class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-slate-600">
+            <li class="bg-stone-100 rounded px-3 py-1.5">两个适配器坐实接缝</li>
+            <li class="bg-stone-100 rounded px-3 py-1.5">Service 可 mock 可测</li>
+            <li class="bg-stone-100 rounded px-3 py-1.5">AI 结果真正回写</li>
+          </ul>
+        </article>
+
+        <!-- 候选 E：基础设施接通 -->
+        <article class="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-5">
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">Worth exploring</span>
+            <span class="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">in-process</span>
+            <h3 class="text-xl font-serif font-semibold w-full mt-1">E · 接通被声明却没生效的基础设施</h3>
+          </div>
+          <p class="text-sm mono text-slate-500">config/（缺 MyBatis-Plus 配置）· InterviewServiceImpl.uploadAudio → this.triggerAiAnalysis · CurrentUser 解析缺失</p>
+
+          <div class="grid md:grid-cols-3 gap-3 text-sm">
+            <div class="rounded-lg border border-rose-200 bg-rose-50/40 p-4 space-y-1">
+              <p class="font-semibold text-rose-600">分页静默失效</p>
+              <p class="text-xs text-slate-600">全仓无 PaginationInnerInterceptor，selectPage 全表载入内存假分页。</p>
+            </div>
+            <div class="rounded-lg border border-rose-200 bg-rose-50/40 p-4 space-y-1">
+              <p class="font-semibold text-rose-600">@Async 被绕过</p>
+              <p class="text-xs text-slate-600">this.triggerAiAnalysis 同类自调用，AOP 代理不生效，AI 分析同步阻塞上传请求。</p>
+            </div>
+            <div class="rounded-lg border border-rose-200 bg-rose-50/40 p-4 space-y-1">
+              <p class="font-semibold text-rose-600">当前用户恒为 null</p>
+              <p class="text-xs text-slate-600">各 Controller 的 userId/hrUserId 直接 return null，审计字段写空。</p>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-x-8 gap-y-2 text-[15px]">
+            <p><span class="font-semibold">问题</span> — 三处「声明了但没接通」：线程池空转、分页不 LIMIT、审计字段为空。</p>
+            <p><span class="font-semibold">方案</span> — 补 MyBatis-Plus 配置模块、把异步方法拆出独立 bean、引入统一 CurrentUser 解析深模块。</p>
+          </div>
+          <ul class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-slate-600">
+            <li class="bg-stone-100 rounded px-3 py-1.5">分页真正 LIMIT</li>
+            <li class="bg-stone-100 rounded px-3 py-1.5">异步真正异步</li>
+            <li class="bg-stone-100 rounded px-3 py-1.5">一处解析当前用户</li>
+          </ul>
+        </article>
+      </section>
+      <section id="completed" class="space-y-6">
+        <div class="flex items-baseline justify-between border-b border-slate-200 pb-3">
+          <h2 class="text-2xl font-serif font-semibold">已完成的更改 · 候选 A + C 落地</h2>
+          <span class="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700">2026-07-23 · 9 测试全绿</span>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+          <p class="text-[15px] text-slate-700">把「租户隔离」从散落在各 Service 的手写 <span class="mono text-sm">.eq(tenantId)</span> 沉成一个深模块：租户身份随签名保护的 JWT 传播，SQL 层由拦截器统一注入过滤条件。跨租户报告泄漏（候选 A）作为其第一个受益点被消除。</p>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4">
+              <p class="text-xs uppercase tracking-wider text-emerald-600 mb-3">深化后的隔离链路</p>
+              <pre class="mermaid">
+flowchart TB
+  L["登录 AuthServiceImpl"] --> J["JWT 写入 tenantId claim"]
+  J --> AF["JwtAuthenticationFilter<br/>验签 + 取 claim"]
+  AF --> TF["TenantContextFilter<br/>建立 TenantContext"]
+  TF --> H["TenantLineHandlerImpl"]
+  H --> I["拦截器自动注入<br/>WHERE tenant_id = ?"]
+  I --> DB["所有业务查询/SQL"]
+  classDef deep fill:#0f172a,color:#fff,stroke:#0f172a;
+  class H,I deep
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 space-y-2 text-sm">
+              <p class="text-xs uppercase tracking-wider text-slate-500 mb-2">改动文件</p>
+              <ul class="space-y-1.5 text-slate-700">
+                <li><span class="mono text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">新增</span> config/MyBatisPlusConfig.java</li>
+                <li><span class="mono text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">新增</span> tenant/TenantLineHandlerImpl.java</li>
+                <li><span class="mono text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">新增</span> tenant/TenantContextFilter.java</li>
+                <li><span class="mono text-xs bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded">删除</span> tenant/TenantFilter.java</li>
+                <li><span class="mono text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">改</span> security/JwtTokenProvider · JwtAuthenticationFilter</li>
+                <li><span class="mono text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">改</span> service/impl/AuthServiceImpl · ReportServiceImpl</li>
+                <li><span class="mono text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">改</span> config/SecurityConfig · tenant/TenantContext · TenantService</li>
+                <li><span class="mono text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">改</span> entity/Report · Evaluation + schema-tenant.sql（补 tenant_id）</li>
+                <li><span class="mono text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">新增</span> docs/adr/0001-tenant-isolation-row-level.md</li>
+                <li><span class="mono text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">测试</span> TenantLineHandlerImplTest（6）· JwtTokenProviderTenantTest（3）</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-3 gap-3 text-sm">
+            <div class="bg-emerald-50 rounded-lg p-4"><p class="font-semibold text-emerald-800 mb-1">候选 A 已修</p><p class="text-xs text-slate-600">ReportServiceImpl 三方法不再跨租户；拦截器统一过滤，避免手写遗漏。</p></div>
+            <div class="bg-emerald-50 rounded-lg p-4"><p class="font-semibold text-emerald-800 mb-1">候选 C 已修</p><p class="text-xs text-slate-600">JWT claim 取代可伪造 header；过滤器顺序修正；schemaName 死代码清除。</p></div>
+            <div class="bg-indigo-50 rounded-lg p-4"><p class="font-semibold text-indigo-800 mb-1">顺带修复</p><p class="text-xs text-slate-600">补上缺失的分页插件（候选 E 一部分），终结内存假分页。</p></div>
+          </div>
+
+          <div class="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-900">
+            <p class="font-semibold mb-1">留待后续（本轮范围外）</p>
+            <p class="text-xs leading-relaxed">报告/评估目前 Java 侧无写入点，AI 结果回写属候选 D；<span class="mono">@Async</span> 自调用修复 + 异步线程 TenantContext 传播（TaskDecorator）、<span class="mono">getCurrentUserId</span> 真实化属候选 E。已在 ADR-0001 中记录异步传播前提。</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="completed-bd" class="space-y-6">
+        <div class="flex items-baseline justify-between border-b border-slate-200 pb-3">
+          <h2 class="text-2xl font-serif font-semibold">已完成的更改 · 候选 B + D</h2>
+          <span class="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700">2026-07-23 · 14 测试全绿</span>
+        </div>
+
+        <!-- 候选 B -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+          <h3 class="text-lg font-semibold">B · 收敛知识库为单一扁平模型</h3>
+          <p class="text-[15px] text-slate-700">删除测试落地：探明 Python 后端知识库是<strong>扁平 chunk 模型</strong>（一行 = 一个切片，靠 <span class="mono text-sm">source</span> 文件名隐式归属），根本没有 KB→文档→切片三层。Java 侧的三层实体不仅是死代码，还与 Python 无对齐对象。</p>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-rose-200 bg-rose-50/40 p-4 text-sm">
+              <p class="text-xs uppercase tracking-wider text-rose-500 mb-2">删除（纯复杂度净减）</p>
+              <ul class="space-y-1 mono text-xs text-slate-600">
+                <li>entity/KnowledgeBase.java</li>
+                <li>entity/KnowledgeDoc.java</li>
+                <li>entity/KnowledgeChunk.java</li>
+                <li>mapper/KnowledgeBaseMapper.java</li>
+                <li>mapper/KnowledgeDocMapper.java</li>
+                <li>schema：t_knowledge_base / t_knowledge_doc / knowledge_chunk 三张表 DDL</li>
+              </ul>
+            </div>
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 text-sm">
+              <p class="text-xs uppercase tracking-wider text-emerald-600 mb-2">保留（全链路在用，与 Python 一致）</p>
+              <ul class="space-y-1 mono text-xs text-slate-600">
+                <li>entity/KnowledgeDocument.java</li>
+                <li>mapper/KnowledgeDocumentMapper.java</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- 候选 D -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+          <h3 class="text-lg font-semibold">D · Python AI 接缝加适配器，结果真正回写</h3>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4">
+              <p class="text-xs uppercase tracking-wider text-emerald-600 mb-3">深化后的调用链</p>
+              <pre class="mermaid">
+flowchart TB
+  IS["InterviewServiceImpl<br/>triggerAiAnalysis"] --> C["PythonAiClient 接口"]
+  C --> H["HttpPythonAiClient<br/>封装 HTTP/DTO/超时"]
+  H --> P["POST /api/v1/analysis/analyze<br/>{interview_id, audio_file_path}"]
+  P --> R["AnalysisResult"]
+  IS --> W["ReportService.saveAnalysisResult"]
+  W --> DB["t_report + t_evaluation<br/>算 avg/优秀/薄弱"]
+  classDef deep fill:#0f172a,color:#fff,stroke:#0f172a;
+  class C,H,W deep
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 space-y-1.5 text-sm">
+              <p class="text-xs uppercase tracking-wider text-slate-500 mb-2">改动文件</p>
+              <ul class="space-y-1.5 text-slate-700">
+                <li><span class="mono text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">新增</span> client/PythonAiClient · HttpPythonAiClient · PythonAiException</li>
+                <li><span class="mono text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">新增</span> dto/resp/AnalysisResult</li>
+                <li><span class="mono text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">改</span> service/ReportService(+Impl)：saveAnalysisResult 回写</li>
+                <li><span class="mono text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">改</span> service/impl/InterviewServiceImpl：依赖接口，去内联 RestClient</li>
+                <li><span class="mono text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">测试</span> ReportServiceSaveAnalysisTest(3) · AnalysisResultDeserializationTest(2)</li>
+              </ul>
+            </div>
+          </div>
+          <div class="grid md:grid-cols-3 gap-3 text-sm">
+            <div class="bg-emerald-50 rounded-lg p-4"><p class="font-semibold text-emerald-800 mb-1">接缝可测</p><p class="text-xs text-slate-600">业务依赖 PythonAiClient 接口，测试用 mock/fake，不必起 8000 端口。</p></div>
+            <div class="bg-emerald-50 rounded-lg p-4"><p class="font-semibold text-emerald-800 mb-1">结果回写</p><p class="text-xs text-slate-600">report + evaluations 落库；派生 avg_score/优秀/薄弱；按 interviewId 幂等。</p></div>
+            <div class="bg-indigo-50 rounded-lg p-4"><p class="font-semibold text-indigo-800 mb-1">修字段错配</p><p class="text-xs text-slate-600">请求体改发 interview_id + audio_file_path，对齐 Python 契约。</p></div>
+          </div>
+          <div class="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-900">
+            <p class="font-semibold mb-1">留待后续 / 集成约束</p>
+            <p class="text-xs leading-relaxed">范围外（候选 E）：<span class="mono">@Async</span> 自调用修复 + 异步 TenantContext 传播、<span class="mono">getCurrentUserId</span> 真实化——现回写仍在请求线程同步跑。集成约束：音频靠<strong>共享文件路径</strong>传递，Spring 与 Python 需能访问同一路径。另注：Python <span class="mono">/retrieval/retrieve</span> 有漏 <span class="mono">await</span> 的 500 bug（不在本仓）。</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="completed-e" class="space-y-6">
+        <div class="flex items-baseline justify-between border-b border-slate-200 pb-3">
+          <h2 class="text-2xl font-serif font-semibold">已完成的更改 · 候选 E</h2>
+          <span class="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700">2026-07-23 · 19 测试全绿</span>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+          <p class="text-[15px] text-slate-700">接通三处「声明了却没生效」的基础设施：异步空转、异步租户丢失、当前用户恒 null。</p>
+
+          <div class="grid md:grid-cols-3 gap-3 text-sm">
+            <div class="rounded-lg border border-slate-200 p-4 space-y-1">
+              <p class="font-semibold text-emerald-800">① @Async 真异步</p>
+              <p class="text-xs text-slate-600">抽 <span class="mono">AiAnalysisRunner</span> 独立 bean，跨 bean 调用使代理生效；上传接口立即返回，分析后台跑。</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 space-y-1">
+              <p class="font-semibold text-emerald-800">② 异步租户传播</p>
+              <p class="text-xs text-slate-600"><span class="mono">AsyncConfig</span> 加 TaskDecorator，捕获+恢复 TenantContext；回写 insert 正确填 tenant_id（呼应 ADR-0001）。</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 space-y-1">
+              <p class="font-semibold text-emerald-800">③ 当前用户真实化</p>
+              <p class="text-xs text-slate-600">自定义 <span class="mono">AuthUser</span> 带 userId（零额外查询）+ <span class="mono">SecurityUtils.currentUserId()</span>，修 4 处 null。</p>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-slate-200 p-4">
+            <p class="text-xs uppercase tracking-wider text-emerald-600 mb-3">上传→分析：从同步阻塞到后台异步</p>
+            <pre class="mermaid">
+flowchart LR
+  U["POST /interview/{id}/audio"] --> S["InterviewServiceImpl<br/>存盘 + 立即返回"]
+  S -.跨 bean @Async.-> R["AiAnalysisRunner.run<br/>(线程池 + TaskDecorator)"]
+  R --> P["PythonAiClient.analyze"]
+  R --> W["ReportService.saveAnalysisResult<br/>tenant_id 由传播的上下文注入"]
+  classDef deep fill:#0f172a,color:#fff,stroke:#0f172a;
+  class R deep
+            </pre>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-sm">
+            <div class="rounded-lg border border-slate-200 p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-500 mb-2">改动文件</p>
+              <ul class="space-y-1 text-slate-700 text-xs">
+                <li><span class="mono bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">新增</span> service/impl/AiAnalysisRunner</li>
+                <li><span class="mono bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">新增</span> security/AuthUser · SecurityUtils</li>
+                <li><span class="mono bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">改</span> async/AsyncConfig（TaskDecorator）</li>
+                <li><span class="mono bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">改</span> service/impl/InterviewServiceImpl（瘦身，调 runner）</li>
+                <li><span class="mono bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">改</span> security/CustomUserDetailsService（返回 AuthUser）</li>
+                <li><span class="mono bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">改</span> controller/Interview · Report · Knowledge（4 处 null → currentUserId）</li>
+                <li><span class="mono bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">测试</span> SecurityUtilsTest(3) · AiAnalysisRunnerTest(2)</li>
+              </ul>
+            </div>
+            <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-900 flex flex-col justify-center">
+              <p class="font-semibold mb-1">五张卡全部落地</p>
+              <p class="text-xs leading-relaxed">A（报告租户泄漏）· B（收敛知识库）· C（租户隔离深模块）· D（Python 适配器+回写）· E（基础设施接通）均已完成，共 19 单测全绿。<span class="mono">AuthUser</span> 只带 userId，租户仍走 JWT claim 单一来源。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="top-recommendation">
+        <div class="deep text-white rounded-2xl p-8 space-y-4 shadow-lg">
+          <p class="text-xs uppercase tracking-widest text-indigo-300">Top recommendation · 先动哪一个</p>
+          <h2 class="text-2xl font-serif font-semibold">从候选 A + C 一起开刀：租户隔离</h2>
+          <p class="text-[15px] leading-relaxed text-slate-200">候选 A（报告跨租户泄漏）是最直接的安全缺口，改动小、收益立即，必须先堵。而它的根因正是候选 C——各 Service 手写 <span class="mono text-sm">.eq(tenantId)</span> 必然会漏。把租户隔离沉成一个深模块（JWT claim + MyBatis-Plus 拦截器），A 会作为 C 的第一个受益点自然被修复，之后再没有下一处遗漏。候选 B 是投入产出比最高的「删除测试」一刀，紧随其后作为清理；D、E 属于把半成品接缝接通，等隔离稳固后自然浮现为下一批。</p>
+          <div class="flex flex-wrap gap-3 pt-2 text-sm">
+            <a href="#candidates" class="px-4 py-2 rounded-lg bg-white text-slate-900 font-medium">A · 报告租户隔离</a>
+            <a href="#candidates" class="px-4 py-2 rounded-lg bg-indigo-500 text-white font-medium">C · 租户隔离深模块</a>
+            <a href="#candidates" class="px-4 py-2 rounded-lg border border-slate-500 text-slate-200">B · 收敛知识库</a>
+          </div>
+        </div>
+        <p class="text-center text-sm text-slate-400 pt-6">选一个候选，我们就进入 grilling —— 把约束、依赖、深化后的模块形状、接缝背后放什么、哪些测试能留存逐一敲定。</p>
+      </section>
+    </main>
+  </body>
+</html>

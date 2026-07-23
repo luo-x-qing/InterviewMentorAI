@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.interview.mentor.entity.KnowledgeDocument;
 import com.interview.mentor.entity.dto.resp.Result;
+import com.interview.mentor.security.SecurityUtils;
 import com.interview.mentor.service.KnowledgeService;
 import com.interview.mentor.tenant.TenantContext;
 import org.springframework.web.bind.annotation.*;
@@ -25,8 +26,7 @@ public class KnowledgeController {
     public Result<KnowledgeDocument> createDocument(
             @RequestBody KnowledgeDocument document) {
         Long tenantId = TenantContext.getTenantId();
-        // TODO: 从 Authentication 获取 userId
-        Long userId = null;
+        Long userId = SecurityUtils.currentUserId();
         KnowledgeDocument created = knowledgeService.createDocument(document, tenantId, userId);
         return Result.success(created);
     }

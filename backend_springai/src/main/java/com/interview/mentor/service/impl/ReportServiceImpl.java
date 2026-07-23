@@ -7,6 +7,7 @@ import com.interview.mentor.entity.Evaluation;
 import com.interview.mentor.entity.InterviewRecord;
 import com.interview.mentor.entity.Report;
 import com.interview.mentor.entity.dto.req.HrCorrectionRequest;
+import com.interview.mentor.entity.dto.resp.AnalysisResult;
 import com.interview.mentor.exception.BusinessException;
 import com.interview.mentor.mapper.EvaluationMapper;
 import com.interview.mentor.mapper.InterviewRecordMapper;
@@ -41,6 +42,76 @@ public class ReportServiceImpl implements ReportService {
         this.reportMapper = reportMapper;
         this.interviewMapper = interviewMapper;
         this.wsPushService = wsPushService;
+    }
+
+    @Override
+    @Transactional
+    public void saveAnalysisResult(Long interviewId, AnalysisResult result) {
+        List<AnalysisResult.EvaluationItem> items =
+                result.getEvaluations() != null ? result.getEvaluations() : List.of();
+
+        // 1. 批量回写逐题评估（tenant_id 由拦截器在请求线程上自动注入）
+        //    幂等：先清掉该面试已有评估，避免重跑产生重复
+        evaluationMapper.delete(new LambdaQueryWrapper<Evaluation>()
+                .eq(Evaluation::getInterviewId, interviewId));
+
+        int proficientCount = 0;
+        int weakCount = 0;
+        BigDecimal scoreSum = BigDecimal.ZERO;
+        int scoredCount = 0;
+        int questionIndex = 0;
+        for (AnalysisResult.EvaluationItem item : items) {
+            Evaluation evaluation = new Evaluation();
+            evaluation.setInterviewId(interviewId);
+            evaluation.setQuestionIndex(questionIndex++);
+            evaluation.setQuestion(item.getQuestion());
+            evaluation.setAnswer(item.getAnswer());
+            if (item.getScore() != null) {
+                BigDecimal score = BigDecimal.valueOf(item.getScore());
+                evaluation.setAiScore(score);
+                scoreSum = scoreSum.add(score);
+                scoredCount++;
+            }
+            evaluation.setAiLevel(item.getLevel());
+            evaluation.setAiStrengths(item.getStrengths());
+            evaluation.setAiWeaknesses(item.getWeaknesses());
+            evaluation.setAiCorrection(item.getCorrection());
+            evaluation.setAiKnowledgePoints(item.getKnowledgePoints());
+            evaluation.setCreatedAt(LocalDateTime.now());
+            evaluationMapper.insert(evaluation);
+
+            if ("PROFICIENT".equalsIgnoreCase(item.getLevel())) {
+                proficientCount++;
+            } else if ("WEAK".equalsIgnoreCase(item.getLevel())) {
+                weakCount++;
+            }
+        }
+
+        BigDecimal avgScore = scoredCount > 0
+                ? scoreSum.divide(BigDecimal.valueOf(scoredCount), 2, java.math.RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        // 2. 回写复盘报告（按 interviewId 幂等：存在则更新）
+        Report report = reportMapper.selectByInterviewId(interviewId);
+        boolean isNew = report == null;
+        if (isNew) {
+            report = new Report();
+            report.setInterviewId(interviewId);
+            report.setHrEdited(0);
+            report.setCreatedAt(LocalDateTime.now());
+        }
+        report.setReportMarkdown(result.getReport());
+        report.setAvgScore(avgScore);
+        report.setProficientCount(proficientCount);
+        report.setWeakCount(weakCount);
+        if (isNew) {
+            reportMapper.insert(report);
+        } else {
+            reportMapper.updateById(report);
+        }
+
+        log.info("回写分析结果完成, interviewId={}, 评估条数={}, 均分={}, 优秀={}, 薄弱={}",
+                interviewId, items.size(), avgScore, proficientCount, weakCount);
     }
 
     @Override
@@ -108,7 +179,7 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     public IPage<Report> listReports(Page<Report> page, Long tenantId) {
-        // 通过面试记录关联查询
+        // 租户过滤由 TenantLineInnerInterceptor 自动注入，Service 层无需再手写 tenant_id 条件
         LambdaQueryWrapper<Report> wrapper = new LambdaQueryWrapper<>();
         wrapper.orderByDesc(Report::getCreatedAt);
         return reportMapper.selectPage(page, wrapper);
@@ -116,34 +187,49 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     public Map<String, Object> getTenantStats(Long tenantId) {
-        // 简化实现：返回基本统计
+        // 所有查询均由拦截器自动限定在当前租户内，统计不再跨租户
         long totalReports = reportMapper.selectCount(null);
+        long hrEditedCount = reportMapper.selectCount(
+                new LambdaQueryWrapper<Report>().eq(Report::getHrEdited, 1));
+
+        List<Report> reports = reportMapper.selectList(
+                new LambdaQueryWrapper<Report>().isNotNull(Report::getAvgScore));
+        BigDecimal avgScore = BigDecimal.ZERO;
+        if (!reports.isEmpty()) {
+            BigDecimal sum = reports.stream()
+                    .map(Report::getAvgScore)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            avgScore = sum.divide(BigDecimal.valueOf(reports.size()), 2, java.math.RoundingMode.HALF_UP);
+        }
+
         java.util.HashMap<String, Object> stats = new java.util.HashMap<>();
         stats.put("total_reports", totalReports);
-        stats.put("avg_score", BigDecimal.ZERO);
-        stats.put("hr_edited_count", 0);
+        stats.put("avg_score", avgScore);
+        stats.put("hr_edited_count", hrEditedCount);
         return stats;
     }
 
     @Override
     public IPage<Map<String, Object>> listPendingHrReview(Page<Map<String, Object>> page, Long tenantId) {
-        // 查询未修正的报告
+        // 租户过滤由拦截器自动注入
         LambdaQueryWrapper<Report> wrapper = new LambdaQueryWrapper<Report>()
                 .eq(Report::getHrEdited, 0)
                 .orderByDesc(Report::getCreatedAt);
 
-        IPage<Report> reportPage = reportMapper.selectPage(page, wrapper);
+        Page<Report> reportPageParam = new Page<>(page.getCurrent(), page.getSize());
+        IPage<Report> reportPage = reportMapper.selectPage(reportPageParam, wrapper);
 
-        // 转换为Map
         Page<Map<String, Object>> result = new Page<>(reportPage.getCurrent(), reportPage.getSize(), reportPage.getTotal());
-        result.setRecords(reportPage.getRecords().stream().map(r -> {
-            java.util.HashMap<String, Object> map = new java.util.HashMap<>();
+        java.util.List<Map<String, Object>> records = new java.util.ArrayList<>();
+        for (Report r : reportPage.getRecords()) {
+            java.util.Map<String, Object> map = new java.util.HashMap<>();
             map.put("id", r.getId());
             map.put("interview_id", r.getInterviewId());
             map.put("avg_score", r.getAvgScore());
             map.put("created_at", r.getCreatedAt());
-            return map;
-        }).toList());
+            records.add(map);
+        }
+        result.setRecords(records);
 
         return result;
     }

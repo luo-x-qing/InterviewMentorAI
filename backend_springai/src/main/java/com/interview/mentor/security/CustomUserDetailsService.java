@@ -38,7 +38,9 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .map(SimpleGrantedAuthority::new)
                 .toList();
 
-        return new org.springframework.security.core.userdetails.User(
+        // 返回携带 userId 的 AuthUser：loadUserByUsername 本就加载了完整 User，userId 顺手带上
+        return new AuthUser(
+                user.getId(),
                 user.getUsername(),
                 user.getPassword(),
                 authorities

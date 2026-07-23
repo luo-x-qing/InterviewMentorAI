@@ -20,14 +20,19 @@ public class TenantContext {
         return info != null ? info.getTenantId() : null;
     }
 
-    public static String getSchemaName() {
-        TenantInfo info = CURRENT_TENANT.get();
-        return info != null ? info.getSchemaName() : null;
-    }
-
     public static void clear() {
         CURRENT_TENANT.remove();
     }
 
-    public record TenantInfo(Long tenantId, String schemaName) {}
+    public static class TenantInfo {
+        private final Long tenantId;
+
+        public TenantInfo(Long tenantId) {
+            this.tenantId = tenantId;
+        }
+
+        public Long getTenantId() {
+            return tenantId;
+        }
+    }
 }

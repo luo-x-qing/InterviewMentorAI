@@ -15,6 +15,7 @@ public class Evaluation {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    private Long tenantId;
     private Long interviewId;
     private Integer questionIndex;
     private String question;

@@ -5,11 +5,18 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.interview.mentor.entity.Evaluation;
 import com.interview.mentor.entity.Report;
 import com.interview.mentor.entity.dto.req.HrCorrectionRequest;
+import com.interview.mentor.entity.dto.resp.AnalysisResult;
 
 import java.util.List;
 import java.util.Map;
 
 public interface ReportService {
+
+    /**
+     * 回写 Python AI 分析结果：写复盘报告 + 逐题评估。
+     * 报告按 interviewId 幂等（存在则更新），派生字段（均分/优秀数/薄弱数）由本方法计算。
+     */
+    void saveAnalysisResult(Long interviewId, AnalysisResult result);
 
     /**
      * 获取面试的评估列表

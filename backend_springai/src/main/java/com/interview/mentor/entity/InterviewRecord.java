@@ -16,6 +16,8 @@ public class InterviewRecord {
 
     private Long tenantId;
     private String title;
+    private Long userId;
+    private String jobRole;
     private Long createdBy;
     private Long candidateId;
     private String audioFileId;

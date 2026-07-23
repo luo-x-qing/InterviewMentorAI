@@ -29,16 +29,26 @@ public class JwtTokenProvider {
     }
 
     public String generateAccessToken(Authentication authentication) {
+        return generateAccessToken(authentication, null);
+    }
+
+    /**
+     * 生成 Access Token，并把租户ID写入 claim。
+     * 租户身份随已验签的 token 传播，签名保护不可伪造，取代可伪造的 X-Tenant-ID header。
+     */
+    public String generateAccessToken(Authentication authentication, Long tenantId) {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + accessTokenExpiration);
 
-        return Jwts.builder()
+        JwtBuilder builder = Jwts.builder()
                 .subject(userDetails.getUsername())
                 .issuedAt(now)
-                .expiration(expiryDate)
-                .signWith(key)
-                .compact();
+                .expiration(expiryDate);
+        if (tenantId != null) {
+            builder.claim("tenantId", tenantId);
+        }
+        return builder.signWith(key).compact();
     }
 
     public String generateRefreshToken(Authentication authentication) {
@@ -56,12 +66,26 @@ public class JwtTokenProvider {
     }
 
     public String getUsernameFromToken(String token) {
-        Claims claims = Jwts.parser()
+        return parseClaims(token).getSubject();
+    }
+
+    /**
+     * 从已验签 token 中取租户ID；无 claim 时返回 null。
+     */
+    public Long getTenantIdFromToken(String token) {
+        Object tenantId = parseClaims(token).get("tenantId");
+        if (tenantId == null) {
+            return null;
+        }
+        return ((Number) tenantId).longValue();
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parser()
                 .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-        return claims.getSubject();
     }
 
     public boolean validateToken(String token) {

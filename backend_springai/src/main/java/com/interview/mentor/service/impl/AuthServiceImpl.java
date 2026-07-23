@@ -143,7 +143,7 @@ public class AuthServiceImpl implements AuthService {
     private AuthResponse buildAuthResponse(Authentication authentication,
                                            User user,
                                            String roleCode) {
-        String accessToken = tokenProvider.generateAccessToken(authentication);
+        String accessToken = tokenProvider.generateAccessToken(authentication, user.getTenantId());
         String refreshToken = tokenProvider.generateRefreshToken(authentication);
 
         AuthResponse response = new AuthResponse();

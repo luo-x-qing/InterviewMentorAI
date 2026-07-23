@@ -8,18 +8,21 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("t_knowledge_base")
-public class KnowledgeBase {
+@TableName("t_knowledge_document")
+public class KnowledgeDocument {
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
     private Long tenantId;
-    private String name;
-    private String description;
-    private String type;
-    private Integer docCount;
-    private String status;
-    private Long createdBy;
+    private String title;
+    private String content;
+    private String docType;
+    private String jobRole;
+    private String tags;
+    private Integer isPublic;
+    private Integer embeddingStatus;
+    private Long uploadedBy;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

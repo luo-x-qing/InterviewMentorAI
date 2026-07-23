@@ -1,5 +1,6 @@
 package com.interview.mentor.async;
 
+import com.interview.mentor.tenant.TenantContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,7 +41,28 @@ public class AsyncConfig {
                 new ThreadPoolExecutor.CallerRunsPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
+        // 传播 TenantContext 到异步线程：否则回写 insert 时拿不到租户，tenant_id 会为 null（见 ADR-0001）
+        executor.setTaskDecorator(tenantContextDecorator());
         executor.initialize();
         return executor;
+    }
+
+    /**
+     * 提交时捕获当前请求线程的租户ID，在池线程执行前恢复、执行后清理。
+     */
+    private org.springframework.core.task.TaskDecorator tenantContextDecorator() {
+        return runnable -> {
+            Long tenantId = TenantContext.getTenantId();
+            return () -> {
+                if (tenantId != null) {
+                    TenantContext.setTenantInfo(new TenantContext.TenantInfo(tenantId));
+                }
+                try {
+                    runnable.run();
+                } finally {
+                    TenantContext.clear();
+                }
+            };
+        };
     }
 }
