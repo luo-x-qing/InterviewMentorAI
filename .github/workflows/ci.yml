@@ -1,0 +1,128 @@
+name: CI — InterviewMentorAI
+
+# 触发条件：push 到 main/feature 分支 + PR
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+
+# 全局环境变量
+env:
+  JAVA_VERSION: '17'
+  PYTHON_VERSION: '3.10'
+  FLUTTER_VERSION: '3.12.0'
+
+jobs:
+  # ============================================================
+  # Job 1: Java 业务后端 — 编译 + 单元测试 + 集成测试
+  # ============================================================
+  java-backend:
+    name: Java Backend (Spring Boot)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend_springai
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Maven 编译 + 单元测试（跳过需 MySQL 的集成测试）
+        run: mvn test -B -Dtest='!*IntegrationTest' --no-transfer-progress
+        env:
+          JWT_SECRET: ci-test-secret-key-at-least-256-bits
+
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-test-results
+          path: backend_springai/target/surefire-reports/
+          retention-days: 7
+
+  # ============================================================
+  # Job 2: Python AI 后端 — 依赖安装 + pytest
+  # ============================================================
+  python-backend:
+    name: Python AI Backend (FastAPI)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend_python
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: 安装依赖
+        run: pip install -r requirements.txt
+
+      - name: 运行 pytest（含覆盖率）
+        run: pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --ignore=tests/rag_eval_script.py
+
+      - name: 上传覆盖率报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-coverage
+          path: backend_python/.coverage
+          retention-days: 7
+
+  # ============================================================
+  # Job 3: Flutter 移动端 — 静态分析 + Widget 测试
+  # ============================================================
+  flutter-frontend:
+    name: Flutter Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend_flutter
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: 安装依赖
+        run: flutter pub get
+
+      - name: 静态分析（Lint）
+        run: dart analyze --fatal-infos
+
+      - name: 运行 Widget 测试
+        run: flutter test --reporter expanded
+
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-test-results
+          path: frontend_flutter/build/
+          retention-days: 7
+
+  # ============================================================
+  # Job 4: 汇总检查（全绿才算通过）
+  # ============================================================
+  ci-pass:
+    name: ✅ CI 全通过
+    needs: [java-backend, python-backend, flutter-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 全部 Job 通过
+        run: echo "🎉 CI 全部通过！Java + Python + Flutter 三模块测试均成功。"

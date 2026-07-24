@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InterviewMentorAI — 项目进度报告</title>
+<style>
+/* ===== CSS Variables ===== */
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-card: #1c2129;
+  --bg-card-hover: #222932;
+  --glass-bg: rgba(28, 33, 41, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --border-default: #30363d;
+  --border-subtle: #21262d;
+  --accent-blue: #58a6ff;
+  --accent-green: #3fb950;
+  --accent-amber: #d29922;
+  --accent-red: #f85149;
+  --accent-purple: #a371f7;
+  --accent-cyan: #39d2c0;
+  --ring-color: rgba(88, 166, 255, 0.3);
+
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+}
+
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(88, 166, 255, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(163, 113, 247, 0.05) 0%, transparent 50%);
+}
+
+/* ===== Layout ===== */
+.container { max-width: 1320px; margin: 0 auto; padding: 0 24px; }
+
+/* ===== Header ===== */
+.header {
+  padding: 48px 0 32px;
+  text-align: center;
+}
+.header h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 50%, var(--accent-cyan) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.header .subtitle {
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  margin-top: 8px;
+}
+.header .branch-badge {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: rgba(88, 166, 255, 0.12);
+  color: var(--accent-blue);
+  border: 1px solid rgba(88, 166, 255, 0.25);
+}
+
+/* ===== Progress Ring ===== */
+.progress-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 64px;
+  padding: 32px 0 48px;
+  flex-wrap: wrap;
+}
+.ring-container {
+  position: relative;
+  width: 200px;
+  height: 200px;
+}
+.ring-container svg { transform: rotate(-90deg); }
+.ring-bg {
+  fill: none;
+  stroke: var(--border-default);
+  stroke-width: 9;
+}
+.ring-fg {
+  fill: none;
+  stroke: url(#ringGrad);
+  stroke-width: 9;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.ring-text {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+.ring-text .percent {
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.ring-text .label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* ===== Stat Cards ===== */
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 48px;
+}
+.stat-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 24px 20px;
+  text-align: center;
+  box-shadow: var(--glass-shadow);
+  transition: transform 0.2s, border-color 0.2s;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255,255,255,0.15);
+}
+.stat-card .num {
+  font-size: 2.4rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.stat-card .lbl {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+.stat-card.total .num { color: var(--accent-blue); }
+.stat-card.done .num { color: var(--accent-green); }
+.stat-card.wip .num { color: var(--accent-amber); }
+.stat-card.pending .num { color: var(--text-muted); }
+.stat-card.fix .num { color: var(--accent-red); }
+
+/* ===== Section Headers ===== */
+.section-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-title .icon { font-size: 1.3rem; }
+
+/* ===== Filter Pills ===== */
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.filter-pill {
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.filter-pill:hover { border-color: var(--text-muted); color: var(--text-primary); }
+.filter-pill.active { background: rgba(88, 166, 255, 0.15); border-color: var(--accent-blue); color: var(--accent-blue); }
+.filter-pill.f-active { background: rgba(63, 185, 80, 0.15); border-color: var(--accent-green); color: var(--accent-green); }
+.filter-pill.f-wip { background: rgba(210, 153, 34, 0.15); border-color: var(--accent-amber); color: var(--accent-amber); }
+.filter-pill.f-pending { background: rgba(110, 118, 129, 0.15); border-color: var(--text-muted); color: var(--text-muted); }
+.filter-pill.f-fix { background: rgba(248, 81, 73, 0.15); border-color: var(--accent-red); color: var(--accent-red); }
+
+/* ===== Module Table ===== */
+.module-section { margin-bottom: 48px; }
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+thead { background: var(--bg-secondary); }
+th {
+  text-align: left;
+  padding: 14px 18px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-default);
+  white-space: nowrap;
+}
+td {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr.hidden { display: none; }
+tr:hover td { background: rgba(255,255,255,0.015); }
+.module-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.module-java { background: rgba(88,166,255,0.12); color: var(--accent-blue); }
+.module-python { background: rgba(163,113,247,0.12); color: var(--accent-purple); }
+.module-flutter { background: rgba(57,210,192,0.12); color: var(--accent-cyan); }
+.module-infra { background: rgba(210,153,34,0.12); color: var(--accent-amber); }
+
+.status-badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+.status-badge:hover { transform: scale(1.05); }
+.badge-done { background: rgba(63,185,80,0.15); color: var(--accent-green); }
+.badge-wip { background: rgba(210,153,34,0.15); color: var(--accent-amber); }
+.badge-pending { background: rgba(110,118,129,0.15); color: var(--text-muted); }
+.badge-fix { background: rgba(248,81,73,0.15); color: var(--accent-red); }
+
+.note-toggle {
+  color: var(--accent-blue);
+  cursor: pointer;
+  font-size: 0.78rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.detail-row { display: none; }
+.detail-row.show { display: table-row; }
+.detail-row td {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  padding: 10px 18px 14px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+/* ===== TODO Section ===== */
+.todo-section { margin-bottom: 48px; }
+.priority-group { margin-bottom: 24px; }
+.priority-header {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.priority-header .p-badge {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.p0 { background: rgba(248,81,73,0.2); color: var(--accent-red); }
+.p1 { background: rgba(210,153,34,0.2); color: var(--accent-amber); }
+.p2 { background: rgba(88,166,255,0.2); color: var(--accent-blue); }
+.p3 { background: rgba(110,118,129,0.2); color: var(--text-muted); }
+
+.todo-list { list-style: none; }
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  transition: background 0.2s;
+}
+.todo-item:hover { background: var(--bg-card-hover); }
+.todo-check {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border-default);
+  border-radius: 4px;
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: transparent;
+  transition: all 0.15s;
+}
+.todo-check.checked {
+  background: var(--accent-green);
+  border-color: var(--accent-green);
+  color: #fff;
+}
+.todo-body { flex: 1; }
+.todo-body .todo-title { font-weight: 600; font-size: 0.9rem; }
+.todo-body .todo-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+.todo-location {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ===== Warning Section ===== */
+.warning-section { margin-bottom: 48px; }
+.warning-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 20px;
+  margin-bottom: 10px;
+  background: rgba(248, 81, 73, 0.06);
+  border: 1px solid rgba(248, 81, 73, 0.2);
+  border-radius: var(--radius-md);
+}
+.warning-card .warn-icon { font-size: 1.3rem; flex-shrink: 0; }
+.warning-card .warn-title { font-weight: 700; font-size: 0.9rem; color: var(--accent-red); }
+.warning-card .warn-desc { font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px; }
+
+/* ===== Milestone ===== */
+.milestone-section { margin-bottom: 48px; }
+.milestone-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px;
+  box-shadow: var(--glass-shadow);
+}
+.milestone-card h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: var(--accent-purple);
+}
+.milestone-phases { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.milestone-phase {
+  padding: 16px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--accent-blue);
+}
+.milestone-phase h4 { font-size: 0.9rem; font-weight: 700; margin-bottom: 6px; }
+.milestone-phase p { font-size: 0.82rem; color: var(--text-secondary); }
+
+/* ===== Footer ===== */
+.footer {
+  text-align: center;
+  padding: 32px 0 48px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  border-top: 1px solid var(--border-default);
+}
+.footer .meta-line { margin-top: 6px; }
+
+/* ===== Collapse/Expand ===== */
+.collapse-btn {
+  background: none;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 6px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  margin-bottom: 16px;
+}
+.collapse-btn:hover { border-color: var(--text-muted); color: var(--text-primary); }
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .header h1 { font-size: 1.7rem; }
+  .progress-section { gap: 32px; }
+  .ring-container { width: 150px; height: 150px; }
+  .ring-text .percent { font-size: 2.2rem; }
+  .stat-cards { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  th, td { padding: 10px 12px; font-size: 0.8rem; }
+  .todo-location { display: none; }
+  .milestone-phases { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .stat-cards { grid-template-columns: repeat(2, 1fr); }
+  .progress-section { gap: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<!-- ===== Header ===== -->
+<header class="header">
+  <h1>InterviewMentorAI</h1>
+  <p class="subtitle">AI 驱动的模拟面试复盘助手 — 项目进度全景报告</p>
+  <span class="branch-badge">🌿 feature/arch-core</span>
+</header>
+
+<!-- ===== Progress Ring + Overview ===== -->
+<section class="progress-section">
+  <div class="ring-container" id="ringContainer">
+    <svg width="200" height="200" viewBox="0 0 200 200">
+      <defs>
+        <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#58a6ff"/>
+          <stop offset="50%" style="stop-color:#a371f7"/>
+          <stop offset="100%" style="stop-color:#39d2c0"/>
+        </linearGradient>
+      </defs>
+      <circle class="ring-bg" cx="100" cy="100" r="88"/>
+      <circle class="ring-fg" id="ringFg" cx="100" cy="100" r="88"
+        stroke-dasharray="552.92"
+        stroke-dashoffset="552.92"/>
+    </svg>
+    <div class="ring-text">
+      <div class="percent" id="ringPercent">0%</div>
+      <div class="label">总体完成度</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Stat Cards ===== -->
+<section class="stat-cards">
+  <div class="stat-card total">
+    <div class="num" id="countTotal">0</div>
+    <div class="lbl">📊 总功能点</div>
+  </div>
+  <div class="stat-card done">
+    <div class="num" id="countDone">0</div>
+    <div class="lbl">✅ 已完成</div>
+  </div>
+  <div class="stat-card wip">
+    <div class="num" id="countWip">0</div>
+    <div class="lbl">🚧 进行中</div>
+  </div>
+  <div class="stat-card pending">
+    <div class="num" id="countPending">0</div>
+    <div class="lbl">❌ 未开始</div>
+  </div>
+  <div class="stat-card fix">
+    <div class="num" id="countFix">0</div>
+    <div class="lbl">⚠️ 需修复</div>
+  </div>
+</section>
+
+<!-- ===== Module Detail Table ===== -->
+<section class="module-section">
+  <div class="section-title">
+    <span class="icon">📋</span> 功能模块明细
+  </div>
+
+  <div class="filter-bar" id="filterBar">
+    <button class="filter-pill active" data-filter="all">全部</button>
+    <button class="filter-pill f-active" data-filter="done">✅ 已完成</button>
+    <button class="filter-pill f-wip" data-filter="wip">🚧 进行中</button>
+    <button class="filter-pill f-pending" data-filter="pending">❌ 未开始</button>
+    <button class="filter-pill f-fix" data-filter="fix">⚠️ 需修复</button>
+  </div>
+
+  <button class="collapse-btn" onclick="toggleAllDetails()">📖 展开全部备注</button>
+
+  <div class="table-wrap">
+    <table id="featureTable">
+      <thead>
+        <tr>
+          <th>模块</th>
+          <th>功能点</th>
+          <th>状态</th>
+          <th>备注</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- ===== Java Backend ===== -->
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>JWT 认证 (accessToken + refreshToken)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>jjwt 0.12.5，2h/7d 双 Token 机制</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>RBAC 三层角色权限</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>PLATFORM_ADMIN / TENANT_ADMIN / TENANT_MEMBER + 10个权限码</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>多租户数据隔离</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>MyBatis-Plus 行级拦截 + ThreadLocal 上下文</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>Auth 模块 (3 APIs)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>登录/注册/刷新Token</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>User 模块 (3 APIs)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>个人信息查看/修改/改密码</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>Interview 模块 (5 APIs)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>创建面试/上传音频/详情/列表</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>Report 模块 (7 APIs)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>评估列表/逐条修正/报告/统计/待审核</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>Knowledge 模块 (6 APIs)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>文档 CRUD / 搜索 / 列表过滤</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>Subscription 模块 (3 APIs)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>当前订阅/统计/升级</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>WebSocket STOMP 实时推送</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>SockJS 降级，5 种推送类型</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>Python AI 适配器 (PythonAiClient)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>HTTP + JSON 交互，超时配置</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>AiAnalysisRunner 异步编排</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>@Async 异步调用 Python 后端解析结果</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>全局异常处理</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>BusinessException + GlobalExceptionHandler</td></tr>
+        <tr data-status="wip"><td><span class="module-tag module-java">Java</span></td><td>InterviewSession 邀请码 (4 APIs)</td><td><span class="status-badge badge-wip">🚧 进行中</span></td><td><span class="note-toggle" onclick="toggleDetail(this)">📝 详情</span><div class="detail-content" hidden>HR 创建会话/邀请码验证已完成。hrUserId 已修复（使用 SecurityUtils.currentUserId()）。待完成：邀请邮件/短信发送</div></td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>Tenant 自动化配置</td><td><span class="status-badge badge-done">✅ 已修复</span></td><td>2026-07-24 修复：TenantTableInitializer 启动时自动执行 schema-tenant.sql + 创建租户时自动初始化 FREE 订阅</td></tr>
+        <tr data-status="wip"><td><span class="module-tag module-java">Java</span></td><td>订阅配额统计</td><td><span class="status-badge badge-wip">🚧 进行中</span></td><td><span class="note-toggle" onclick="toggleDetail(this)">📝 详情</span><div class="detail-content" hidden>订阅接口已实现。待完成：查询当月面试次数；查询知识库文档数</div></td></tr>
+        <tr data-status="wip"><td><span class="module-tag module-java">Java</span></td><td>知识库向量化触发</td><td><span class="status-badge badge-wip">🚧 进行中</span></td><td><span class="note-toggle" onclick="toggleDetail(this)">📝 详情</span><div class="detail-content" hidden>异步触发向量化任务，调用 Python 后端生成 embedding — 代码骨架已有，待接入</div></td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>平台数据库 schema (7表)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>schema-platform.sql，含预置角色和权限</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-java">Java</span></td><td>租户数据库 schema (7表)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>schema-tenant.sql，含面试/评估/报告/会话/知识库/模板/日志</td></tr>
+
+        <!-- ===== Python Backend ===== -->
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>Agent 流水线 (ASR→分离→RAG→评估→报告)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>5 步流水线，asyncio.gather 并发评估</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>LLM 客户端封装</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>DashScope / OpenAI 兼容，AsyncOpenAI</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>RAG 向量检索 (SQLite + sqlite-vec)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>向量检索 70% + BM25 30% 混合检索，jieba 分词</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>Reranker 重排序</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>BAAI/bge-reranker-base CrossEncoder，lazy loading</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>文档分块服务 (3种策略)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>固定大小 / 段落 / 语义分块</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>Embedding 服务 (含缓存)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>text-embedding-v3，MD5+JSON 磁盘缓存</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>MCP 上下文组装层</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>检索→组装→截断(1800字)→LLM增强</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>知识库导入服务</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>批量导入，多格式支持</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>文档转换器 (PDF/Word/HTML/TXT→MD)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>pdfplumber/python-docx/beautifulsoup4</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>知识库数据集 (11份)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>Java面试题库(6份) + Python面试题库(4份) + 通用标准(1份)</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>API 路由 (4个)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>analysis / knowledge / retrieval / mcp_debug</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>Pydantic 配置管理</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>BaseSettings 加载 .env</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>分层异常体系</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>8种异常，统一HTTP错误响应</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>依赖注入 (全链路 DI)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>4层初始化，FastAPI app.state 管理生命周期</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>LLM 模型配置不匹配</td><td><span class="status-badge badge-done">✅ 已修复</span></td><td>2026-07-24 修复：.env 改回 qwen3.5-omni-plus 并添加说明注释</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>目录名拼写错误</td><td><span class="status-badge badge-done">✅ 已修复</span></td><td>2026-07-24 修复：scrpits/ → scripts/，与 README 引用一致</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>knowledge_api 返回计数硬编码</td><td><span class="status-badge badge-done">✅ 已修复</span></td><td>2026-07-24 修复：batch_import_knowledge() 返回 int，API 接收实际值</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-python">Python</span></td><td>requirements.txt 缺少依赖声明</td><td><span class="status-badge badge-done">✅ 已修复</span></td><td>2026-07-24 修复：补齐 sentence-transformers/pdfplumber/python-docx/beautifulsoup4</td></tr>
+
+        <!-- ===== Flutter Frontend ===== -->
+        <tr data-status="done"><td><span class="module-tag module-flutter">Flutter</span></td><td>应用入口 + 路由框架</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>main.dart，Material 3，3 条命名路由</td></tr>
+        <tr data-status="wip"><td><span class="module-tag module-flutter">Flutter</span></td><td>录音页面 (RecordPage)</td><td><span class="status-badge badge-wip">🚧 进行中</span></td><td><span class="note-toggle" onclick="toggleDetail(this)">📝 详情</span><div class="detail-content" hidden>WAV 16kHz 录音 + 上传已实现。待修复：上传失败时 UI 无错误处理，会永久卡在"分析中"状态；缺少 try/catch</div></td></tr>
+        <tr data-status="wip"><td><span class="module-tag module-flutter">Flutter</span></td><td>报告页面 (ReportPage)</td><td><span class="status-badge badge-wip">🚧 进行中</span></td><td><span class="note-toggle" onclick="toggleDetail(this)">📝 详情</span><div class="detail-content" hidden>Markdown 渲染已实现。待完成：评估卡片列表、分数展示、熟练/薄弱项分析可视化、HR 修正入口</div></td></tr>
+        <tr data-status="done"><td><span class="module-tag module-flutter">Flutter</span></td><td>首页 (HomePage)</td><td><span class="status-badge badge-done">✅ 已实现</span></td><td>2026-07-24 重写：API 列表加载 + 下拉刷新 + 状态标签 + 卡片点击跳转 + 空态引导 + 错误重试</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-flutter">Flutter</span></td><td>登录/注册页面</td><td><span class="status-badge badge-done">✅ 已实现</span></td><td>2026-07-24 新增：LoginPage 双模式（登录/注册 TabBar 切换），表单校验</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-flutter">Flutter</span></td><td>JWT Token 管理 & 请求拦截</td><td><span class="status-badge badge-done">✅ 已实现</span></td><td>2026-07-24 新增：TokenStorage（SharedPreferences）+ Dio 拦截器（Bearer 注入 + 401 自动刷新）</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-flutter">Flutter</span></td><td>STOMP / WebSocket 客户端</td><td><span class="status-badge badge-done">✅ 已实现</span></td><td>2026-07-24 新增：WebSocketService（STOMP 订阅 3 个 Topic + 心跳 + 断线重连）</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-flutter">Flutter</span></td><td>HR 人工修正页面</td><td><span class="status-badge badge-done">✅ 已实现</span></td><td>2026-07-24 新增：HrCorrectionPage（评估列表 + 弹窗编辑分数/等级/评语 + 逐条提交保存）</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-flutter">Flutter</span></td><td>邀请码输入页面</td><td><span class="status-badge badge-done">✅ 已实现</span></td><td>2026-07-24 新增：InviteCodePage（输入→验证→展示会话信息→进入录音）</td></tr>
+        <tr data-status="pending"><td><span class="module-tag module-flutter">Flutter</span></td><td>环境切换 / 多环境配置</td><td><span class="status-badge badge-pending">❌ 未开始</span></td><td>baseUrl 硬编码为 LAN IP</td></tr>
+        <tr data-status="pending"><td><span class="module-tag module-flutter">Flutter</span></td><td>知识库浏览页面</td><td><span class="status-badge badge-pending">❌ 未开始</span></td><td>Knowledge API 已就绪</td></tr>
+
+        <!-- ===== DevOps & Quality ===== -->
+        <tr data-status="done"><td><span class="module-tag module-infra">DevOps</span></td><td>Docker 容器化 (全部3个模块)</td><td><span class="status-badge badge-done">✅ 已实现</span></td><td>2026-07-24 新增：Dockerfile × 2（Java 多阶段构建 + Python slim）+ docker-compose（MySQL + Java + Python）</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-infra">DevOps</span></td><td>CI/CD 流水线</td><td><span class="status-badge badge-done">✅ 已实现</span></td><td>2026-07-24 新增：.github/workflows/ci.yml（4 Job：Java + Python + Flutter + 汇总）</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-infra">DevOps</span></td><td>E2E / 集成测试</td><td><span class="status-badge badge-done">✅ 已实现</span></td><td>2026-07-24 新增：Java Auth 集成测试（7 个场景）+ Python 知识库 E2E（6 个场景）+ H2 测试基础设施</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-flutter">Flutter</span></td><td>Widget 测试</td><td><span class="status-badge badge-done">✅ 已修复</span></td><td>2026-07-24 修复：替换为 3 个与项目实际页面匹配的 Widget 测试</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-infra">DevOps</span></td><td>部署文档 / 环境变量模板</td><td><span class="status-badge badge-done">✅ 已实现</span></td><td>2026-07-24 新增：3 份 .env.example（根目录 + Java + Python 各含完整注释）</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-infra">DevOps</span></td><td>Swagger / OpenAPI 文档</td><td><span class="status-badge badge-done">✅ 已实现</span></td><td>2026-07-24 新增：springdoc-openapi（Java /swagger-ui.html）+ FastAPI 自带 /docs</td></tr>
+
+        <!-- ===== Documentation ===== -->
+        <tr data-status="done"><td><span class="module-tag module-infra">文档</span></td><td>API 接口文档</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>docs/api_document.md</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-infra">文档</span></td><td>架构设计文档</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>docs/architecture.md</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-infra">文档</span></td><td>RAG+MCP 架构文档</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>RAG_MCP_Architecture.md</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-infra">文档</span></td><td>ADR 架构决策记录</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>docs/adr/0001-tenant-isolation-row-level.md</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-infra">文档</span></td><td>MVP 技术方案</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>INTERVIEW-MVP-PLAN.html (71KB)</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-infra">文档</span></td><td>学习中心 (18节HTML课程)</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>9节 RAG + 9节 SaaS 多租户</td></tr>
+        <tr data-status="done"><td><span class="module-tag module-infra">文档</span></td><td>开发日志</td><td><span class="status-badge badge-done">✅ 完成</span></td><td>DEVELOPMENT-LOGA.md，5 次迭代记录</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ===== TODO Checklist ===== -->
+<section class="todo-section">
+  <div class="section-title">
+    <span class="icon">📝</span> TODO 待办清单
+    <button class="collapse-btn" onclick="toggleAllTodos()">☐ 全选/取消</button>
+  </div>
+
+  <div class="priority-group">
+    <div class="priority-header"><span class="p-badge p0">P0</span> 紧急 — 影响核心功能运行 <span style="color:var(--accent-green);font-size:0.78rem;">（3/3 ✅ 全部修复于 2026-07-24）</span></div>
+    <ul class="todo-list">
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>修复 Python LLM 模型配置不匹配</s></div>
+          <div class="todo-meta"><s>.env 设置 qwen-plus（纯文本）会覆盖 config.py 的 qwen3.5-omni-plus（多模态），ASR 步骤将失败</s></div>
+        </div>
+        <span class="todo-location">backend_python/.env</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check" onclick="toggleCheck(this)"></span>
+        <div class="todo-body">
+          <div class="todo-title">修复 Flutter 录音上传异常处理</div>
+          <div class="todo-meta">uploadAudio 失败后 isAnalyzing 永久为 true，UI 卡死</div>
+        </div>
+        <span class="todo-location">frontend_flutter/lib/pages/record_page.dart</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>修复 Python 脚本目录拼写错误</s></div>
+          <div class="todo-meta"><s>scrpits/ → 重命名为 scripts/，README 已引用 scripts/</s></div>
+        </div>
+        <span class="todo-location">backend_python/scripts/</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="priority-group">
+    <div class="priority-header"><span class="p-badge p1">P1</span> 重要 — 功能完整性关键</div>
+    <ul class="todo-list">
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>自动执行 schema-tenant.sql 为新租户建表</s></div>
+          <div class="todo-meta"><s>当前手动执行 — 新增 TenantTableInitializer 启动时幂等执行</s></div>
+        </div>
+        <span class="todo-location">TenantTableInitializer.java (new)</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>初始化新租户默认角色、权限、订阅</s></div>
+          <div class="todo-meta"><s>创建租户后自动注入预置数据 — 新增 @Transactional 订阅初始化</s></div>
+        </div>
+        <span class="todo-location">TenantService.java</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>实现 Flutter 登录/注册页面</s></div>
+          <div class="todo-meta"><s>Java 端 /auth API 已完整就绪 — 新增 LoginPage 双模式 + 表单校验</s></div>
+        </div>
+        <span class="todo-location">frontend_flutter/lib/pages/login_page.dart</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>Flutter 集成 JWT Token 管理与请求拦截</s></div>
+          <div class="todo-meta"><s>ApiService 添加 Dio Interceptor — 自动注入 Bearer Token + 401 自动刷新重试</s></div>
+        </div>
+        <span class="todo-location">frontend_flutter/lib/services/api_service.dart</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>从 Authentication 获取 hrUserId</s></div>
+          <div class="todo-meta"><s>InterviewSessionController 两处 null → SecurityUtils.currentUserId()</s></div>
+        </div>
+        <span class="todo-location">InterviewSessionController.java</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="priority-group">
+    <div class="priority-header"><span class="p-badge p2">P2</span> 中等 — 体验与完善</div>
+    <ul class="todo-list">
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>实现 Flutter STOMP/WebSocket 客户端</s></div>
+          <div class="todo-meta"><s>接入实时分析进度推送 — stomp_dart_client + 3 Topic 订阅 + 心跳</s></div>
+        </div>
+        <span class="todo-location">frontend_flutter/lib/services/websocket_service.dart</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>实现 Flutter HR 人工修正页面</s></div>
+          <div class="todo-meta"><s>评估列表 + 弹窗编辑分数/等级/评语 + 逐条提交</s></div>
+        </div>
+        <span class="todo-location">frontend_flutter/lib/pages/hr_correction_page.dart</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>实现邀请码输入页面</s></div>
+          <div class="todo-meta"><s>输入→验证有效性→展示会话→进入录音</s></div>
+        </div>
+        <span class="todo-location">frontend_flutter/lib/pages/invite_code_page.dart</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check" onclick="toggleCheck(this)"></span>
+        <div class="todo-body">
+          <div class="todo-title">查询当月面试次数和知识库文档数</div>
+          <div class="todo-meta">SubscriptionServiceImpl 中 2 处 TODO</div>
+        </div>
+        <span class="todo-location">SubscriptionServiceImpl.java:52,56</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check" onclick="toggleCheck(this)"></span>
+        <div class="todo-body">
+          <div class="todo-title">发送邀请邮件/短信</div>
+          <div class="todo-meta">创建待接受的邀请记录后通知候选人</div>
+        </div>
+        <span class="todo-location">TenantController.java:70</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>返回实际知识库导入数量</s></div>
+          <div class="todo-meta"><s>knowledge_api.py 硬编码 imported_count=0</s></div>
+        </div>
+        <span class="todo-location">knowledge_api.py:51</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check" onclick="toggleCheck(this)"></span>
+        <div class="todo-body">
+          <div class="todo-title">异步触发知识库向量化任务</div>
+          <div class="todo-meta">KnowledgeServiceImpl 中调用 Python 后端生成 embedding</div>
+        </div>
+        <span class="todo-location">KnowledgeServiceImpl.java:35</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>补齐 requirements.txt 缺失依赖</s></div>
+          <div class="todo-meta"><s>sentence_transformers / pdfplumber / python-docx / beautifulsoup4</s></div>
+        </div>
+        <span class="todo-location">backend_python/requirements.txt</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>替换 Flutter 无效的 widget_test</s></div>
+          <div class="todo-meta"><s>当前是 Flutter 默认计数器模板，与项目完全无关</s></div>
+        </div>
+        <span class="todo-location">frontend_flutter/test/widget_test.dart</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="priority-group">
+    <div class="priority-header"><span class="p-badge p3">P3</span> 增强 — 长期质量</div>
+    <ul class="todo-list">
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>3 个模块添加 Dockerfile + docker-compose</s></div>
+          <div class="todo-meta"><s>Java 多阶段构建 + Python slim + MySQL 8.0 三容器编排（含健康检查 + 数据卷）</s></div>
+        </div>
+        <span class="todo-location">docker-compose.yml + 2 Dockerfile</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>搭建 CI/CD 流水线</s></div>
+          <div class="todo-meta"><s>GitHub Actions：4 Job 并行（Java Maven + Python pytest + Flutter test + 汇总）</s></div>
+        </div>
+        <span class="todo-location">.github/workflows/ci.yml</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>编写 E2E / 集成测试</s></div>
+          <div class="todo-meta"><s>Java Auth 集成测试（7场景） + Python 知识库 E2E（6场景） + H2 基础设施</s></div>
+        </div>
+        <span class="todo-location">backend_springai/.../integration/ + backend_python/tests/</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check" onclick="toggleCheck(this)"></span>
+        <div class="todo-body">
+          <div class="todo-title">Flutter 环境切换配置</div>
+          <div class="todo-meta">区分 dev/staging/prod，替代硬编码 LAN IP</div>
+        </div>
+        <span class="todo-location">frontend_flutter/lib/utils/constants.dart</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>启用 Swagger/OpenAPI 文档</s></div>
+          <div class="todo-meta"><s>Java: springdoc-openapi /swagger-ui.html + Python: FastAPI 自带 /docs</s></div>
+        </div>
+        <span class="todo-location">backend_springai/pom.xml</span>
+      </li>
+      <li class="todo-item">
+        <span class="todo-check checked" onclick="toggleCheck(this)">✓</span>
+        <div class="todo-body">
+          <div class="todo-title"><s>提供 .env.example 模板</s></div>
+          <div class="todo-meta"><s>3 份 .env.example（根级 Docker + Java + Python），含完整注释和示例值</s></div>
+        </div>
+        <span class="todo-location">根目录 + 两后端模块</span>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===== Warning Section ===== -->
+<section class="warning-section">
+  <div class="section-title">
+    <span class="icon">⚠️</span> 缺失项与风险警告
+  </div>
+
+</section>
+
+<!-- ===== Next Milestone ===== -->
+<section class="milestone-section">
+  <div class="section-title">
+    <span class="icon">🎯</span> 下一个里程碑建议
+  </div>
+
+  <div class="milestone-card">
+    <h3>🎉 Milestone 1: 最小可用版本 (MVP v1.0) — 全部完成！</h3>
+    <p style="color:var(--text-secondary);margin-bottom:20px;">目标：端到端打通「录音→上传→AI分析→报告展示」核心链路，具备演示条件。</p>
+    <div class="milestone-phases">
+      <div class="milestone-phase" style="border-left-color: var(--accent-green); opacity: 0.85;">
+        <h4>✅ Phase 1 — 紧急修复 (P0) — 已完成</h4>
+        <p>LLM 配置 ✅ | 脚本目录 ✅ | API 计数 ✅ | requirements.txt ✅ | widget_test ✅</p>
+      </div>
+      <div class="milestone-phase" style="border-left-color: var(--accent-green); opacity: 0.85;">
+        <h4>✅ Phase 2 — 前端认证闭环 (P1) — 已完成</h4>
+        <p>LoginPage ✅ | TokenStorage ✅ | Dio 拦截器 ✅ | AuthService ✅ | main.dart 守卫 ✅</p>
+      </div>
+      <div class="milestone-phase" style="border-left-color: var(--accent-green); opacity: 0.85;">
+        <h4>✅ Phase 3 — 租户自动化 (P1) — 已完成</h4>
+        <p>TenantTableInitializer ✅ | 订阅初始化 ✅ | hrUserId 修复 ✅</p>
+      </div>
+      <div class="milestone-phase" style="border-left-color: var(--accent-green); opacity: 0.85;">
+        <h4>✅ Phase 4 — 前端体验完善 (P2) — 已完成</h4>
+        <p>WebSocket ✅ | 首页列表 ✅ | HR 修正 ✅ | 邀请码 ✅</p>
+      </div>
+      <div class="milestone-phase" style="border-left-color: var(--accent-green); opacity: 0.85;">
+        <h4>✅ Phase 5 — 部署与质量 (P3) — 已完成</h4>
+        <p>Docker 三容器编排 ✅ | CI/CD ✅ | E2E 测试 ✅ | Swagger ✅ | .env.example ✅</p>
+      </div>
+    </div>
+    <p style="color:var(--accent-green);margin-top:20px;font-weight:600;">
+      🎉 Milestone 1 全部 5 个 Phase 完成！项目具备演示和试运行条件。
+    </p>
+  </div>
+</section>
+
+<!-- ===== Footer ===== -->
+<footer class="footer">
+  <p>InterviewMentorAI · 项目进度报告</p>
+  <p class="meta-line">
+    分支：feature/arch-core · 最后更新：<span id="timestamp"></span> · Phase 4+5 完成：前端体验 + Docker + Swagger
+  </p>
+  <p class="meta-line" style="margin-top:4px;">
+    技术栈：Flutter 3.12 + Spring Boot 3.2.5 / Java 17 + FastAPI / Python 3.10+ · MySQL 8.0 + SQLite · DashScope
+  </p>
+</footer>
+
+</div><!-- .container -->
+
+<!-- ===== JavaScript ===== -->
+<script>
+(function() {
+  // ── Data ──
+  const rows = document.querySelectorAll('#featureTable tbody tr');
+  let total = rows.length;
+  let done = 0, wip = 0, pending = 0, fix = 0;
+  rows.forEach(r => {
+    const s = r.dataset.status;
+    if (s === 'done') done++;
+    else if (s === 'wip') wip++;
+    else if (s === 'pending') pending++;
+    else if (s === 'fix') fix++;
+  });
+
+  // ── Animate Counters ──
+  function animateCounter(el, target, duration) {
+    const start = 0;
+    const startTime = performance.now();
+    function step(now) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.round(start + (target - start) * eased);
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  setTimeout(() => {
+    animateCounter(document.getElementById('countTotal'), total, 1200);
+    animateCounter(document.getElementById('countDone'), done, 1000);
+    animateCounter(document.getElementById('countWip'), wip, 1000);
+    animateCounter(document.getElementById('countPending'), pending, 1000);
+    animateCounter(document.getElementById('countFix'), fix, 1000);
+  }, 200);
+
+  // ── Animate Ring ──
+  const percentage = Math.round((done / (total - fix)) * 100);
+  const ringFg = document.getElementById('ringFg');
+  const ringPercent = document.getElementById('ringPercent');
+  const circumference = 552.92;
+  const targetOffset = circumference - (circumference * percentage / 100);
+
+  setTimeout(() => {
+    ringFg.style.strokeDashoffset = targetOffset;
+    let current = 0;
+    const startTime = performance.now();
+    const duration = 1500;
+    function stepRing(now) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      current = Math.round(eased * percentage);
+      ringPercent.textContent = current + '%';
+      if (progress < 1) requestAnimationFrame(stepRing);
+    }
+    requestAnimationFrame(stepRing);
+  }, 400);
+
+  // ── Timestamp ──
+  const tsEl = document.getElementById('timestamp');
+  if (tsEl) tsEl.textContent = new Date().toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  });
+
+  // ── Filter Pills ──
+  document.querySelectorAll('#filterBar button').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#filterBar button').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      const filter = this.dataset.filter;
+      rows.forEach(r => {
+        if (filter === 'all') r.classList.remove('hidden');
+        else r.classList.toggle('hidden', r.dataset.status !== filter);
+      });
+    });
+  });
+
+  // ── Status Badge Click Filter ──
+  document.querySelectorAll('.status-badge').forEach(badge => {
+    badge.addEventListener('click', function(e) {
+      e.stopPropagation();
+      let cls = '';
+      if (this.classList.contains('badge-done')) cls = 'done';
+      else if (this.classList.contains('badge-wip')) cls = 'wip';
+      else if (this.classList.contains('badge-pending')) cls = 'pending';
+      else if (this.classList.contains('badge-fix')) cls = 'fix';
+      if (!cls) return;
+
+      document.querySelectorAll('#filterBar button').forEach(b => b.classList.remove('active'));
+      const targetBtn = document.querySelector('#filterBar button[data-filter="' + cls + '"]');
+      if (targetBtn) targetBtn.classList.add('active');
+
+      rows.forEach(r => r.classList.toggle('hidden', r.dataset.status !== cls));
+    });
+  });
+
+  // ── Detail Toggle ──
+  window.toggleDetail = function(el) {
+    const content = el.nextElementSibling;
+    if (!content) return;
+    if (content.style.display === 'block') {
+      content.style.display = 'none';
+      el.textContent = '📝 详情';
+    } else {
+      content.style.display = 'block';
+      el.textContent = '📝 收起';
+    }
+  };
+
+  // ── Collapse All Details ──
+  window.toggleAllDetails = function() {
+    const allContents = document.querySelectorAll('.detail-content');
+    const allToggles = document.querySelectorAll('.note-toggle');
+    const anyHidden = Array.from(allContents).some(c => c.style.display !== 'block');
+    allContents.forEach(c => { c.style.display = anyHidden ? 'block' : 'none'; });
+    allToggles.forEach(t => { t.textContent = anyHidden ? '📝 收起' : '📝 详情'; });
+  };
+
+  // ── Todo Checkboxes ──
+  window.toggleCheck = function(el) {
+    el.classList.toggle('checked');
+    el.textContent = el.classList.contains('checked') ? '✓' : '';
+  };
+
+  // ── Toggle All Todos ──
+  window.toggleAllTodos = function() {
+    const checks = document.querySelectorAll('.todo-check');
+    const allChecked = Array.from(checks).every(c => c.classList.contains('checked'));
+    checks.forEach(c => {
+      if (allChecked) { c.classList.remove('checked'); c.textContent = ''; }
+      else { c.classList.add('checked'); c.textContent = '✓'; }
+    });
+  };
+})();
+</script>
+</body>
+</html>

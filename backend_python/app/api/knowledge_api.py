@@ -43,12 +43,12 @@ async def import_knowledge(
     """
     try:
         logger.info("开始知识库导入")
-        knowledge_service.batch_import_knowledge()
-        
+        imported_count = knowledge_service.batch_import_knowledge()
+
         return KnowledgeImportResponse(
             success=True,
             message="知识库导入完成",
-            imported_count=0  # TODO: 返回实际导入数量
+            imported_count=imported_count
         )
     except AppError as e:
         logger.error(f"知识库导入失败: {e}", exc_info=True)

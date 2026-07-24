@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.interview.mentor.entity.InterviewSession;
 import com.interview.mentor.entity.dto.resp.Result;
+import com.interview.mentor.security.SecurityUtils;
 import com.interview.mentor.service.InterviewSessionService;
 import com.interview.mentor.tenant.TenantContext;
 import org.springframework.web.bind.annotation.*;
@@ -26,8 +27,7 @@ public class InterviewSessionController {
     @PostMapping("/create")
     public Result<InterviewSession> createSession(@RequestBody Map<String, String> request) {
         Long tenantId = TenantContext.getTenantId();
-        // TODO: 从 Authentication 获取 hrUserId
-        Long hrUserId = null;
+        Long hrUserId = SecurityUtils.currentUserId();
 
         InterviewSession session = sessionService.createSession(
                 request.get("title"),
@@ -65,8 +65,7 @@ public class InterviewSessionController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
         Long tenantId = TenantContext.getTenantId();
-        // TODO: 从 Authentication 获取 hrUserId
-        Long hrUserId = null;
+        Long hrUserId = SecurityUtils.currentUserId();
 
         IPage<InterviewSession> result = sessionService.listSessions(
                 new Page<>(page, size), tenantId, hrUserId);

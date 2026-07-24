@@ -33,13 +33,17 @@ class KnowledgeService:
         else:
             self.embedding_service = embedding_service
     
-    def batch_import_knowledge(self, chunk_method: str = "fixed"):
-        """离线批量导入知识库（从文件读取、分块、向量化、入库）"""
+    def batch_import_knowledge(self, chunk_method: str = "fixed") -> int:
+        """离线批量导入知识库（从文件读取、分块、向量化、入库）
+
+        Returns:
+            实际导入的分块总数
+        """
         root = settings.rag_doc_root
         if not os.path.exists(root):
             os.makedirs(root)
             logger.info(f"创建知识库目录 {root}")
-            return
+            return 0
         
         imported_count = 0
         for filename in os.listdir(root):
@@ -61,6 +65,7 @@ class KnowledgeService:
         
         logger.info(f"全部知识库分块向量化入库完成，共导入 {imported_count} 个分块")
         self.embedding_service._save_cache()
+        return imported_count
     
     def get_stats(self) -> Dict:
         """

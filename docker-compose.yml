@@ -1,0 +1,69 @@
+# ============================================
+# InterviewMentorAI — 三容器编排
+# 启动: docker-compose up -d
+# 停止: docker-compose down
+# ============================================
+version: "3.9"
+
+services:
+  # ── MySQL 8.0 ──
+  mysql:
+    image: mysql:8.0
+    container_name: mentor-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: platform
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend_springai/src/main/resources/schema-platform.sql:/docker-entrypoint-initdb.d/01-platform.sql
+      - ./backend_springai/src/main/resources/schema-tenant.sql:/docker-entrypoint-initdb.d/02-tenant.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ── Python AI 后端 ──
+  python-ai:
+    build: ./backend_python
+    container_name: mentor-python
+    restart: unless-stopped
+    environment:
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-qwen3.5-omni-plus}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      JAVA_BACKEND_URL: http://java-api:8080
+      SQLITE_DB_PATH: /app/data/interview.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - python_data:/app/data
+      - ./backend_python/data/rag_docs:/app/data/rag_docs
+
+  # ── Java 业务后端 ──
+  java-api:
+    build: ./backend_springai
+    container_name: mentor-java
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      python-ai:
+        condition: service_started
+    environment:
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      PYTHON_AI_BACKEND_URL: http://python-ai:8000
+      AUDIO_STORAGE_PATH: /app/data/audio
+    ports:
+      - "8080:8080"
+    volumes:
+      - java_data:/app/data
+
+volumes:
+  mysql_data:
+  python_data:
+  java_data:
