@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InterviewMentorAI — AI 智能面试助手</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  /* ================================================================
+     CSS Variables — Bright, Airy, Premium
+     ================================================================ */
+  :root {
+    /* Brand */
+    --brand-500: #4F46E5;
+    --brand-600: #4338CA;
+    --brand-400: #818CF8;
+    --brand-50: #EEF2FF;
+    --brand-100: #E0E7FF;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+    --gradient-light: linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 100%);
+
+    /* Backgrounds */
+    --bg-page: #F8FAFC;
+    --bg-card: #FFFFFF;
+    --bg-hover: #F1F5F9;
+
+    /* Text */
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #94A3B8;
+
+    /* Borders */
+    --border-light: #E2E8F0;
+    --border-medium: #CBD5E1;
+
+    /* Shadows — soft, translucent */
+    --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+    --shadow-lg: 0 12px 40px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+    --shadow-glow: 0 0 0 4px rgba(79,70,229,0.10), 0 8px 32px rgba(79,70,229,0.12);
+    --shadow-glow-recording: 0 0 0 8px rgba(239,68,68,0.10), 0 8px 32px rgba(239,68,68,0.15);
+
+    /* Radii */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-full: 9999px;
+
+    /* Transitions */
+    --ease-fast: 180ms cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-smooth: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-bounce: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-spring: 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* ================================================================
+     Reset & Base
+     ================================================================ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'SF Pro Display', system-ui, sans-serif;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    line-height: 1.6;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ================================================================
+     Subtle Background Atmosphere
+     ================================================================ */
+  .bg-atmosphere {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+  }
+  .bg-atmosphere::before {
+    content: '';
+    position: absolute;
+    top: -10%; right: -5%;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(79,70,229,0.04) 0%, transparent 70%);
+    animation: floatSlow 18s ease-in-out infinite alternate;
+  }
+  .bg-atmosphere::after {
+    content: '';
+    position: absolute;
+    bottom: 5%; left: -5%;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(124,58,237,0.03) 0%, transparent 70%);
+    animation: floatSlow 22s ease-in-out infinite alternate-reverse;
+  }
+  @keyframes floatSlow {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(30px, -20px) scale(1.08); }
+  }
+
+  /* ================================================================
+     Navigation — Clean Pill
+     ================================================================ */
+  .nav {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 100;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-full);
+    padding: 4px 6px;
+    display: flex; gap: 2px;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--ease-smooth);
+  }
+  .nav.scrolled {
+    box-shadow: var(--shadow-md);
+  }
+  .nav a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 14px; font-weight: 500;
+    padding: 9px 18px;
+    border-radius: var(--radius-full);
+    transition: all var(--ease-fast);
+    white-space: nowrap;
+    letter-spacing: -0.01em;
+  }
+  .nav a:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .nav a.active {
+    color: #fff;
+    background: var(--gradient-primary);
+    box-shadow: 0 2px 8px rgba(79,70,229,0.25);
+  }
+
+  /* ================================================================
+     Section Layout
+     ================================================================ */
+  .section {
+    position: relative; z-index: 1;
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 120px 32px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-size: 12px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--brand-500);
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-size: clamp(32px, 5vw, 48px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    text-align: center;
+    margin-bottom: 16px;
+    line-height: 1.15;
+    color: var(--text-primary);
+  }
+
+  .section-desc {
+    color: var(--text-secondary);
+    font-size: 17px;
+    text-align: center;
+    max-width: 500px;
+    margin-bottom: 64px;
+    line-height: 1.65;
+  }
+
+  /* ================================================================
+     Card — Clean White
+     ================================================================ */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--ease-smooth);
+  }
+  .card:hover {
+    border-color: var(--border-medium);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+
+  /* ================================================================
+     Section 1 — Recording Hero
+     ================================================================ */
+  .record-container {
+    display: flex; flex-direction: column; align-items: center; gap: 44px;
+  }
+
+  .record-button-wrap {
+    position: relative;
+    width: 240px; height: 240px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Pulse rings — light and airy */
+  .pulse-ring {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    border: 1.5px solid rgba(79,70,229,0.15);
+    animation: pulseRing 2.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+  }
+  .pulse-ring:nth-child(2) { animation-delay: 0.7s; }
+  .pulse-ring:nth-child(3) { animation-delay: 1.4s; }
+
+  @keyframes pulseRing {
+    0% { transform: scale(0.88); opacity: 0.8; }
+    100% { transform: scale(1.55); opacity: 0; }
+  }
+
+  .record-button {
+    position: relative; z-index: 2;
+    width: 144px; height: 144px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    background: var(--gradient-primary);
+    display: flex; align-items: center; justify-content: center;
+    transition: all var(--ease-bounce);
+    box-shadow: var(--shadow-glow);
+  }
+  .record-button:hover {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 6px rgba(79,70,229,0.14), 0 12px 40px rgba(79,70,229,0.18);
+  }
+  .record-button:active { transform: scale(0.96); }
+
+  .record-button.recording {
+    animation: recordPulse 1.4s ease-in-out infinite;
+    box-shadow: var(--shadow-glow-recording);
+    background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+  }
+
+  @keyframes recordPulse {
+    0%, 100% { box-shadow: var(--shadow-glow-recording); }
+    50% { box-shadow: 0 0 0 12px rgba(239,68,68,0.12), 0 12px 40px rgba(239,68,68,0.20); }
+  }
+
+  .record-icon {
+    width: 54px; height: 54px;
+    color: #fff;
+    transition: all var(--ease-smooth);
+  }
+
+  .record-hint {
+    font-size: 15px; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .record-hint .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #22C55E;
+    box-shadow: 0 0 8px rgba(34,197,94,0.35);
+    transition: all var(--ease-smooth);
+  }
+  .record-hint .dot.off {
+    background: var(--text-muted);
+    box-shadow: none;
+  }
+
+  /* Waveform */
+  .waveform {
+    display: flex; align-items: center; gap: 3px; height: 44px;
+  }
+  .waveform .bar {
+    width: 3px; border-radius: 3px;
+    background: var(--brand-400);
+    transition: height 140ms ease;
+    opacity: 0.7;
+  }
+
+  /* Timer */
+  .record-timer {
+    font-size: 36px; font-weight: 500; font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    color: var(--brand-500);
+    font-feature-settings: "tnum";
+  }
+
+  /* ================================================================
+     Section 2 — Interview Steps
+     ================================================================ */
+  .steps-layout {
+    display: flex; gap: 56px;
+    width: 100%; align-items: flex-start;
+  }
+
+  /* Timeline — clean vertical */
+  .timeline {
+    display: flex; flex-direction: column; gap: 4px;
+    flex-shrink: 0; width: 220px;
+  }
+  .timeline-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--ease-smooth);
+    border: 1px solid transparent;
+  }
+  .timeline-item:hover {
+    background: var(--bg-hover);
+  }
+  .timeline-item.active {
+    background: var(--brand-50);
+    border-color: var(--brand-100);
+  }
+  .timeline-item.done .step-num {
+    background: var(--gradient-primary);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(79,70,229,0.20);
+  }
+  .timeline-item.done .step-num svg { opacity: 1; }
+  .timeline-item.done .step-num span { opacity: 0; }
+
+  .step-num {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: var(--bg-card);
+    border: 2px solid var(--border-light);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    transition: all var(--ease-smooth);
+    position: relative;
+  }
+  .step-num svg {
+    position: absolute; opacity: 0;
+    width: 14px; height: 14px;
+    transition: opacity var(--ease-fast);
+    color: #fff;
+  }
+  .timeline-item.active .step-num {
+    border-color: var(--brand-500);
+    color: var(--brand-500);
+    background: var(--brand-50);
+  }
+
+  .step-info { display: flex; flex-direction: column; gap: 2px; }
+  .step-name { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+  .step-duration { font-size: 12px; color: var(--text-muted); }
+
+  /* Step content card */
+  .step-content { flex: 1; min-height: 400px; }
+  .step-panel { display: none; padding: 40px; animation: fadeSlideIn 400ms ease; }
+  .step-panel.active { display: block; }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .step-panel h3 {
+    font-size: 22px; font-weight: 600; margin-bottom: 8px;
+    letter-spacing: -0.03em; color: var(--text-primary);
+  }
+  .step-panel .q-badge {
+    display: inline-block;
+    font-size: 12px; font-weight: 500;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    background: var(--brand-50);
+    color: var(--brand-500);
+    margin-bottom: 28px;
+  }
+  .step-question {
+    font-size: 16px; color: var(--text-secondary);
+    padding: 20px 24px;
+    background: var(--bg-page);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--brand-500);
+    margin-bottom: 28px;
+    line-height: 1.75;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 28px;
+    border-radius: var(--radius-full);
+    border: none;
+    font-size: 14px; font-weight: 500;
+    cursor: pointer;
+    transition: all var(--ease-bounce);
+    font-family: inherit;
+    letter-spacing: -0.01em;
+  }
+  .btn-primary {
+    background: var(--gradient-primary);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(79,70,229,0.25);
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(79,70,229,0.35);
+  }
+  .btn-primary:active { transform: scale(0.98); }
+
+  .btn-ghost {
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-light);
+  }
+  .btn-ghost:hover {
+    color: var(--text-primary);
+    border-color: var(--border-medium);
+    background: var(--bg-hover);
+  }
+
+  .step-actions { display: flex; gap: 12px; margin-top: 8px; }
+
+  /* Progress bar */
+  .progress-wrap { width: 100%; margin-top: 40px; }
+  .progress-header {
+    display: flex; justify-content: space-between;
+    font-size: 13px; color: var(--text-secondary);
+    margin-bottom: 10px;
+  }
+  .progress-bar {
+    height: 6px; border-radius: 3px;
+    background: var(--border-light);
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 3px;
+    background: var(--gradient-primary);
+    transition: width 600ms cubic-bezier(0.22, 1, 0.36, 1);
+    width: 0%;
+  }
+
+  /* ================================================================
+     Section 3 — Results Dashboard
+     ================================================================ */
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    width: 100%;
+  }
+
+  .radar-card {
+    grid-row: span 2;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 36px 32px;
+  }
+  .radar-card canvas { max-width: 340px; max-height: 340px; }
+  .radar-card h4 {
+    font-size: 15px; font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+  }
+
+  .score-card {
+    padding: 32px;
+    display: flex; flex-direction: column; gap: 24px;
+  }
+  .score-overall {
+    display: flex; align-items: baseline; gap: 6px;
+  }
+  .score-value {
+    font-size: 64px; font-weight: 600;
+    letter-spacing: -0.05em;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+    line-height: 1;
+  }
+  .score-unit { font-size: 18px; color: var(--text-muted); font-weight: 500; }
+  .score-grade {
+    font-size: 14px; font-weight: 500;
+    padding: 4px 14px; border-radius: var(--radius-full);
+    background: var(--brand-50);
+    color: var(--brand-500);
+    margin-left: 4px;
+  }
+
+  /* Metric bars */
+  .metric-list { display: flex; flex-direction: column; gap: 18px; }
+  .metric-item { display: flex; flex-direction: column; gap: 6px; }
+  .metric-header {
+    display: flex; justify-content: space-between;
+    font-size: 13px;
+  }
+  .metric-label { color: var(--text-secondary); }
+  .metric-value { font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+  .metric-bar {
+    height: 6px; border-radius: 3px;
+    background: var(--border-light);
+    overflow: hidden;
+  }
+  .metric-fill {
+    height: 100%; border-radius: 3px;
+    background: var(--gradient-primary);
+    transition: width 800ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Insight cards */
+  .insight-card {
+    padding: 28px 32px;
+    display: flex; flex-direction: column; gap: 20px;
+  }
+  .insight-card h4 {
+    font-size: 15px; font-weight: 600;
+    color: var(--text-primary);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .insight-list { display: flex; flex-direction: column; gap: 14px; }
+  .insight-item {
+    display: flex; gap: 12px; align-items: flex-start;
+    font-size: 14px; color: var(--text-secondary);
+    line-height: 1.6;
+  }
+  .insight-icon {
+    width: 22px; height: 22px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; font-size: 12px; font-weight: 600;
+  }
+  .insight-icon.strength { background: #DCFCE7; color: #16A34A; }
+  .insight-icon.improve { background: #FEF3C7; color: #D97706; }
+
+  /* Tags */
+  .tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+  .tag {
+    font-size: 12px; font-weight: 500;
+    padding: 5px 12px;
+    border-radius: var(--radius-full);
+    background: var(--bg-page);
+    color: var(--text-secondary);
+    transition: all var(--ease-fast);
+  }
+  .tag:hover {
+    background: var(--brand-50);
+    color: var(--brand-500);
+  }
+
+  /* ================================================================
+     Footer
+     ================================================================ */
+  .footer {
+    position: relative; z-index: 1;
+    text-align: center; padding: 48px 24px;
+    color: var(--text-muted); font-size: 13px;
+    border-top: 1px solid var(--border-light);
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  /* ================================================================
+     Reveal Animations
+     ================================================================ */
+  .reveal {
+    opacity: 0; transform: translateY(28px);
+    transition: all 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  /* ================================================================
+     Responsive
+     ================================================================ */
+  @media (max-width: 768px) {
+    .section { padding: 96px 20px; }
+    .steps-layout { flex-direction: column; gap: 32px; }
+    .timeline {
+      flex-direction: row; width: 100%; overflow-x: auto;
+      gap: 8px; padding-bottom: 8px;
+    }
+    .timeline-item { flex-shrink: 0; white-space: nowrap; }
+    .dashboard-grid { grid-template-columns: 1fr; }
+    .radar-card { grid-row: auto; }
+    .nav { top: 12px; }
+    .nav a { padding: 8px 14px; font-size: 13px; }
+    .step-panel { padding: 28px 24px; }
+    .record-button-wrap { width: 200px; height: 200px; }
+    .record-button { width: 120px; height: 120px; }
+    .record-icon { width: 44px; height: 44px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Subtle Background Atmosphere -->
+<div class="bg-atmosphere"></div>
+
+<!-- ==================== Navigation ==================== -->
+<nav class="nav" id="nav">
+  <a href="#record" class="active">录音</a>
+  <a href="#interview">面试流程</a>
+  <a href="#dashboard">评估报告</a>
+</nav>
+
+<!-- ==================== Section 1: Recording Hero ==================== -->
+<section class="section" id="record">
+  <span class="section-label reveal">AI 面试助手</span>
+  <h1 class="section-title reveal">开始你的模拟面试</h1>
+  <p class="section-desc reveal">
+    点击下方按钮开始录音，AI 将实时分析你的回答并生成专业评估报告
+  </p>
+
+  <div class="record-container reveal">
+    <div class="record-button-wrap">
+      <div class="pulse-ring"></div>
+      <div class="pulse-ring"></div>
+      <div class="pulse-ring"></div>
+      <button class="record-button" id="recordBtn" aria-label="开始录音">
+        <svg class="record-icon" id="micIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Waveform -->
+    <div class="waveform" id="waveform"></div>
+
+    <!-- Timer -->
+    <div class="record-timer" id="timer">00:00</div>
+
+    <!-- Status -->
+    <div class="record-hint reveal">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">准备就绪 — 点击麦克风开始</span>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== Section 2: Interview Process ==================== -->
+<section class="section" id="interview">
+  <span class="section-label reveal">面试流程</span>
+  <h2 class="section-title reveal">分步引导 · 精准评估</h2>
+  <p class="section-desc reveal">
+    从自我介绍到情景分析，AI 引导你完成完整的面试模拟
+  </p>
+
+  <div class="steps-layout reveal">
+    <!-- Timeline -->
+    <div class="timeline" id="timeline">
+      <div class="timeline-item done active" data-step="0">
+        <div class="step-num">
+          <span>1</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="step-info">
+          <span class="step-name">自我介绍</span>
+          <span class="step-duration">~2 分钟</span>
+        </div>
+      </div>
+      <div class="timeline-item" data-step="1">
+        <div class="step-num"><span>2</span></div>
+        <div class="step-info">
+          <span class="step-name">技术能力</span>
+          <span class="step-duration">~5 分钟</span>
+        </div>
+      </div>
+      <div class="timeline-item" data-step="2">
+        <div class="step-num"><span>3</span></div>
+        <div class="step-info">
+          <span class="step-name">项目经验</span>
+          <span class="step-duration">~5 分钟</span>
+        </div>
+      </div>
+      <div class="timeline-item" data-step="3">
+        <div class="step-num"><span>4</span></div>
+        <div class="step-info">
+          <span class="step-name">情景分析</span>
+          <span class="step-duration">~3 分钟</span>
+        </div>
+      </div>
+      <div class="timeline-item" data-step="4">
+        <div class="step-num"><span>5</span></div>
+        <div class="step-info">
+          <span class="step-name">总结提问</span>
+          <span class="step-duration">~2 分钟</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Panel -->
+    <div class="step-content">
+      <div class="card step-panel active" data-panel="0">
+        <h3>自我介绍</h3>
+        <span class="q-badge">步骤 1/5</span>
+        <p class="step-question">
+          “请做一个简短的自我介绍，包括你的背景、核心技能以及为什么你对这个职位感兴趣。”
+        </p>
+        <p style="color:var(--text-secondary);font-size:14px;margin-bottom:28px;">
+          💡 <strong>提示：</strong>控制在 1-2 分钟内，突出 3 个最相关的技能或经历。
+        </p>
+        <div class="step-actions">
+          <button class="btn btn-primary" onclick="nextStep()">开始回答 →</button>
+          <button class="btn btn-ghost" onclick="nextStep()">跳过</button>
+        </div>
+      </div>
+
+      <div class="card step-panel" data-panel="1">
+        <h3>技术能力评估</h3>
+        <span class="q-badge">步骤 2/5</span>
+        <p class="step-question">
+          “请描述你在前端开发中遇到的最复杂的技术挑战，以及你是如何解决的。涉及哪些技术栈和架构决策？”
+        </p>
+        <p style="color:var(--text-secondary);font-size:14px;margin-bottom:28px;">
+          💡 <strong>提示：</strong>使用 STAR 法则（情境→任务→行动→结果）结构化你的回答。
+        </p>
+        <div class="step-actions">
+          <button class="btn btn-ghost" onclick="prevStep()">← 上一步</button>
+          <button class="btn btn-primary" onclick="nextStep()">开始回答 →</button>
+        </div>
+      </div>
+
+      <div class="card step-panel" data-panel="2">
+        <h3>项目经验深度挖掘</h3>
+        <span class="q-badge">步骤 3/5</span>
+        <p class="step-question">
+          “假设你要从零搭建一个 SaaS 平台，你会如何设计技术架构？请考虑可扩展性、安全性和团队协作。”
+        </p>
+        <p style="color:var(--text-secondary);font-size:14px;margin-bottom:28px;">
+          💡 <strong>提示：</strong>从数据层、服务层、前端层分别阐述，展示全栈思维。
+        </p>
+        <div class="step-actions">
+          <button class="btn btn-ghost" onclick="prevStep()">← 上一步</button>
+          <button class="btn btn-primary" onclick="nextStep()">开始回答 →</button>
+        </div>
+      </div>
+
+      <div class="card step-panel" data-panel="3">
+        <h3>情景分析</h3>
+        <span class="q-badge">步骤 4/5</span>
+        <p class="step-question">
+          “产品经理要求在两周内上线一个紧急功能，但技术评估需要四周。你会如何处理这种冲突？”
+        </p>
+        <p style="color:var(--text-secondary);font-size:14px;margin-bottom:28px;">
+          💡 <strong>提示：</strong>展示你的沟通能力、优先级判断和折中方案设计能力。
+        </p>
+        <div class="step-actions">
+          <button class="btn btn-ghost" onclick="prevStep()">← 上一步</button>
+          <button class="btn btn-primary" onclick="nextStep()">开始回答 →</button>
+        </div>
+      </div>
+
+      <div class="card step-panel" data-panel="4">
+        <h3>总结与提问</h3>
+        <span class="q-badge">步骤 5/5</span>
+        <p class="step-question">
+          “回顾今天的面试，你觉得哪些方面表现得最好？有什么你希望补充说明的吗？另外，你有什么问题想问我？”
+        </p>
+        <p style="color:var(--text-secondary);font-size:14px;margin-bottom:28px;">
+          💡 <strong>提示：</strong>这是最后的机会留下深刻印象，准备 1-2 个有深度的问题反问面试官。
+        </p>
+        <div class="step-actions">
+          <button class="btn btn-ghost" onclick="prevStep()">← 上一步</button>
+          <button class="btn btn-primary" id="finishBtn">完成面试 · 查看报告 →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-wrap reveal">
+    <div class="progress-header">
+      <span>面试进度</span>
+      <span id="progressPercent">0%</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== Section 3: Results Dashboard ==================== -->
+<section class="section" id="dashboard">
+  <span class="section-label reveal">评估报告</span>
+  <h2 class="section-title reveal">面试表现分析</h2>
+  <p class="section-desc reveal">
+    基于 AI 多维评估模型，全面分析你的面试表现
+  </p>
+
+  <div class="dashboard-grid reveal">
+    <!-- Radar Chart -->
+    <div class="card radar-card">
+      <h4>能力维度雷达图</h4>
+      <canvas id="radarChart"></canvas>
+    </div>
+
+    <!-- Overall Score -->
+    <div class="card score-card">
+      <div class="score-overall">
+        <span class="score-value" id="overallScore">85</span>
+        <span class="score-unit">/100</span>
+        <span class="score-grade">优秀</span>
+      </div>
+      <div class="metric-list">
+        <div class="metric-item">
+          <div class="metric-header">
+            <span class="metric-label">表达清晰度</span>
+            <span class="metric-value">88</span>
+          </div>
+          <div class="metric-bar"><div class="metric-fill" style="width:0%" data-width="88%"></div></div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-header">
+            <span class="metric-label">技术深度</span>
+            <span class="metric-value">82</span>
+          </div>
+          <div class="metric-bar"><div class="metric-fill" style="width:0%" data-width="82%"></div></div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-header">
+            <span class="metric-label">逻辑思维</span>
+            <span class="metric-value">90</span>
+          </div>
+          <div class="metric-bar"><div class="metric-fill" style="width:0%" data-width="90%"></div></div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-header">
+            <span class="metric-label">沟通能力</span>
+            <span class="metric-value">85</span>
+          </div>
+          <div class="metric-bar"><div class="metric-fill" style="width:0%" data-width="85%"></div></div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-header">
+            <span class="metric-label">应变能力</span>
+            <span class="metric-value">78</span>
+          </div>
+          <div class="metric-bar"><div class="metric-fill" style="width:0%" data-width="78%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Strengths -->
+    <div class="card insight-card">
+      <h4>💪 优势亮点</h4>
+      <div class="insight-list">
+        <div class="insight-item">
+          <span class="insight-icon strength">+</span>
+          <span>逻辑结构清晰，使用 STAR 法则组织回答，层层递进</span>
+        </div>
+        <div class="insight-item">
+          <span class="insight-icon strength">+</span>
+          <span>技术深度突出，能结合真实项目经验阐述架构决策</span>
+        </div>
+        <div class="insight-item">
+          <span class="insight-icon strength">+</span>
+          <span>表达流畅自信，语速适中，关键信息传达精准</span>
+        </div>
+      </div>
+      <div class="tag-row">
+        <span class="tag">架构思维</span>
+        <span class="tag">STAR 法则</span>
+        <span class="tag">表达力</span>
+      </div>
+    </div>
+
+    <!-- Improvements -->
+    <div class="card insight-card">
+      <h4>🎯 改进建议</h4>
+      <div class="insight-list">
+        <div class="insight-item">
+          <span class="insight-icon improve">!</span>
+          <span>情景分析类问题可以更多展示定量分析的思路，用数据支撑观点</span>
+        </div>
+        <div class="insight-item">
+          <span class="insight-icon improve">!</span>
+          <span>部分技术描述可以更简洁，避免过度深入细节导致回答冗长</span>
+        </div>
+      </div>
+      <div class="tag-row">
+        <span class="tag">数据思维</span>
+        <span class="tag">简洁表达</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  InterviewMentorAI © 2026 — AI 驱动的智能面试助手
+</footer>
+
+<!-- ==================== Scripts ==================== -->
+<script>
+// ==================== Navigation ====================
+const nav = document.getElementById('nav');
+const navLinks = nav.querySelectorAll('a');
+const sections = document.querySelectorAll('.section');
+
+function updateNav() {
+  const scrollY = window.scrollY;
+  nav.classList.toggle('scrolled', scrollY > 20);
+
+  let current = '';
+  sections.forEach(sec => {
+    if (scrollY >= sec.offsetTop - 200) current = sec.id;
+  });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+}
+window.addEventListener('scroll', updateNav, { passive: true });
+
+// ==================== Reveal on Scroll ====================
+const revealEls = document.querySelectorAll('.reveal');
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      if (entry.target.closest('#dashboard')) animateMetrics();
+      if (entry.target.closest('#interview')) animateProgress();
+    }
+  });
+}, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+revealEls.forEach(el => revealObserver.observe(el));
+
+// ==================== Recording ====================
+const recordBtn = document.getElementById('recordBtn');
+const micIcon = document.getElementById('micIcon');
+const timerEl = document.getElementById('timer');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const waveformEl = document.getElementById('waveform');
+
+let isRecording = false;
+let timerInterval = null;
+let seconds = 0;
+let waveformInterval = null;
+
+function buildWaveform(count = 48) {
+  waveformEl.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.height = '4px';
+    waveformEl.appendChild(bar);
+  }
+}
+buildWaveform();
+
+function animateWaveform() {
+  const bars = waveformEl.querySelectorAll('.bar');
+  bars.forEach(bar => {
+    const h = isRecording
+      ? Math.random() * 38 + 6
+      : Math.max(2, parseFloat(bar.style.height) * 0.8);
+    bar.style.height = h + 'px';
+  });
+}
+waveformInterval = setInterval(animateWaveform, 120);
+
+function formatTime(s) {
+  const m = Math.floor(s / 60).toString().padStart(2, '0');
+  const sec = (s % 60).toString().padStart(2, '0');
+  return `${m}:${sec}`;
+}
+
+function startRecording() {
+  isRecording = true;
+  seconds = 0;
+  timerEl.textContent = '00:00';
+  statusDot.classList.add('off');
+  statusText.textContent = '正在录音中...';
+  recordBtn.classList.add('recording');
+  micIcon.innerHTML = '<rect x="4" y="4" width="16" height="16" rx="2"/>';
+
+  timerInterval = setInterval(() => {
+    seconds++;
+    timerEl.textContent = formatTime(seconds);
+  }, 1000);
+}
+
+function stopRecording() {
+  isRecording = false;
+  clearInterval(timerInterval);
+  timerInterval = null;
+  statusDot.classList.remove('off');
+  statusText.textContent = '录音完成 — 点击麦克风重新开始';
+  recordBtn.classList.remove('recording');
+  micIcon.innerHTML = '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>';
+}
+
+recordBtn.addEventListener('click', () => {
+  if (!isRecording) {
+    startRecording();
+    setTimeout(() => { if (isRecording) stopRecording(); }, 5000);
+  } else {
+    stopRecording();
+  }
+});
+
+// ==================== Interview Steps ====================
+let currentStep = 0;
+const totalSteps = 5;
+const timelineItems = document.querySelectorAll('.timeline-item');
+const stepPanels = document.querySelectorAll('.step-panel');
+const progressFill = document.getElementById('progressFill');
+const progressPercent = document.getElementById('progressPercent');
+const finishBtn = document.getElementById('finishBtn');
+
+function setStep(index) {
+  if (index < 0 || index >= totalSteps) return;
+  currentStep = index;
+
+  timelineItems.forEach((item, i) => {
+    item.classList.remove('active');
+    if (i < index) item.classList.add('done');
+    else if (i > index) item.classList.remove('done');
+    if (i === index) item.classList.add('active');
+  });
+
+  stepPanels.forEach((panel, i) => {
+    panel.classList.toggle('active', i === index);
+  });
+
+  const pct = Math.round(((index + 1) / totalSteps) * 100);
+  progressFill.style.width = pct + '%';
+  progressPercent.textContent = pct + '%';
+
+  timelineItems[index].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+}
+
+function nextStep() {
+  if (currentStep < totalSteps - 1) setStep(currentStep + 1);
+}
+
+function prevStep() {
+  if (currentStep > 0) setStep(currentStep - 1);
+}
+
+timelineItems.forEach((item, i) => {
+  item.addEventListener('click', () => setStep(i));
+});
+
+if (finishBtn) {
+  finishBtn.addEventListener('click', () => {
+    timelineItems.forEach(item => item.classList.add('done'));
+    progressFill.style.width = '100%';
+    progressPercent.textContent = '100%';
+    document.querySelector('#dashboard').scrollIntoView({ behavior: 'smooth' });
+  });
+}
+
+function animateProgress() {
+  if (progressFill.style.width !== '0%') return;
+  const pct = Math.round(((currentStep + 1) / totalSteps) * 100);
+  progressFill.style.width = pct + '%';
+  progressPercent.textContent = pct + '%';
+}
+
+// ==================== Radar Chart ====================
+function initRadarChart() {
+  const ctx = document.getElementById('radarChart').getContext('2d');
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+  gradient.addColorStop(0, 'rgba(79,70,229,0.20)');
+  gradient.addColorStop(1, 'rgba(124,58,237,0.06)');
+
+  new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: ['表达清晰度', '技术深度', '逻辑思维', '沟通能力', '应变能力', '专业知识'],
+      datasets: [{
+        label: '本次面试',
+        data: [88, 82, 90, 85, 78, 86],
+        backgroundColor: gradient,
+        borderColor: '#4F46E5',
+        borderWidth: 2,
+        pointBackgroundColor: '#4F46E5',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2.5,
+        pointRadius: 5,
+        pointHoverRadius: 8,
+        pointHoverBackgroundColor: '#7C3AED',
+      }, {
+        label: '目标水平',
+        data: [85, 85, 85, 85, 85, 85],
+        backgroundColor: 'transparent',
+        borderColor: '#CBD5E1',
+        borderWidth: 1.5,
+        borderDash: [5, 4],
+        pointBackgroundColor: '#CBD5E1',
+        pointBorderColor: 'transparent',
+        pointRadius: 3,
+        pointHoverRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: '#64748B',
+            font: { size: 12, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+            padding: 20,
+            usePointStyle: true,
+            pointStyleWidth: 8,
+          }
+        },
+        tooltip: {
+          backgroundColor: '#FFFFFF',
+          titleColor: '#0F172A',
+          bodyColor: '#475569',
+          borderColor: '#E2E8F0',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 8,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+        }
+      },
+      scales: {
+        r: {
+          beginAtZero: false,
+          min: 40,
+          max: 100,
+          ticks: { display: false, stepSize: 15 },
+          grid: { color: '#E2E8F0' },
+          angleLines: { color: '#E2E8F0' },
+          pointLabels: {
+            color: '#475569',
+            font: { size: 11.5, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
+          },
+        }
+      }
+    }
+  });
+}
+
+// ==================== Metric Bar Animation ====================
+let metricsAnimated = false;
+function animateMetrics() {
+  if (metricsAnimated) return;
+  metricsAnimated = true;
+  document.querySelectorAll('.metric-fill[data-width]').forEach(bar => {
+    setTimeout(() => { bar.style.width = bar.dataset.width; }, 200);
+  });
+}
+
+// ==================== Init ====================
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    revealObserver.disconnect();
+    revealEls.forEach(el => {
+      const rect = el.getBoundingClientRect();
+      if (rect.top < window.innerHeight) el.classList.add('visible');
+    });
+    revealEls.forEach(el => revealObserver.observe(el));
+    animateMetrics();
+    initRadarChart();
+  }, 300);
+});
+
+// ==================== Smooth scroll for nav ====================
+navLinks.forEach(link => {
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    const target = document.querySelector(link.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth' });
+  });
+});
+</script>
+
+</body>
+</html>

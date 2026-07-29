@@ -3,7 +3,6 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.interview.mentor.mapper.EvaluationMapper">
 
-    <!-- 查询面试的所有评估（按题目序号排序） -->
     <select id="selectByInterviewId" resultType="com.interview.mentor.entity.Evaluation">
         SELECT *
         FROM t_evaluation
@@ -11,24 +10,12 @@
         ORDER BY question_index ASC
     </select>
 
-    <!-- HR修正评估 -->
-    <update id="hrCorrectEvaluation">
-        UPDATE t_evaluation
-        SET hr_score = #{hrScore},
-            hr_level = #{hrLevel},
-            hr_remark = #{hrRemark},
-            hr_edited_by = #{hrEditedBy},
-            hr_edited_at = NOW()
-        WHERE id = #{id}
-    </update>
-
-    <!-- 查询面试的评估统计 -->
     <select id="selectEvaluationStats" resultType="java.util.Map">
         SELECT
             COUNT(*) as total_questions,
-            AVG(COALESCE(hr_score, ai_score)) as avg_score,
-            SUM(CASE WHEN COALESCE(hr_level, ai_level) = '优秀' THEN 1 ELSE 0 END) as proficient_count,
-            SUM(CASE WHEN COALESCE(hr_level, ai_level) IN ('一般', '较差') THEN 1 ELSE 0 END) as weak_count
+            AVG(ai_score) as avg_score,
+            SUM(CASE WHEN ai_level = '优秀' THEN 1 ELSE 0 END) as proficient_count,
+            SUM(CASE WHEN ai_level IN ('一般', '较差') THEN 1 ELSE 0 END) as weak_count
         FROM t_evaluation
         WHERE interview_id = #{interviewId}
     </select>

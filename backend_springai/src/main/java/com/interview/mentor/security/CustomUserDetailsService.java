@@ -3,7 +3,6 @@ package com.interview.mentor.security;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.interview.mentor.entity.User;
 import com.interview.mentor.mapper.UserMapper;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -28,22 +27,15 @@ public class CustomUserDetailsService implements UserDetailsService {
         if (user == null) {
             throw new UsernameNotFoundException("用户不存在: " + username);
         }
-
         if (user.getStatus() == 0) {
             throw new UsernameNotFoundException("用户已被禁用: " + username);
         }
 
-        List<SimpleGrantedAuthority> authorities = userMapper.selectRoleCodesByUserId(user.getId())
-                .stream()
-                .map(SimpleGrantedAuthority::new)
-                .toList();
-
-        // 返回携带 userId 的 AuthUser：loadUserByUsername 本就加载了完整 User，userId 顺手带上
         return new AuthUser(
                 user.getId(),
                 user.getUsername(),
                 user.getPassword(),
-                authorities
+                List.of()
         );
     }
 }

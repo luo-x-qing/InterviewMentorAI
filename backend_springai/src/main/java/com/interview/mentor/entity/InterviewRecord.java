@@ -14,16 +14,13 @@ public class InterviewRecord {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private Long tenantId;
     private String title;
     private Long userId;
     private String jobRole;
     private Long createdBy;
-    private Long candidateId;
     private String audioFileId;
     private String audioFilePath;
     private Integer durationSeconds;
-    private String source;
     private String status;
     private String rawTranscript;
     private String dialogueJson;

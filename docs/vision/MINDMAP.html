@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>InterviewMentorAI 思维演进导图</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#0f172a;color:#e2e8f0;overflow-x:hidden}
+.header{padding:20px 28px;background:linear-gradient(180deg,#0f172a 0%,rgba(15,23,42,.95) 70%,transparent);position:sticky;top:0;z-index:100}
+.header h1{font-size:22px;font-weight:700;color:#f1f5f9}
+.header .sub{font-size:13px;color:#64748b;margin-top:2px}
+.badges{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.badge{font-size:11px;padding:2px 12px;border-radius:999px;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.25);color:#93c5fd}
+.badge.green{background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.25);color:#6ee7b7}
+.badge.amber{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.25);color:#fcd34d}
+.badge.purple{background:rgba(168,85,247,.15);border-color:rgba(168,85,247,.25);color:#d8b4fe}
+.main{max-width:960px;margin:0 auto;padding:0 24px 60px}
+
+/* ── 树形结构 ── */
+.tree,.tree ul{list-style:none;padding-left:0}
+.tree li{position:relative;padding-left:28px;margin:0}
+.tree li:before{content:"";position:absolute;left:10px;top:0;bottom:50%;width:2px;background:rgba(148,163,184,.2)}
+.tree li:last-child:before{height:0}
+.tree li:after{content:"";position:absolute;left:10px;top:50%;width:16px;height:2px;background:rgba(148,163,184,.2)}
+.tree>.root-item{padding-left:0}
+.tree>.root-item:before,.tree>.root-item:after{display:none}
+
+/* ── 节点卡片 ── */
+.node{position:relative;display:inline-block;padding:10px 16px;margin:6px 0;border-radius:8px;border:1px solid rgba(148,163,184,.12);background:rgba(30,41,59,.6);cursor:pointer;transition:all .2s;max-width:680px;backdrop-filter:blur(4px)}
+.node:hover{border-color:rgba(148,163,184,.3);background:rgba(51,65,85,.7);transform:translateX(4px)}
+.node .icon{display:inline-block;margin-right:6px}
+.node .title{font-weight:600;font-size:14px;color:#f1f5f9}
+.node .desc{font-size:12px;color:#94a3b8;margin-top:2px;line-height:1.5}
+.node .tag{display:inline-block;font-size:10px;padding:1px 8px;border-radius:999px;margin-right:4px;margin-top:4px}
+
+/* ── 颜色主题 ── */
+.c-blue{border-left:3px solid #60a5fa}
+.c-blue .tag{background:rgba(96,165,250,.15);color:#93c5fd}
+.c-green{border-left:3px solid #34d399}
+.c-green .tag{background:rgba(52,211,153,.15);color:#6ee7b7}
+.c-amber{border-left:3px solid #f59e0b}
+.c-amber .tag{background:rgba(245,158,11,.15);color:#fcd34d}
+.c-purple{border-left:3px solid #a78bfa}
+.c-purple .tag{background:rgba(167,139,250,.15);color:#c4b5fd}
+.c-pink{border-left:3px solid #f472b6}
+.c-pink .tag{background:rgba(244,114,182,.15);color:#f9a8d4}
+.c-cyan{border-left:3px solid #22d3ee}
+.c-cyan .tag{background:rgba(34,211,238,.15);color:#67e8f9}
+
+/* ── 折叠 ── */
+.toggle{position:absolute;left:-14px;top:50%;transform:translateY(-50%);width:18px;height:18px;border-radius:4px;border:1px solid rgba(148,163,184,.25);background:rgba(30,41,59,.8);color:#94a3b8;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5;transition:all .2s;line-height:1}
+.toggle:hover{border-color:#60a5fa;color:#60a5fa;background:rgba(59,130,246,.15)}
+.toggle.collapsed+.subtree{display:none}
+.subtree{padding-left:0}
+.node-content{display:flex;flex-direction:column;gap:2px}
+
+/* ── 图例 ── */
+.legend{display:flex;flex-wrap:wrap;gap:12px;padding:16px 0;margin:20px 0;border-top:1px solid rgba(148,163,184,.1);border-bottom:1px solid rgba(148,163,184,.1)}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#64748b}
+.legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+
+/* ── 总结区域 ── */
+.summary{background:rgba(30,41,59,.4);border:1px solid rgba(148,163,184,.1);border-radius:12px;padding:20px 24px;margin:28px 0}
+.summary h3{font-size:15px;font-weight:600;color:#f1f5f9;margin-bottom:10px}
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.summary-card{background:rgba(15,23,42,.5);border-radius:8px;padding:12px 14px;border:1px solid rgba(148,163,184,.08)}
+.summary-card .num{font-size:20px;font-weight:700;color:#60a5fa}
+.summary-card .label{font-size:11px;color:#64748b;margin-top:1px}
+.summary-card .desc{font-size:12px;color:#94a3b8;margin-top:4px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🧠 InterviewMentorAI · 思维演进全景</h1>
+  <div class="sub">追踪每一次变更背后的思考逻辑 · 基于全 Git 提交自动生成 · 2026-07-29</div>
+  <div class="badges">
+    <span class="badge">💡 12 次决策节点</span>
+    <span class="badge green">🏗️ 4 轮架构重构</span>
+    <span class="badge amber">🔁 3 次代码质量升级</span>
+    <span class="badge purple">🧪 测试覆盖 78→103</span>
+  </div>
+</div>
+
+<div class="main">
+
+<div class="legend">
+  <span class="legend-item"><span class="legend-dot" style="background:#60a5fa"></span>初始搭建</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#34d399"></span>能力升级</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span>架构决策</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#a78bfa"></span>质量加固</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#f472b6"></span>规模化SaaS</span>
+</div>
+
+<ul class="tree" id="treeRoot">
+
+<!-- ============ 根节点 ============ -->
+<li class="root-item">
+  <div class="node c-cyan" style="border-left-color:#22d3ee;background:linear-gradient(135deg,rgba(34,211,238,.08),rgba(59,130,246,.05))">
+    <div class="node-content">
+      <div class="title">🤔 初衷: 做个AI面试复盘助手</div>
+      <div class="desc">一键录音 → Agent自动生成会议纪要 &amp; 评估报告 · 最初的想法就这么简单直接</div>
+    </div>
+  </div>
+
+  <ul class="subtree">
+
+    <!-- ====== 节点1 ====== -->
+    <li>
+      <span class="toggle" onclick="toggle(this)">−</span>
+      <div class="node c-blue">
+        <div class="node-content">
+          <div class="title"><span class="icon">📌</span>决策1: 项目初始化 · 07-11</div>
+          <div class="desc">建立仓库，从零开始</div>
+          <div><span class="tag">49d6d14</span></div>
+        </div>
+      </div>
+      <ul class="subtree">
+        <li><div class="node c-blue"><div class="node-content"><div class="title">💭 思维: 先有个项目再说</div><div class="desc">创建GitHub仓库 + 2行README · 迈出第一步就是胜利</div></div></div></li>
+      </ul>
+    </li>
+
+    <!-- ====== 节点2 ====== -->
+    <li>
+      <span class="toggle" onclick="toggle(this)">−</span>
+      <div class="node c-blue">
+        <div class="node-content">
+          <div class="title"><span class="icon">📌</span>决策2: 搭骨架 · 07-11</div>
+          <div class="desc">标准前后端分离 + Flutter跨平台</div>
+          <div><span class="tag">e59e2a3</span><span class="tag">170文件 / 6,643行</span></div>
+        </div>
+      </div>
+      <ul class="subtree">
+        <li><div class="node c-blue"><div class="node-content"><div class="title">💭 思维: 选最熟悉的 Spring Boot + Flutter 快速出原型</div><div class="desc">Java做后端 · Flutter做前端(安卓/iOS/Web/桌面) · 一套代码全平台</div></div></div></li>
+        <li><div class="node c-blue"><div class="node-content"><div class="title">⚙️ 做了什么</div><div class="desc">Java: 控制器/实体/服务/MyBatis · Flutter: 首页/录音/报告 · 文档: 架构/API/面试讲解</div></div></div></li>
+        <li><div class="node c-blue"><div class="node-content"><div class="title" style="color:#60a5fa">💡 思维特征: 工具驱动 · 先用顺手的框架搭起来再说</div></div></div></li>
+      </ul>
+    </li>
+
+    <!-- ====== 节点3 ====== -->
+    <li>
+      <span class="toggle" onclick="toggle(this)">−</span>
+      <div class="node c-green">
+        <div class="node-content">
+          <div class="title"><span class="icon">📌</span>决策3: 加AI技能体系 · 07-14</div>
+          <div class="desc">引进Matt Pocock 20+ Agent技能，规范AI协作</div>
+          <div><span class="tag">0cf933f</span><span class="tag">138文件/6,417行</span></div>
+        </div>
+      </div>
+      <ul class="subtree">
+        <li><div class="node c-green"><div class="node-content"><div class="title">💭 思维: AI辅助开发不能凭感觉，需要标准化工作流</div><div class="desc">让AI Agent按规范帮我写代码，而不是每次自由发挥</div></div></div></li>
+        <li><div class="node c-green"><div class="node-content"><div class="title">⚙️ 做了什么</div><div class="desc">导入20+技能(code-review/tdd/implement等) · 配置AGENTS.md全局指令 · 建立.agents+.claude双目录</div></div></div></li>
+        <li><div class="node c-green"><div class="node-content"><div class="title" style="color:#34d399">💡 思维特征: 元认知 · 先建立AI协作规范再写业务代码</div></div></div></li>
+      </ul>
+    </li>
+
+    <!-- ====== 节点4 ====== -->
+    <li>
+      <span class="toggle" onclick="toggle(this)">−</span>
+      <div class="node c-amber">
+        <div class="node-content">
+          <div class="title"><span class="icon">📌</span>决策4: 双后端分裂 · 07-15</div>
+          <div class="desc">Java管业务 · Python管AI · 最关键的架构分水岭</div>
+          <div><span class="tag">0256724</span><span class="tag">41文件/2,376行变更</span></div>
+        </div>
+      </div>
+      <ul class="subtree">
+        <li><div class="node c-amber"><div class="node-content"><div class="title">😖 困惑: Java写AI服务太别扭了</div><div class="desc">AsrService / LlmService / AgentGraph … 这些在Java里写得很难受</div></div></div></li>
+        <li><div class="node c-amber"><div class="node-content"><div class="title">🤔 思考: AI生态是Python的天下, 何必用Java硬扛?</div><div class="desc">Java做擅长的事(业务/API/数据) · Python做擅长的事(LLM/ASR/Agent流水线)</div></div></div></li>
+        <li><div class="node c-amber"><div class="node-content"><div class="title" style="color:#f59e0b">⚠️ 转折点: 这是项目最关键的架构分水岭</div><div class="desc">删Java AI服务(6个文件) · 新建Python FastAPI后端(707行) · 实现AgentPipeline 5步流水线 · 新增WebSocket+异常处理</div></div></div></li>
+        <li><div class="node c-amber"><div class="node-content"><div class="title" style="color:#f59e0b">💡 思维特征: 反思 · 发现技术栈错配, 果断重构</div></div></div></li>
+      </ul>
+    </li>
+
+    <!-- ====== 节点5 ====== -->
+    <li>
+      <span class="toggle" onclick="toggle(this)">−</span>
+      <div class="node c-green">
+        <div class="node-content">
+          <div class="title"><span class="icon">📌</span>决策5: 先学RAG再做RAG · 07-16</div>
+          <div class="desc">建立RAG学习中心 · 而不是直接写代码</div>
+          <div><span class="tag">暂存工作</span><span class="tag">9门课程/2,890行</span></div>
+        </div>
+      </div>
+      <ul class="subtree">
+        <li><div class="node c-green"><div class="node-content"><div class="title">😖 困惑: RAG到底是什么? 向量数据库? 检索增强?</div><div class="desc">不懂RAG的具体实现原理, 概念模糊</div></div></div></li>
+        <li><div class="node c-green"><div class="node-content"><div class="title">🤔 思考: 不懂硬写=写垃圾, 不如先系统学习</div><div class="desc">先建立知识体系再动手, 减少试错成本</div></div></div></li>
+        <li><div class="node c-green"><div class="node-content"><div class="title">⚙️ 做了什么</div><div class="desc">MISSION/RESOURCES/NOTES学习体系 · 9门RAG课程(概念→分块→向量→检索→评估) · teaching-workspace</div></div></div></li>
+        <li><div class="node c-green"><div class="node-content"><div class="title" style="color:#34d399">💡 思维特征: 理性克制 · 拒绝盲目编码, 先学透再下手</div></div></div></li>
+      </ul>
+    </li>
+
+    <!-- ====== 节点6 ====== -->
+    <li>
+      <span class="toggle" onclick="toggle(this)">−</span>
+      <div class="node c-green">
+        <div class="node-content">
+          <div class="title"><span class="icon">📌</span>决策6: 动手实现RAG · 07-16</div>
+          <div class="desc">学完立即落地 · 趁热打铁</div>
+          <div><span class="tag">de8fbcc</span><span class="tag">51文件/7,659行</span></div>
+        </div>
+      </div>
+      <ul class="subtree">
+        <li><div class="node c-green"><div class="node-content"><div class="title">💭 思考: 学完了, 该实战了! 把RAG塞进Python后端</div></div></div></li>
+        <li><div class="node c-green"><div class="node-content"><div class="title">⚙️ 做了什么</div><div class="desc">RagService检索系统 · RagMCP调度层 · doc_converter文档转换 · 11份面试题库 · VectorDB(sqlite-vec) · 开发日志+架构文档</div></div></div></li>
+      </ul>
+    </li>
+
+    <!-- ====== 节点7 ====== -->
+    <li>
+      <span class="toggle" onclick="toggle(this)">−</span>
+      <div class="node c-blue">
+        <div class="node-content">
+          <div class="title"><span class="icon">📌</span>决策7: 补全API+知识库 · 07-16</div>
+          <div class="desc">RAG服务需要API暴露给前端</div>
+          <div><span class="tag">607459c</span><span class="tag">28文件/840行</span></div>
+        </div>
+      </div>
+      <ul class="subtree">
+        <li><div class="node c-blue"><div class="node-content"><div class="title">💭 思维: RAG服务有了, 还需要API接口</div><div class="desc">新增knowledge_api/retrieval_api/mcp_debug_api · knowledge_service · 修复Java GBK编码</div></div></div></li>
+        <li><div class="node c-blue"><div class="node-content"><div class="title" style="color:#60a5fa">💡 思维特征: 务实 · 代码完成度导向, 接口先行</div></div></div></li>
+      </ul>
+    </li>
+
+    <!-- ====== 节点8 ====== -->
+    <li>
+      <span class="toggle" onclick="toggle(this)">−</span>
+      <div class="node c-pink">
+        <div class="node-content">
+          <div class="title"><span class="icon">📌</span>决策8: SaaS企业级升级 · 07-17</div>
+          <div class="desc">从个人工具 → 企业级SaaS平台的跨越</div>
+          <div><span class="tag">50fd704</span><span class="tag">113文件/10,577行</span></div>
+        </div>
+      </div>
+      <ul class="subtree">
+        <li><div class="node c-pink"><div class="node-content"><div class="title">💡 顿悟: 这个工具可以做SaaS! 卖给企业!</div><div class="desc">如果做SaaS, 架构必须企业级</div></div></div></li>
+        <li><div class="node c-pink"><div class="node-content"><div class="title">⚙️ 全面升级</div><div class="desc">Java 17 + Spring Boot 3.2.5 · 多租户(TenantContext+Filter) · JWT双Token · RBAC三层角色 · STOMP WebSocket · 异步线程池 · 8个Controller/34个API · 7+8张表 · 9门SaaS课程</div></div></div></li>
+        <li><div class="node c-pink"><div class="node-content"><div class="title" style="color:#f472b6">⚠️ 转折点: 从个人工具到企业级SaaS平台的跨越</div></div></div></li>
+        <li><div class="node c-pink"><div class="node-content"><div class="title" style="color:#f472b6">💡 思维特征: 格局打开 · 发现更大价值, 果断升级架构</div></div></div></li>
+      </ul>
+    </li>
+
+    <!-- ====== 节点9 ====== -->
+    <li>
+      <span class="toggle" onclick="toggle(this)">−</span>
+      <div class="node c-purple">
+        <div class="node-content">
+          <div class="title"><span class="icon">📌</span>决策9: Python后端重构 · 07-20</div>
+          <div class="desc">清理死代码 + SRP拆分 + BM25 + 测试</div>
+          <div><span class="tag">f0dc06c</span><span class="tag">23文件/1,954行</span></div>
+        </div>
+      </div>
+      <ul class="subtree">
+        <li><div class="node c-purple"><div class="node-content"><div class="title">😖 不满: RAG实现太糙了, 代码耦合严重, 没有测试</div></div></div></li>
+        <li><div class="node c-purple"><div class="node-content"><div class="title">🤔 思考: 趁早大重构, 不要等技术债压垮</div><div class="desc">拆分llm_client/prompt_service · 重写rag_api(删258行) · BM25优化 · 新增8个测试文件 · 架构评审报告</div></div></div></li>
+      </ul>
+    </li>
+
+    <!-- ====== 节点10 ====== -->
+    <li>
+      <span class="toggle" onclick="toggle(this)">−</span>
+      <div class="node c-purple">
+        <div class="node-content">
+          <div class="title"><span class="icon">📌</span>决策10: 6项深度优化 · 07-21</div>
+          <div class="desc">架构优化方案落地 · 不留死角</div>
+          <div><span class="tag">c6d68a8</span><span class="tag">32文件/2,944行</span></div>
+        </div>
+      </div>
+      <ul class="subtree">
+        <li><div class="node c-purple"><div class="node-content"><div class="title">😖 不满: 重构不够深, 还有6个架构问题</div></div></div></li>
+        <li><div class="node c-purple"><div class="node-content"><div class="title">🧠 逐项解决</div><div class="desc">① RAG拆分: Chunking/Embedding/Reranker三大独立服务 · ② 异步升级: asyncio.gather并发 · ③ 配置: Pydantic BaseSettings · ④ 异常: exceptions.py分层体系 · ⑤ 全链路DI · ⑥ 测试: 78→103用例</div></div></div></li>
+        <li><div class="node c-purple"><div class="node-content"><div class="title" style="color:#a78bfa">💡 思维特征: 极致的工匠精神 · 不满足于能用, 要优雅</div></div></div></li>
+      </ul>
+    </li>
+
+    <!-- ====== 节点11 ====== -->
+    <li>
+      <span class="toggle" onclick="toggle(this)">−</span>
+      <div class="node c-pink">
+        <div class="node-content">
+          <div class="title"><span class="icon">📌</span>决策11: 多租户+AI打通 · 07-23</div>
+          <div class="desc">行隔离 + 适配器 + 知识库扁平化</div>
+          <div><span class="tag">8525f37</span><span class="tag">45文件/2,117行</span></div>
+        </div>
+      </div>
+      <ul class="subtree">
+        <li><div class="node c-pink"><div class="node-content"><div class="title">🔍 发现3个问题</div><div class="desc">① 租户还是schema隔离旧代码不安全 · ② Java和Python通信没统一封装 · ③ 知识库三层模型和Python RAG不对齐</div></div></div></li>
+        <li><div class="node c-pink"><div class="node-content"><div class="title">⚙️ 系统解决</div><div class="desc">Schema→行级隔离(MyBatis-Plus拦截器) · JWT携带tenantId · PythonAiClient适配器 · AiAnalysisRunner编排异步+WebSocket · 知识库扁平化(单表) · ReportService upsert幂等 · ADR记录</div></div></div></li>
+        <li><div class="node c-pink"><div class="node-content"><div class="title" style="color:#f472b6">💡 思维特征: 系统思维 · 一次解决多个关联问题</div></div></div></li>
+      </ul>
+    </li>
+
+    <!-- ====== 节点12 ====== -->
+    <li>
+      <span class="toggle" onclick="toggle(this)">−</span>
+      <div class="node c-pink" style="border-left-color:#f472b6;background:linear-gradient(135deg,rgba(244,114,182,.06),rgba(59,130,246,.04))">
+        <div class="node-content">
+          <div class="title"><span class="icon">🏆</span>决策12: MVP v1.0竣工 · 07-24</div>
+          <div class="desc">全功能封顶: CI/CD + Docker + E2E</div>
+          <div><span class="tag">883f115 ← HEAD</span><span class="tag">31文件/3,128行</span></div>
+        </div>
+      </div>
+      <ul class="subtree">
+        <li><div class="node c-pink"><div class="node-content"><div class="title">💭 思考: 核心功能都齐了, 打一个完整版</div></div></div></li>
+        <li><div class="node c-pink"><div class="node-content"><div class="title">⚙️ 最终拼图</div><div class="desc">GitHub Actions CI(3并行Job) · Docker三容器编排(java+python+mysql) · Flutter完善(登录/HR修正/邀请码/WebSocket) · Python E2E测试 · Java集成测试</div></div></div></li>
+        <li><div class="node c-pink"><div class="node-content"><div class="title" style="color:#f472b6">🏆 项目里程碑: 14天从0到全功能MVP v1.0!</div></div></div></li>
+      </ul>
+    </li>
+
+  </ul><!-- /subtree -->
+</li><!-- /root-item -->
+</ul>
+
+<!-- ============ 思维模式总结 ============ -->
+<div class="summary">
+  <h3>🧠 你的思维模式总结</h3>
+  <div class="summary-grid">
+
+    <div class="summary-card">
+      <div class="num">🔄</div>
+      <div class="label">迭代循环</div>
+      <div class="desc">搭建→不满→重构→满意→发现新问题→再重构。12次提交=12次"不满→改进"循环</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="num">📚</div>
+      <div class="label">学而后做</div>
+      <div class="desc">不懂RAG？先建学习中心学9门课再动手。你相信"懂了再写"比"边写边猜"快得多</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="num">⚡</div>
+      <div class="label">技术匹配</div>
+      <div class="desc">Java写AI太别扭→果断拆双后端。什么语言做什么事, 不硬扛</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="num">🚀</div>
+      <div class="label">格局升级</div>
+      <div class="desc">做着做着发现"这可以做成SaaS卖钱"→整个Java后端推倒重写。眼光在变</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="num">🔧</div>
+      <div class="label">工匠精神</div>
+      <div class="desc">重构了一次还不够, 又做了6项深度优化。测试78→103。不满足于"能用"</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="num">🎯</div>
+      <div class="label">系统思维</div>
+      <div class="desc">一次发现3个问题(租户/通信/知识库), 一起解决。不留死角</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============ 思维延伸预测 ============ -->
+<div class="summary" style="border-left:3px solid #22d3ee">
+  <h3>🔮 按照你的思维模式, 下一步大概率会怎么想?</h3>
+  <div class="summary-grid">
+    <div class="summary-card" style="border-left:2px solid #60a5fa">
+      <div class="label" style="color:#60a5fa">😖 你会不满</div>
+      <div class="desc">"RAG评估准确率还是不够高 / 知识库太少 / E2E测试不全 / 性能不够"</div>
+    </div>
+    <div class="summary-card" style="border-left:2px solid #34d399">
+      <div class="label" style="color:#34d399">📚 你会学习</div>
+      <div class="desc">研究混合检索优化 / Self-RAG / Graph RAG / 缓存策略</div>
+    </div>
+    <div class="summary-card" style="border-left:2px solid #f472b6">
+      <div class="label" style="color:#f472b6">🚀 你会发现新机会</div>
+      <div class="desc">"这可以做面试培训平台 → 加视频/直播" / "可以对接招聘平台 → API生态"</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<script>
+function toggle(el) {
+  var sub = el.parentElement.querySelector('.subtree');
+  if (!sub) return;
+  if (sub.style.display === 'none') {
+    sub.style.display = '';
+    el.textContent = '−';
+  } else {
+    sub.style.display = 'none';
+    el.textContent = '+';
+  }
+}
+</script>
+</body>
+</html>

@@ -45,8 +45,11 @@
 | 组件 | 文件 | 职责 |
 |------|------|------|
 | **向量数据库** | `core/vector_db.py` | SQLite + sqlite-vec，存储文本和向量，支持 BM25 和向量检索 |
-| **LLM 服务** | `services/llm_service.py` | 封装 DashScope/OpenAI 调用，支持流式/非流式 |
-| **RAG 业务层** | `services/rag_service.py` | 文档分块、向量化、混合检索、重排序 |
+| **LLM 客户端** | `services/llm_client.py` | 封装 DashScope/OpenAI 调用，支持流式/非流式 |
+| **文档分块** | `services/chunking_service.py` | 文档分段（500字符窗口，100重叠） |
+| **向量化服务** | `services/embedding_service.py` | DashScope Embedding + 本地缓存 |
+| **重排序服务** | `services/reranker_service.py` | Cross-Encoder 相关性重排序 |
+| **RAG 编排层** | `services/rag_service.py` | 混合检索（向量+BM25）编排 |
 | **MCP 调度层** | `services/rag_mcp.py` | 上下文组装、长度截断、LLM 增强调用 |
 | **知识库服务** | `services/knowledge_service.py` | 文档导入、分块、向量化入库 |
 | **Agent 流水线** | `services/agent_pipeline.py` | 编排 ASR → 分离 → RAG → 评估 → 报告 |
@@ -189,6 +192,12 @@ POST /api/v1/analysis/analyze
 | `/api/v1/rag/chunks/preview` | POST | 分块预览 |
 | `/api/v1/rag/knowledge/stats` | GET | 知识库统计 |
 
+### 检索接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/v1/rag/retrieve` | POST | 检索调试 |
+
 ### MCP 调试接口
 
 | 接口 | 方法 | 说明 |
@@ -283,7 +292,7 @@ API 文档: `http://localhost:8000/docs`
 
 ## 与 Java 后端的交互
 
-Python 后端不感知租户概念，所有多租户逻辑由 Java 侧处理。
+Python 后端为无状态 AI 服务，不参与业务认证与租户隔离，仅接收 Java 后端的分析请求。
 
 ```
 Java 后端 (@Async)

@@ -12,17 +12,9 @@ import javax.sql.DataSource;
 import jakarta.annotation.PostConstruct;
 import java.sql.Connection;
 
-/**
- * 租户表初始化器 —— 应用启动时自动执行 schema-tenant.sql 建表（幂等，使用 IF NOT EXISTS）。
- * <p>
- * 项目已从 schema-per-tenant 迁移到行级隔离（共享 schema + tenant_id 列），
- * 所有租户业务表只需创建一次。本初始化器确保启动后租户表已存在，
- * 消除手动执行 SQL 的部署步骤。
- * </p>
- */
 @Component
 @DependsOn("dataSource")
-@ConditionalOnProperty(name = "tenant.tables.auto-init", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "app.tables.auto-init", havingValue = "true", matchIfMissing = true)
 public class TenantTableInitializer {
 
     private static final Logger log = LoggerFactory.getLogger(TenantTableInitializer.class);
@@ -33,14 +25,14 @@ public class TenantTableInitializer {
     }
 
     @PostConstruct
-    public void initTenantTables() {
+    public void initTables() {
         try (Connection conn = dataSource.getConnection()) {
-            ClassPathResource resource = new ClassPathResource("schema-tenant.sql");
-            log.info("正在执行租户表初始化脚本: schema-tenant.sql");
+            ClassPathResource resource = new ClassPathResource("schema.sql");
+            log.info("正在执行建表脚本: schema.sql");
             ScriptUtils.executeSqlScript(conn, resource);
-            log.info("租户表初始化完成（IF NOT EXISTS 保证幂等）");
+            log.info("建表初始化完成（IF NOT EXISTS 保证幂等）");
         } catch (Exception e) {
-            log.warn("租户表初始化失败（可能已存在或数据库未就绪）: {}", e.getMessage());
+            log.warn("建表初始化失败（可能已存在或数据库未就绪）: {}", e.getMessage());
         }
     }
 }

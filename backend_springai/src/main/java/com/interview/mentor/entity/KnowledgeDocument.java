@@ -14,7 +14,6 @@ public class KnowledgeDocument {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private Long tenantId;
     private String title;
     private String content;
     private String docType;

@@ -6,7 +6,6 @@ import com.interview.mentor.entity.KnowledgeDocument;
 import com.interview.mentor.entity.dto.resp.Result;
 import com.interview.mentor.security.SecurityUtils;
 import com.interview.mentor.service.KnowledgeService;
-import com.interview.mentor.tenant.TenantContext;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -19,76 +18,56 @@ public class KnowledgeController {
         this.knowledgeService = knowledgeService;
     }
 
-    /**
-     * 创建知识库文档
-     */
     @PostMapping
-    public Result<KnowledgeDocument> createDocument(
-            @RequestBody KnowledgeDocument document) {
-        Long tenantId = TenantContext.getTenantId();
+    public Result<KnowledgeDocument> createDocument(@RequestBody KnowledgeDocument document) {
         Long userId = SecurityUtils.currentUserId();
-        KnowledgeDocument created = knowledgeService.createDocument(document, tenantId, userId);
+        KnowledgeDocument created = knowledgeService.createDocument(document, userId);
         return Result.success(created);
     }
 
-    /**
-     * 更新知识库文档
-     */
     @PutMapping("/{id}")
     public Result<KnowledgeDocument> updateDocument(
             @PathVariable Long id,
             @RequestBody KnowledgeDocument document) {
-        Long tenantId = TenantContext.getTenantId();
-        KnowledgeDocument updated = knowledgeService.updateDocument(id, document, tenantId);
+        Long userId = SecurityUtils.currentUserId();
+        KnowledgeDocument updated = knowledgeService.updateDocument(id, document, userId);
         return Result.success(updated);
     }
 
-    /**
-     * 删除知识库文档
-     */
     @DeleteMapping("/{id}")
     public Result<Void> deleteDocument(@PathVariable Long id) {
-        Long tenantId = TenantContext.getTenantId();
-        knowledgeService.deleteDocument(id, tenantId);
+        Long userId = SecurityUtils.currentUserId();
+        knowledgeService.deleteDocument(id, userId);
         return Result.success();
     }
 
-    /**
-     * 查询文档详情
-     */
     @GetMapping("/{id}")
     public Result<KnowledgeDocument> getDocument(@PathVariable Long id) {
-        Long tenantId = TenantContext.getTenantId();
-        KnowledgeDocument document = knowledgeService.getDocument(id, tenantId);
+        Long userId = SecurityUtils.currentUserId();
+        KnowledgeDocument document = knowledgeService.getDocument(id, userId);
         return Result.success(document);
     }
 
-    /**
-     * 分页查询文档列表
-     */
     @GetMapping("/list")
     public Result<IPage<KnowledgeDocument>> listDocuments(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String docType,
             @RequestParam(required = false) String jobRole) {
-        Long tenantId = TenantContext.getTenantId();
+        Long userId = SecurityUtils.currentUserId();
         IPage<KnowledgeDocument> result = knowledgeService.listDocuments(
-                new Page<>(page, size), tenantId, docType, jobRole);
+                new Page<>(page, size), userId, docType, jobRole);
         return Result.success(result);
     }
 
-    /**
-     * 搜索文档
-     */
     @GetMapping("/search")
     public Result<IPage<KnowledgeDocument>> searchDocuments(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam String keyword) {
-        Long tenantId = TenantContext.getTenantId();
+        Long userId = SecurityUtils.currentUserId();
         IPage<KnowledgeDocument> result = knowledgeService.searchDocuments(
-                new Page<>(page, size), tenantId, keyword);
+                new Page<>(page, size), userId, keyword);
         return Result.success(result);
     }
 }

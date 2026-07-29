@@ -15,7 +15,6 @@ public class Evaluation {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private Long tenantId;
     private Long interviewId;
     private Integer questionIndex;
     private String question;
@@ -26,10 +25,5 @@ public class Evaluation {
     private String aiWeaknesses;
     private String aiCorrection;
     private String aiKnowledgePoints;
-    private BigDecimal hrScore;
-    private String hrLevel;
-    private String hrRemark;
-    private Long hrEditedBy;
-    private LocalDateTime hrEditedAt;
     private LocalDateTime createdAt;
 }

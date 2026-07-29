@@ -17,9 +17,6 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    /** 请求属性名：JwtAuthenticationFilter 解析出的租户ID，供 TenantContextFilter 读取 */
-    public static final String TENANT_ID_ATTRIBUTE = "com.interview.mentor.TENANT_ID";
-
     private final JwtTokenProvider tokenProvider;
     private final CustomUserDetailsService userDetailsService;
 
@@ -46,12 +43,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     new WebAuthenticationDetailsSource().buildDetails(request));
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
-
-            // 从已验签 token 取租户ID，交给后置的 TenantContextFilter 建立租户上下文
-            Long tenantId = tokenProvider.getTenantIdFromToken(token);
-            if (tenantId != null) {
-                request.setAttribute(TENANT_ID_ATTRIBUTE, tenantId);
-            }
         }
 
         filterChain.doFilter(request, response);

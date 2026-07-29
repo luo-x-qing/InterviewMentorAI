@@ -20,7 +20,6 @@ public class User {
     private String email;
     private String phone;
     private String avatarUrl;
-    private Long tenantId;
     private Integer status;
     private LocalDateTime lastLoginAt;
     private LocalDateTime createdAt;

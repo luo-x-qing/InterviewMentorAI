@@ -1,8 +1,10 @@
 ---
-status: accepted
+status: superseded
 ---
 
-# 多租户隔离采用共享 schema + 行级 tenant_id，而非 schema-per-tenant
+# [已废弃] 多租户隔离采用共享 schema + 行级 tenant_id，而非 schema-per-tenant
+
+> **2026-07-29 废弃**：项目已去掉多租户/企业模式，改为纯个人用户架构。所有 `tenant_id` 字段、`TenantContext`、租户拦截器、RBAC 角色体系已删除，数据库合并为单库单 schema。详见最新 schema.sql。
 
 ## 决策
 

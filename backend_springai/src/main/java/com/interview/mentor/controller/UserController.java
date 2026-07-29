@@ -4,8 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.interview.mentor.entity.User;
 import com.interview.mentor.entity.dto.resp.Result;
 import com.interview.mentor.exception.BusinessException;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.interview.mentor.entity.User;
+import com.interview.mentor.entity.dto.resp.Result;
+import com.interview.mentor.exception.BusinessException;
 import com.interview.mentor.mapper.UserMapper;
-import com.interview.mentor.mapper.UserRoleMapper;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -18,14 +21,11 @@ import java.util.Map;
 public class UserController {
 
     private final UserMapper userMapper;
-    private final UserRoleMapper userRoleMapper;
     private final PasswordEncoder passwordEncoder;
 
     public UserController(UserMapper userMapper,
-                         UserRoleMapper userRoleMapper,
-                         PasswordEncoder passwordEncoder) {
+                          PasswordEncoder passwordEncoder) {
         this.userMapper = userMapper;
-        this.userRoleMapper = userRoleMapper;
         this.passwordEncoder = passwordEncoder;
     }
 

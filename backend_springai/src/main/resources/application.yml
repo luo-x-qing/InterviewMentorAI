@@ -9,10 +9,9 @@ spring:
   application:
     name: interview-mentor-ai-java
 
-  # MySQL 数据库配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/platform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    url: jdbc:mysql://localhost:3306/interview_mentor?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     username: root
     password: ${MYSQL_PASSWORD:root}
     hikari:
@@ -22,13 +21,11 @@ spring:
       max-lifetime: 1800000
       connection-timeout: 30000
 
-  # SQL 初始化 (首次启动建表)
   sql:
     init:
       mode: never
-      schema-locations: classpath:schema-platform.sql
+      schema-locations: classpath:schema.sql
 
-# Python AI 后端配置
 python:
   ai:
     backend:
@@ -36,23 +33,15 @@ python:
       connect-timeout: 10000
       read-timeout: 120000
 
-# 音频文件存储配置
 audio:
   storage:
     path: ${AUDIO_STORAGE_PATH:./data/audio}
 
-# JWT 配置
 jwt:
   secret: ${JWT_SECRET:InterviewMentorAI-2026-Super-Secret-Key-At-Least-256-Bits-Long}
-  access-token-expiration: 7200000    # 2小时 (毫秒)
-  refresh-token-expiration: 604800000 # 7天 (毫秒)
+  access-token-expiration: 7200000
+  refresh-token-expiration: 604800000
 
-# 多租户配置
-tenant:
-  default-tenant-id: 1
-  default-tenant-schema: platform
-
-# 异步线程池配置
 async:
   core-pool-size: 4
   max-pool-size: 8

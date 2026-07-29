@@ -13,13 +13,12 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
-      MYSQL_DATABASE: platform
+      MYSQL_DATABASE: interview_mentor
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./backend_springai/src/main/resources/schema-platform.sql:/docker-entrypoint-initdb.d/01-platform.sql
-      - ./backend_springai/src/main/resources/schema-tenant.sql:/docker-entrypoint-initdb.d/02-tenant.sql
+      - ./backend_springai/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-init.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s

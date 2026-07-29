@@ -16,7 +16,5 @@ public class AuthResponse {
         private String username;
         private String nickname;
         private String email;
-        private Long tenantId;
-        private String roleCode;
     }
 }
