@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:frontend_flutter/services/auth_service.dart';
@@ -68,11 +69,11 @@ class ApiService {
     return dio;
   }
 
-  /// 上传音频文件，交给后端 AI 分析
-  static Future<Map<String, dynamic>> uploadAudioFile(String filePath) async {
+  /// 上传音频字节数据，交给后端 AI 分析
+  static Future<Map<String, dynamic>> uploadAudioBytes(Uint8List bytes) async {
     try {
       FormData formData = FormData.fromMap({
-        "audioFile": await MultipartFile.fromFile(filePath),
+        "audioFile": MultipartFile.fromBytes(bytes, filename: 'recording.wav'),
       });
       Response resp = await _dio.post(Constants.uploadAudioApi, data: formData);
       return resp.data;
@@ -84,7 +85,7 @@ class ApiService {
 
   /// 获取历史面试记录列表
   static Future<Map<String, dynamic>> getRecordList() async {
-    Response resp = await _dio.get(Constants.recordListApi);
+    Response resp = await _dio.get(Constants.interviewListApi);
     return resp.data;
   }
 }

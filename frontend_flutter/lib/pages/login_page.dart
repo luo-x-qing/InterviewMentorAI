@@ -211,18 +211,20 @@ class _LoginPageState extends State<LoginPage>
             const SizedBox(height: 14),
             TextField(
               controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(
                 labelText: '邮箱（选填）', prefixIcon: Icon(Icons.email_outlined),
-                border: OutlineInputBorder(), keyboardType: TextInputType.emailAddress,
+                border: OutlineInputBorder(),
               ),
               textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 14),
             TextField(
               controller: _phoneCtrl,
+              keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
                 labelText: '手机号（选填）', prefixIcon: Icon(Icons.phone_outlined),
-                border: OutlineInputBorder(), keyboardType: TextInputType.phone,
+                border: OutlineInputBorder(),
               ),
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => _submit(),

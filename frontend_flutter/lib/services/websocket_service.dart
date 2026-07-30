@@ -1,7 +1,8 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:stomp_dart_client/stomp_dart_client.dart';
+import 'package:stomp_dart_client/stomp.dart';
+import 'package:stomp_dart_client/stomp_config.dart';
+import 'package:stomp_dart_client/stomp_handler.dart';
 import 'package:frontend_flutter/utils/constants.dart';
 
 /// 面试分析状态枚举
@@ -24,10 +25,9 @@ typedef ProgressCallback = void Function(AnalysisProgress status, String? messag
 /// - /topic/interview/{id}/error     — 分析失败推送
 class WebSocketService {
   StompClient? _client;
-  Timer? _reconnectTimer;
-  StreamSubscription? _progressSub;
-  StreamSubscription? _completeSub;
-  StreamSubscription? _errorSub;
+  StompUnsubscribe? _progressSub;
+  StompUnsubscribe? _completeSub;
+  StompUnsubscribe? _errorSub;
 
   AnalysisProgress _status = AnalysisProgress.idle;
   AnalysisProgress get status => _status;
@@ -114,9 +114,9 @@ class WebSocketService {
 
   /// 断开连接并清理资源
   void disconnect() {
-    _progressSub?.cancel();
-    _completeSub?.cancel();
-    _errorSub?.cancel();
+    _progressSub?.call();
+    _completeSub?.call();
+    _errorSub?.call();
     _client?.deactivate();
     _client = null;
     _status = AnalysisProgress.idle;

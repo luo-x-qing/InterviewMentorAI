@@ -57,10 +57,22 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       PYTHON_AI_BACKEND_URL: http://python-ai:8000
       AUDIO_STORAGE_PATH: /app/data/audio
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/interview_mentor?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
     ports:
-      - "8080:8080"
+      - "8081:8080"
     volumes:
       - java_data:/app/data
+
+  # ── Flutter Web 前端（nginx 伺服） ──
+  flutter-web:
+    build: ./frontend_flutter
+    container_name: mentor-flutter
+    restart: unless-stopped
+    depends_on:
+      java-api:
+        condition: service_started
+    ports:
+      - "80:80"
 
 volumes:
   mysql_data:

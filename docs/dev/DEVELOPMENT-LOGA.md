@@ -318,7 +318,8 @@ InterviewMentorAI/
 | 迭代3 | 138个 | 6,417行 | YAML/Markdown |
 | 迭代4 | 41个 | 2,376行 | Java/Python/Markdown |
 | 迭代5 | 15个 | 2,890行 | HTML/CSS/Markdown |
-| **总计** | **365个** | **18,328行** | - |
+| 迭代6 | 8个 | 1,472行 | Dart/Markdown |
+| **总计** | **373个** | **19,800行** | - |
 
 ### 技术栈演进
 ```
@@ -402,19 +403,50 @@ InterviewMentorAI/
 
 ## 总结
 
-InterviewMentorAI项目经过5次迭代，从空项目发展为具有完整架构的技术体系：
+InterviewMentorAI项目经过6次迭代，从空项目发展为具有完整架构的技术体系：
 
 1. **架构成熟**：从单体到双后端，职责清晰
 2. **技术储备**：Agent技能体系+RAG技术学习
 3. **开发规范**：标准化的工作流程和最佳实践
 4. **功能完整**：语音识别、说话人分离、智能评估、结构化报告
+5. **嵌入式录音 + 多报告支持**：录音嵌入面试流程、多份历史报告、模拟报告兜底
 
 项目已具备添加高级AI功能（RAG）的技术基础，下一步将进入核心功能的实现阶段。
 
 ---
 
-**日志版本：** v1.0  
-**编写日期：** 2026年7月16日  
-**总迭代次数：** 5次  
-**总代码量：** 18,328行  
+## 迭代6：嵌入式录音与多报告支持
+
+**提交信息：** `feat: 面试流程嵌入录音 + 多报告历史列表 + 模拟报告兜底`
+**提交哈希：** （待定）
+
+### 工作内容
+1. **录音嵌入面试流程**：移除独立录音页跳转，在「面试流程」Tab 中直接点击"开始回答"当前页面录音，停止后台上传并自动推进到下一步
+2. **多报告支持**：将单份 `_latestReport` 改为 `List<Map<String, dynamic>> _reports`，"评估报告"Tab 显示报告卡片列表，支持多份历史报告查看
+3. **模拟报告兜底**：后端不可用时，ReportPage 自动使用 `mockData()` 展示完整模拟报告（雷达图、评分、5 步 Markdown 分析），首次进入 Tab 也直接展示
+4. **STOMP 客户端适配**：修复 `stomp_dart_client 1.0.3` 的 API 兼容（`StompConfig`、`StompUnsubscribe` 等）
+5. **Web 麦克风权限**：区分 `NotFoundError`/`NotAllowedError`/`NotReadableError`，显示中文 SnackBar 错误提示
+6. **步骤指示器**：圆形状态圆点（绿色✓完成、黄色⏳处理中、紫色当前步骤、灰色待进行）
+
+### 文件变更
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `lib/pages/home_page.dart` | 修改 | 嵌入录音、多报告列表、步骤指示器 |
+| `lib/pages/report_page.dart` | 修改 | 添加 `mockData()` + `mockReport` 模拟报告 |
+| `lib/pages/record_page.dart` | 修改 | 接受可选 question 参数、错误类型区分 |
+| `lib/services/audio_service_web.dart` | 修改 | `lastError` 字段、去除 `dart:js_util` |
+| `lib/services/audio_service_io.dart` | 修改 | 添加 `lastError` 字段 |
+| `lib/services/websocket_service.dart` | 修改 | STOMP 1.0.3 API 兼容修复 |
+
+### 技术要点
+- 录音状态使用 `Timer` 驱动，后台上传使用 `Future` 不阻塞 UI
+- 报告列表支持动态添加，空列表时自动展示模拟报告
+- 所有 `_reports` 访问点做 null 安全处理（兼容热重载 state 持久化）
+
+---
+
+**日志版本：** v1.1  
+**编写日期：** 2026年7月30日  
+**总迭代次数：** 6次  
+**总代码量：** 19,800行  
 **项目状态：** 🟢 健康开发中

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:frontend_flutter/theme.dart';
 import 'package:frontend_flutter/pages/main_shell.dart';
 import 'package:frontend_flutter/pages/login_page.dart';
-import 'package:frontend_flutter/pages/record_page.dart';
-import 'package:frontend_flutter/pages/report_page.dart';
 import 'package:frontend_flutter/services/api_service.dart';
 import 'package:frontend_flutter/services/token_storage.dart';
 
@@ -60,16 +58,11 @@ class _MyAppState extends State<MyApp> {
         }
 
         Widget page;
-        final name = settings.name;
-        switch (name) {
+        switch (settings.name) {
           case '/':
             page = const MainShell();
           case '/login':
             page = const LoginPage();
-          case '/record':
-            page = const RecordPage();
-          case '/report':
-            page = const ReportPage();
           default:
             page = const MainShell();
         }

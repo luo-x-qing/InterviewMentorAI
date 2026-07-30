@@ -1,9 +1,9 @@
 class Constants {
   /// 后端 API 基础地址
-  static const String baseUrl = "http://172.28.161.26:8080";
-
-  /// WebSocket STOMP 地址（raw WebSocket，非 SockJS）
-  static const String wsUrl = "ws://172.28.161.26:8080/ws";
+  /// Docker 中 nginx 反向代理同源访问，留空表示同源
+  /// 本地开发时可改为 http://localhost:8080
+  static const String baseUrl = "http://localhost:8081";
+  static const String wsUrl = "ws://localhost:8081/ws";
 
   /// Auth
   static const String loginApi = "$baseUrl/auth/login";

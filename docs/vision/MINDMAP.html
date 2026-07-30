@@ -76,10 +76,11 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#0f172a;c
   <h1>🧠 InterviewMentorAI · 思维演进全景</h1>
   <div class="sub">追踪每一次变更背后的思考逻辑 · 基于全 Git 提交自动生成 · 2026-07-29</div>
   <div class="badges">
-    <span class="badge">💡 12 次决策节点</span>
-    <span class="badge green">🏗️ 4 轮架构重构</span>
+    <span class="badge">💡 13 次决策节点</span>
+    <span class="badge green">🏗️ 5 轮架构重构</span>
     <span class="badge amber">🔁 3 次代码质量升级</span>
     <span class="badge purple">🧪 测试覆盖 78→103</span>
+    <span class="badge" style="background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.25);color:#fca5a5">✂️ 1 次减法重构</span>
   </div>
 </div>
 
@@ -91,6 +92,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#0f172a;c
   <span class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span>架构决策</span>
   <span class="legend-item"><span class="legend-dot" style="background:#a78bfa"></span>质量加固</span>
   <span class="legend-item"><span class="legend-dot" style="background:#f472b6"></span>规模化SaaS</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>减法重构</span>
 </div>
 
 <ul class="tree" id="treeRoot">
@@ -298,13 +300,31 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#0f172a;c
         <div class="node-content">
           <div class="title"><span class="icon">🏆</span>决策12: MVP v1.0竣工 · 07-24</div>
           <div class="desc">全功能封顶: CI/CD + Docker + E2E</div>
-          <div><span class="tag">883f115 ← HEAD</span><span class="tag">31文件/3,128行</span></div>
+          <div><span class="tag">883f115</span><span class="tag">31文件/3,128行</span></div>
         </div>
       </div>
       <ul class="subtree">
         <li><div class="node c-pink"><div class="node-content"><div class="title">💭 思考: 核心功能都齐了, 打一个完整版</div></div></div></li>
         <li><div class="node c-pink"><div class="node-content"><div class="title">⚙️ 最终拼图</div><div class="desc">GitHub Actions CI(3并行Job) · Docker三容器编排(java+python+mysql) · Flutter完善(登录/HR修正/邀请码/WebSocket) · Python E2E测试 · Java集成测试</div></div></div></li>
         <li><div class="node c-pink"><div class="node-content"><div class="title" style="color:#f472b6">🏆 项目里程碑: 14天从0到全功能MVP v1.0!</div></div></div></li>
+      </ul>
+    </li>
+
+    <!-- ====== 节点13 ====== -->
+    <li>
+      <span class="toggle" onclick="toggle(this)">−</span>
+      <div class="node" style="border-left:3px solid #ef4444;background:linear-gradient(135deg,rgba(239,68,68,.06),rgba(59,130,246,.04))">
+        <div class="node-content">
+          <div class="title"><span class="icon">✂️</span>决策13: 减法重构 · 去多租户/HR 回归个人 · 07-29</div>
+          <div class="desc">放弃企业SaaS幻想, 聚焦个人面试复盘核心价值</div>
+          <div><span class="tag" style="background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.25)">151eeef ← HEAD</span><span class="tag">~60文件变更</span></div>
+        </div>
+      </div>
+      <ul class="subtree">
+        <li><div class="node" style="border-left:3px solid #ef4444"><div class="node-content"><div class="title">😖 反思: SaaS做过头了, 我才是真正的目标用户</div><div class="desc">多租户/RBAC/HR修正/邀请码/Subscription… 这些功能我一个个人用户根本用不上, 却占了大半代码量</div></div></div></li>
+        <li><div class="node" style="border-left:3px solid #ef4444"><div class="node-content"><div class="title">🤔 思考: 与其堆砌企业功能, 不如把个人体验做到极致</div><div class="desc">面试复盘的核心价值是"录音→分析→报告", 不是企业管理后台</div></div></div></li>
+        <li><div class="node" style="border-left:3px solid #ef4444"><div class="node-content"><div class="title">⚙️ 做了什么</div><div class="desc">Java: 删全套多租户/Subscription/RBAC/HR(21个文件), 合单库7表 · Flutter: 删邀请码/HR页面, 新增5Tab个人导航壳 · 文档: 全部MD同步清理, ADR标记superseded · Docker: 库名+挂载同步</div></div></div></li>
+        <li><div class="node" style="border-left:3px solid #ef4444"><div class="node-content"><div class="title" style="color:#fca5a5">💡 思维特征: 减法思维 · 敢于放弃, 聚焦核心价值</div></div></div></li>
       </ul>
     </li>
 
@@ -352,6 +372,11 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#0f172a;c
       <div class="label">系统思维</div>
       <div class="desc">一次发现3个问题(租户/通信/知识库), 一起解决。不留死角</div>
     </div>
+    <div class="summary-card" style="border-left:2px solid #ef4444">
+      <div class="num" style="color:#ef4444">✂️</div>
+      <div class="label" style="color:#ef4444">减法思维</div>
+      <div class="desc">做了SaaS发现不对味, 果断砍掉多租户/HR/邀请码。敢于放弃比敢于拥有更难</div>
+    </div>
 
   </div>
 </div>
@@ -362,15 +387,19 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#0f172a;c
   <div class="summary-grid">
     <div class="summary-card" style="border-left:2px solid #60a5fa">
       <div class="label" style="color:#60a5fa">😖 你会不满</div>
-      <div class="desc">"RAG评估准确率还是不够高 / 知识库太少 / E2E测试不全 / 性能不够"</div>
+      <div class="desc">"个人模式够用了, 但报告质量还能提升 / 知识库还不够丰富 / 录音体验可以更好"</div>
     </div>
     <div class="summary-card" style="border-left:2px solid #34d399">
       <div class="label" style="color:#34d399">📚 你会学习</div>
-      <div class="desc">研究混合检索优化 / Self-RAG / Graph RAG / 缓存策略</div>
+      <div class="desc">研究评估prompt优化 / 知识库扩充 / 音频质量对ASR准确率的影响</div>
     </div>
     <div class="summary-card" style="border-left:2px solid #f472b6">
       <div class="label" style="color:#f472b6">🚀 你会发现新机会</div>
-      <div class="desc">"这可以做面试培训平台 → 加视频/直播" / "可以对接招聘平台 → API生态"</div>
+      <div class="desc">"简化后可以做成开源项目" / "加社区功能让用户分享面经" / "做浏览器插件?"</div>
+    </div>
+    <div class="summary-card" style="border-left:2px solid #ef4444">
+      <div class="label" style="color:#ef4444">✂️ 可能需要再次做减法</div>
+      <div class="desc">"evaluation_template表还是没用上, 要不要砍?" / "community_page占位页要不要留着?"</div>
     </div>
   </div>
 </div>

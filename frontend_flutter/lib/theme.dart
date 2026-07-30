@@ -37,6 +37,12 @@ class AppTheme {
 
   static const Color shadowColor = Color(0x0D000000);
 
+  static const LinearGradient gradientPrimary = LinearGradient(
+    colors: [brand500, purple500],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
   static const double radiusSm = 8;
   static const double radiusMd = 12;
   static const double radiusLg = 16;

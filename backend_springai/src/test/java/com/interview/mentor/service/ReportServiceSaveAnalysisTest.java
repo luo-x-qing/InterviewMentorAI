@@ -4,10 +4,8 @@ import com.interview.mentor.entity.Evaluation;
 import com.interview.mentor.entity.Report;
 import com.interview.mentor.entity.dto.resp.AnalysisResult;
 import com.interview.mentor.mapper.EvaluationMapper;
-import com.interview.mentor.mapper.InterviewRecordMapper;
 import com.interview.mentor.mapper.ReportMapper;
 import com.interview.mentor.service.impl.ReportServiceImpl;
-import com.interview.mentor.websocket.WsPushService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,17 +25,13 @@ class ReportServiceSaveAnalysisTest {
 
     private EvaluationMapper evaluationMapper;
     private ReportMapper reportMapper;
-    private InterviewRecordMapper interviewMapper;
-    private WsPushService wsPushService;
     private ReportServiceImpl service;
 
     @BeforeEach
     void setUp() {
         evaluationMapper = mock(EvaluationMapper.class);
         reportMapper = mock(ReportMapper.class);
-        interviewMapper = mock(InterviewRecordMapper.class);
-        wsPushService = mock(WsPushService.class);
-        service = new ReportServiceImpl(evaluationMapper, reportMapper, interviewMapper, wsPushService);
+        service = new ReportServiceImpl(evaluationMapper, reportMapper);
     }
 
     private AnalysisResult resultWith(AnalysisResult.EvaluationItem... items) {

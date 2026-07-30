@@ -68,9 +68,12 @@ public class AuthServiceImpl implements AuthService {
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.insert(user);
 
+        org.springframework.security.core.userdetails.User userDetails =
+                new org.springframework.security.core.userdetails.User(
+                        user.getUsername(), user.getPassword(), java.util.List.of());
         Authentication authentication = new org.springframework.security.authentication
                 .UsernamePasswordAuthenticationToken(
-                        user.getUsername(), null, java.util.List.of());
+                        userDetails, user.getPassword(), java.util.List.of());
 
         return buildAuthResponse(authentication, user);
     }
