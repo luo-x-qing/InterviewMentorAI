@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InterviewMentorAI — 前端大补全设计方案</title>
+<style>
+  :root {
+    --brand50: #EEF2FF;
+    --brand100: #E0E7FF;
+    --brand500: #4F46E5;
+    --brand600: #4338CA;
+    --purple500: #7C3AED;
+    --bg: #F8FAFC;
+    --card: #FFFFFF;
+    --textPrimary: #0F172A;
+    --textSecondary: #475569;
+    --textMuted: #94A3B8;
+    --border: #E2E8F0;
+    --success: #22C55E;
+    --successBg: #DCFCE7;
+    --warning: #D97706;
+    --warningBg: #FEF3C7;
+    --error: #EF4444;
+    --radius: 12px;
+    --radiusFull: 9999px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--textPrimary);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, var(--brand500) 0%, var(--purple500) 100%);
+    color: #fff;
+    padding: 56px 24px 48px;
+    text-align: center;
+  }
+  .hero h1 { font-size: 36px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 12px; }
+  .hero p { font-size: 17px; opacity: .88; max-width: 640px; margin: 0 auto; line-height: 1.8; }
+  .hero .meta { margin-top: 24px; display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; font-size: 14px; opacity: .78; }
+  .hero .meta span { background: rgba(255,255,255,.15); padding: 5px 16px; border-radius: var(--radiusFull); }
+
+  /* ── Container ── */
+  .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+  /* ── Section ── */
+  section { margin: 44px 0; }
+  .section-title {
+    font-size: 26px; font-weight: 700; color: var(--textPrimary);
+    letter-spacing: -0.02em; margin-bottom: 6px;
+  }
+  .section-subtitle { font-size: 14px; color: var(--textMuted); margin-bottom: 24px; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+    padding: 28px;
+    margin-bottom: 20px;
+  }
+  .card h3 {
+    font-size: 17px; font-weight: 600; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .card h3 .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--brand500); flex-shrink: 0;
+  }
+
+  /* ── Stats Row ── */
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+  .stat-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px 16px; text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,.03);
+  }
+  .stat-card .value { font-size: 30px; font-weight: 700; color: var(--brand500); }
+  .stat-card .label { font-size: 12px; color: var(--textMuted); margin-top: 4px; }
+
+  /* ── Design Philosophy ── */
+  .philosophy-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 20px; }
+  .phil-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.03);
+  }
+  .phil-card .icon { font-size: 28px; margin-bottom: 10px; }
+  .phil-card h4 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .phil-card p { font-size: 13px; color: var(--textSecondary); line-height: 1.6; }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: var(--brand50); font-weight: 600; font-size: 12px; color: var(--brand600); text-transform: uppercase; letter-spacing: .05em; }
+  tr:hover td { background: #fafbfc; }
+  code {
+    background: var(--brand50); color: var(--brand600);
+    padding: 2px 7px; border-radius: 5px; font-size: 13px; font-family: "JetBrains Mono", "Fira Code", monospace;
+  }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-block; padding: 3px 12px; border-radius: var(--radiusFull);
+    font-size: 12px; font-weight: 600; letter-spacing: .05em;
+  }
+  .badge-brand { background: var(--brand50); color: var(--brand500); }
+  .badge-success { background: var(--successBg); color: var(--success); }
+  .badge-warning { background: var(--warningBg); color: var(--warning); }
+  .badge-p0 { background: #FEE2E2; color: #DC2626; }
+  .badge-p1 { background: #FEF3C7; color: #D97706; }
+  .badge-p2 { background: #DBEAFE; color: #2563EB; }
+  .badge-p3 { background: #F3E8FF; color: #7C3AED; }
+
+  /* ── Phase Timeline ── */
+  .timeline { position: relative; padding-left: 32px; }
+  .timeline::before {
+    content: ''; position: absolute; left: 11px; top: 6px; bottom: 6px;
+    width: 2px; background: var(--border);
+  }
+  .timeline-item { position: relative; margin-bottom: 28px; }
+  .timeline-item::before {
+    content: ''; position: absolute; left: -21px; top: 5px;
+    width: 10px; height: 10px; border-radius: 50%;
+    border: 2px solid var(--brand500); background: #fff;
+  }
+  .timeline-item.done::before { background: var(--success); border-color: var(--success); }
+  .timeline-item h4 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .timeline-item p { font-size: 13px; color: var(--textSecondary); }
+
+  /* ── Token Grid ── */
+  .token-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .token-item {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; font-size: 13px;
+  }
+  .token-item .key { font-weight: 600; color: var(--textPrimary); margin-bottom: 4px; }
+  .token-item .val { color: var(--textSecondary); font-family: monospace; font-size: 12px; }
+
+  /* ── Page tree ── */
+  .tree { font-family: "JetBrains Mono", "Fira Code", monospace; font-size: 13px; line-height: 2; color: var(--textSecondary); }
+  .tree .dir { color: var(--brand500); font-weight: 600; }
+  .tree .file { color: var(--textPrimary); }
+  .tree .new { color: var(--success); }
+  .tree .mod { color: var(--warning); }
+  .tree .comment { color: var(--textMuted); }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center; padding: 40px 24px; color: var(--textMuted); font-size: 13px;
+    border-top: 1px solid var(--border); margin-top: 56px;
+  }
+
+  @media (max-width: 640px) {
+    .hero h1 { font-size: 26px; }
+    .stats-row { grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .philosophy-grid { grid-template-columns: 1fr; }
+    .token-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<div class="hero">
+  <h1>🎯 InterviewMentorAI 前端大补全</h1>
+  <p>
+    在现有登录/录音/报告核心功能基础上，补全题库、社区、通知、个人中心四大模块，
+    同时消除重复代码、建立全局组件库，为后续 Provider 迁移和 WebSocket 接入打好基础。
+  </p>
+  <div class="meta">
+    <span>📅 2026-07-31</span>
+    <span>🔖 版本 v1.1-dev</span>
+    <span>🎨 Flutter 3.12+ · Material 3</span>
+    <span>📦 新增 20 文件 · 修改 8 文件</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ═══════════════ 一、设计思路 ═══════════════ -->
+  <section>
+    <div class="section-title">一、设计思路</div>
+    <div class="section-subtitle">贯穿本次补全的四大架构原则</div>
+
+    <div class="philosophy-grid">
+      <div class="phil-card">
+        <div class="icon">🧹</div>
+        <h4>先抽取再开发</h4>
+        <p>
+          发现 <code>_RadarChart</code>、<code>_metricBar</code>、<code>_buildInsightCard</code>
+          在 home_page 和 report_page 中完全重复（~300 行）。先将其抽取到
+          <code>lib/widgets/</code> 公共组件库，后续所有新页面直接复用，从源头杜绝重复。
+        </p>
+      </div>
+      <div class="phil-card">
+        <div class="icon">📋</div>
+        <h4>Mock-First 策略</h4>
+        <p>
+          题库、社区、通知三个模块后端 API 尚未开发。每个模块封装独立的 Service 抽象层
+          （<code>PostService</code>、<code>FavoriteService</code>），当前返回本地
+          mock 数据，后端就绪后只需替换 Service 实现，UI 层零改动。
+        </p>
+      </div>
+      <div class="phil-card">
+        <div class="icon">📦</div>
+        <h4>渐进式 Provider 引入</h4>
+        <p>
+          不推倒重来。Login / Record / Report 等已稳定页面保持 <code>setState</code> 不变。
+          仅将跨页面共享状态（用户信息、报告列表、通知未读数）提升到 Provider，
+          新页面从一开始就用 <code>context.watch&lt;T&gt;()</code>。
+        </p>
+      </div>
+      <div class="phil-card">
+        <div class="icon">🔌</div>
+        <h4>WebSocket 替代轮询</h4>
+        <p>
+          <code>WebSocketService</code>（STOMP 协议）已完整实现但从未调用。
+          当前上传音频后靠 <code>await + Future.delayed(2秒)</code> 模拟分析进度。
+          接入 WebSocket 后可获得真实的 AI 分析进度推送，并支持降级回退。
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot"></span>设计 Token 一致性规范</h3>
+      <p style="font-size:14px;color:var(--textSecondary);margin-bottom:16px">
+        所有新组件严格使用现有 Token，<strong>不引入新颜色/字号体系</strong>。
+      </p>
+      <div class="token-grid">
+        <div class="token-item">
+          <div class="key">卡片容器</div>
+          <div class="val">Container + AppTheme.cardDecoration + padding 16~24</div>
+        </div>
+        <div class="token-item">
+          <div class="key">标签 / Chip</div>
+          <div class="val">Container + brand50 bg + radiusFull + padding(h:10, v:3)</div>
+        </div>
+        <div class="token-item">
+          <div class="key">章节标题</div>
+          <div class="val">12px brand500 label → 22px headline → 14px subtitle</div>
+        </div>
+        <div class="token-item">
+          <div class="key">菜单项</div>
+          <div class="val">ListTile(icon 24px textSecondary, title 15px, chevron)</div>
+        </div>
+        <div class="token-item">
+          <div class="key">评分等级</div>
+          <div class="val">AppHelpers.gradeLabel(score) → 卓越/优秀/良好/一般/待提高</div>
+        </div>
+        <div class="token-item">
+          <div class="key">Icon 大小</div>
+          <div class="val">16/18(小) · 24(列表) · 36/48(大) · 64(空状态)</div>
+        </div>
+        <div class="token-item">
+          <div class="key">渐变色</div>
+          <div class="val">gradientPrimary = brand500 → purple500</div>
+        </div>
+        <div class="token-item">
+          <div class="key">圆角体系</div>
+          <div class="val">Sm(8) / Md(12) / Lg(16) / Xl(20) / Full(9999)</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 二、当前已交付 ═══════════════ -->
+  <section>
+    <div class="section-title">二、当前已交付</div>
+    <div class="section-subtitle">Phase 0 → Phase 1 → Phase 2-1 全部完成，共新增 20 个文件，修改 8 个文件</div>
+
+    <!-- 总量统计 -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="value">20</div>
+        <div class="label">新建文件</div>
+      </div>
+      <div class="stat-card">
+        <div class="value">8</div>
+        <div class="label">修改文件</div>
+      </div>
+      <div class="stat-card">
+        <div class="value">~3500</div>
+        <div class="label">新增代码行</div>
+      </div>
+    </div>
+
+    <!-- 文件树 -->
+    <div class="card">
+      <h3><span class="dot"></span>项目文件树</h3>
+      <div class="tree">
+<span class="dir">lib/</span><br>
+├── <span class="file">main.dart</span> <span class="comment">— 入口 + 路由 + Token 初始化</span><br>
+├── <span class="file">theme.dart</span> <span class="comment">— 完整设计 Token</span><br>
+├── <span class="dir">utils/</span><br>
+│&emsp;&emsp;├── <span class="file">constants.dart</span> <span class="comment">— API 地址常量</span><br>
+│&emsp;&emsp;└── <span class="new">helpers.dart</span> <span class="comment">★ 新增 — gradeLabel / formatTime / relativeTime</span><br>
+├── <span class="dir">models/</span> <span class="comment">★ 新增目录</span><br>
+│&emsp;&emsp;├── <span class="new">question.dart</span><br>
+│&emsp;&emsp;├── <span class="new">notification_item.dart</span><br>
+│&emsp;&emsp;└── <span class="new">post.dart</span><br>
+├── <span class="dir">data/</span> <span class="comment">★ 新增目录</span><br>
+│&emsp;&emsp;├── <span class="new">mock_questions.dart</span> <span class="comment">— 60 道面试题，6 分类</span><br>
+│&emsp;&emsp;├── <span class="new">mock_notifications.dart</span> <span class="comment">— 15 条通知</span><br>
+│&emsp;&emsp;└── <span class="new">mock_posts.dart</span> <span class="comment">— 12 篇社区帖子 + 评论</span><br>
+├── <span class="dir">services/</span><br>
+│&emsp;&emsp;├── <span class="file">api_service.dart</span> <span class="mod">● 修改 — 新增 getUserProfile / updatePassword</span><br>
+│&emsp;&emsp;├── <span class="file">auth_service.dart</span><br>
+│&emsp;&emsp;├── <span class="file">token_storage.dart</span><br>
+│&emsp;&emsp;├── <span class="file">audio_service.dart</span> / <span class="file">_io.dart</span> / <span class="file">_web.dart</span><br>
+│&emsp;&emsp;├── <span class="file">websocket_service.dart</span><br>
+│&emsp;&emsp;├── <span class="new">favorite_service.dart</span> <span class="comment">★ 新增</span><br>
+│&emsp;&emsp;└── <span class="new">post_service.dart</span> <span class="comment">★ 新增</span><br>
+├── <span class="dir">widgets/</span> <span class="comment">★ 新增目录（8 个公共组件）</span><br>
+│&emsp;&emsp;├── <span class="new">radar_chart.dart</span><br>
+│&emsp;&emsp;├── <span class="new">metric_bar.dart</span><br>
+│&emsp;&emsp;├── <span class="new">insight_card.dart</span><br>
+│&emsp;&emsp;├── <span class="new">empty_state.dart</span><br>
+│&emsp;&emsp;├── <span class="new">toast_utils.dart</span><br>
+│&emsp;&emsp;├── <span class="new">shimmer_loading.dart</span><br>
+│&emsp;&emsp;└── <span class="new">section_header.dart</span><br>
+└── <span class="dir">pages/</span><br>
+&emsp;&emsp;&emsp;├── <span class="file">login_page.dart</span><br>
+&emsp;&emsp;&emsp;├── <span class="file">main_shell.dart</span><br>
+&emsp;&emsp;&emsp;├── <span class="file">home_page.dart</span> <span class="mod">● 修改 — 删除重复代码，引入 widgets</span><br>
+&emsp;&emsp;&emsp;├── <span class="file">record_page.dart</span> <span class="mod">● 修改 — 使用 AppHelpers.formatTime</span><br>
+&emsp;&emsp;&emsp;├── <span class="file">report_page.dart</span> <span class="mod">● 修改 — 完全重写，全部改用 widgets</span><br>
+&emsp;&emsp;&emsp;├── <span class="new">question_bank_page.dart</span> <span class="comment">★ 重写 — 搜索/分类/展开/收藏/模拟面试</span><br>
+&emsp;&emsp;&emsp;├── <span class="new">community_page.dart</span> <span class="comment">★ 重写 — 帖子列表 + 分类Tab + 下拉刷新</span><br>
+&emsp;&emsp;&emsp;├── <span class="new">post_detail_page.dart</span> <span class="comment">★ 新增 — 帖子详情 + 评论 + 点赞</span><br>
+&emsp;&emsp;&emsp;├── <span class="new">create_post_page.dart</span> <span class="comment">★ 新增 — 发帖表单</span><br>
+&emsp;&emsp;&emsp;├── <span class="new">notifications_page.dart</span> <span class="comment">★ 重写 — 已读/未读 + 全部已读 + 清空</span><br>
+&emsp;&emsp;&emsp;├── <span class="file">profile_page.dart</span> <span class="mod">● 修改 — 统计卡片 + 链接新页面</span><br>
+&emsp;&emsp;&emsp;├── <span class="new">interview_history_page.dart</span> <span class="comment">★ 新增 — 面试记录分页列表</span><br>
+&emsp;&emsp;&emsp;└── <span class="new">settings_page.dart</span> <span class="comment">★ 新增 — 改密/主题/缓存/关于</span>
+      </div>
+    </div>
+
+    <!-- P0 详情 -->
+    <div class="card">
+      <h3><span class="dot"></span><span class="badge badge-p0">P0</span> 组件抽取 + 全局基础设施</h3>
+      <table>
+        <tr><th>新建文件</th><th>说明</th><th>来源</th></tr>
+        <tr><td><code>lib/utils/helpers.dart</code></td><td>gradeLabel / formatTime / relativeTime</td><td>提取自 home + record + report</td></tr>
+        <tr><td><code>lib/widgets/radar_chart.dart</code></td><td>RadarChart 公开组件（可配置 labels）</td><td>提取自 home + report（~100 行×2）</td></tr>
+        <tr><td><code>lib/widgets/metric_bar.dart</code></td><td>MetricBar 评分进度条</td><td>提取自 home + report（~30 行×2）</td></tr>
+        <tr><td><code>lib/widgets/insight_card.dart</code></td><td>InsightCard 优势/改进卡片</td><td>提取自 home + report（~65 行×2）</td></tr>
+        <tr><td><code>lib/widgets/empty_state.dart</code></td><td>统一空状态组件（icon 64px + title + action）</td><td>替换 3 个页面手写占位</td></tr>
+        <tr><td><code>lib/widgets/toast_utils.dart</code></td><td>SnackBar 快捷方法（success/error/info）</td><td>消除散落样板代码</td></tr>
+        <tr><td><code>lib/widgets/shimmer_loading.dart</code></td><td>骨架屏 ShimmerCard + ShimmerList</td><td>替换纯 spinner</td></tr>
+        <tr><td><code>lib/widgets/section_header.dart</code></td><td>三段式标题（label + headline + subtitle）</td><td>提取自 home + report</td></tr>
+      </table>
+      <p style="font-size:13px;color:var(--success);margin-top:8px">✅ 消除重复代码约 300 行。home_page / report_page / record_page 已完成重构。</p>
+    </div>
+
+    <!-- P1-1 详情 -->
+    <div class="card">
+      <h3><span class="dot"></span><span class="badge badge-p1">P1</span> 题库页 — question_bank_page.dart</h3>
+      <table>
+        <tr><th>新增文件</th><th>说明</th></tr>
+        <tr><td><code>lib/models/question.dart</code></td><td>InterviewQuestion 模型（id, category, difficulty, title, answer, intent, tags, isFavorite）</td></tr>
+        <tr><td><code>lib/data/mock_questions.dart</code></td><td>60 道模拟题 / 6 分类 × 10 题 / 中文参考答案 + 出题意图</td></tr>
+        <tr><td><code>lib/services/favorite_service.dart</code></td><td>SharedPreferences 收藏（getFavorites / toggle / isFavorite / syncFavorites）</td></tr>
+      </table>
+      <p style="font-size:13px;color:var(--textSecondary);margin-top:8px">
+        <strong>功能：</strong>搜索栏（300ms 防抖）→ 水平胶囊分类 Tab（7 类）→ 难度筛选 Chip（初/中/高）→
+        题目卡片（展开查看答案/意图）→ 收藏切换 → "模拟面试"按钮跳转 RecordPage。
+      </p>
+      <p style="font-size:13px;color:var(--success)">✅ 从 29 行空壳重写为完整功能页。</p>
+    </div>
+
+    <!-- P1-2 详情 -->
+    <div class="card">
+      <h3><span class="dot"></span><span class="badge badge-p1">P1</span> 通知页 — notifications_page.dart</h3>
+      <table>
+        <tr><th>新增文件</th><th>说明</th></tr>
+        <tr><td><code>lib/models/notification_item.dart</code></td><td>NotificationItem + NotificationType 枚举（reportReady / communityReply / communityLike / system）</td></tr>
+        <tr><td><code>lib/data/mock_notifications.dart</code></td><td>15 条通知（5 报告 + 4 回复 + 2 点赞 + 2 系统 + 2 混合）</td></tr>
+      </table>
+      <p style="font-size:13px;color:var(--textSecondary);margin-top:8px">
+        <strong>功能：</strong>按类型区分 Icon + 颜色 → 未读项左侧 brand500 accent + 圆点标记 →
+        已读项标准白底 → 全部已读 / 清空（含确认对话框）→ 空状态组件。
+      </p>
+      <p style="font-size:13px;color:var(--success)">✅ 从 29 行空壳重写为完整功能页。</p>
+    </div>
+
+    <!-- P1-3 详情 -->
+    <div class="card">
+      <h3><span class="dot"></span><span class="badge badge-p1">P1</span> 个人中心补全 — profile + history + settings</h3>
+      <table>
+        <tr><th>新增文件</th><th>说明</th></tr>
+        <tr><td><code>lib/pages/interview_history_page.dart</code></td><td>面试记录列表（分页 + RefreshIndicator + 空状态）</td></tr>
+        <tr><td><code>lib/pages/settings_page.dart</code></td><td>设置页（改密 BottomSheet + 主题切换 + 清除缓存 + 关于）</td></tr>
+        <tr><th>修改文件</th><th>说明</th></tr>
+        <tr><td><code>lib/pages/profile_page.dart</code></td><td>修复 Dio 反模式 → ApiService.getUserProfile；新增统计概览卡片（总次数/平均分/最高分）</td></tr>
+        <tr><td><code>lib/services/api_service.dart</code></td><td>新增 getUserProfile() / updatePassword() / getReportList()</td></tr>
+      </table>
+      <p style="font-size:13px;color:var(--success)">✅ 菜单链接已全部打通，改密调用真实 API。</p>
+    </div>
+
+    <!-- P2-1 详情 -->
+    <div class="card">
+      <h3><span class="dot"></span><span class="badge badge-p2">P2</span> 社区页 — community + post_detail + create_post</h3>
+      <table>
+        <tr><th>新增文件</th><th>说明</th></tr>
+        <tr><td><code>lib/models/post.dart</code></td><td>PostModel + CommentModel（含 linkedReportSummary 关联报告）</td></tr>
+        <tr><td><code>lib/data/mock_posts.dart</code></td><td>12 篇帖子（面经分享 4 + 技术讨论 4 + 求职互助 4），含评论</td></tr>
+        <tr><td><code>lib/services/post_service.dart</code></td><td>PostService（getPosts / getPostDetail / toggleLike / addComment / createPost），mock 实现，预留 API 切换</td></tr>
+        <tr><td><code>lib/pages/post_detail_page.dart</code></td><td>Markdown 正文 + 关联报告卡片 + 点赞 + 评论列表 + 底部输入栏</td></tr>
+        <tr><td><code>lib/pages/create_post_page.dart</code></td><td>标题 / 分类下拉 / 正文 10 行 / 标签逗号分隔 / 非空校验</td></tr>
+      </table>
+      <p style="font-size:13px;color:var(--textSecondary);margin-top:8px">
+        <strong>功能：</strong>帖子列表（FAB 发帖 → 分类胶囊 Tab → PostCard → 内容预览 120 字 +
+        点赞/评论数）→ 下拉刷新 → 点击进详情（Markdown + 评论 + 点赞切换）→ 发帖表单。
+      </p>
+      <p style="font-size:13px;color:var(--success)">✅ 从 28 行空壳重写为完整功能页。</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 三、下一阶段 ═══════════════ -->
+  <section>
+    <div class="section-title">三、下一阶段规划</div>
+    <div class="section-subtitle">已完成 Phase 0 + Phase 1 + Phase 2-1，剩余 P2-2 / P2-3 / P3</div>
+
+    <div class="timeline">
+      <div class="timeline-item done">
+        <h4><span class="badge badge-p0">P0</span> 组件抽取 + 全局基础设施 <span style="color:var(--success)">✅ 已完成</span></h4>
+        <p>helpers.dart + 8 个公共 widgets + 3 个页面重构。消除 ~300 行重复代码。</p>
+      </div>
+      <div class="timeline-item done">
+        <h4><span class="badge badge-p1">P1-1</span> 题库页 <span style="color:var(--success)">✅ 已完成</span></h4>
+        <p>60 道模拟题 / 6 分类 / 搜索 / 筛选 / 收藏 / 模拟面试跳转。</p>
+      </div>
+      <div class="timeline-item done">
+        <h4><span class="badge badge-p1">P1-2</span> 通知页 <span style="color:var(--success)">✅ 已完成</span></h4>
+        <p>15 条通知 / 已读未读 / 全部已读 / 清空 / 类型区分。</p>
+      </div>
+      <div class="timeline-item done">
+        <h4><span class="badge badge-p1">P1-3</span> 个人中心补全 <span style="color:var(--success)">✅ 已完成</span></h4>
+        <p>统计概览卡片 / 面试记录分页 / 设置页改密 / ApiService 扩展。</p>
+      </div>
+      <div class="timeline-item done">
+        <h4><span class="badge badge-p2">P2-1</span> 社区页 <span style="color:var(--success)">✅ 已完成</span></h4>
+        <p>12 篇帖子 + 评论 / 发帖 / 点赞 / 关联报告 / Markdown 详情。</p>
+      </div>
+
+      <!-- 分隔线 -->
+      <div style="margin: 20px 0; padding: 12px 16px; background: var(--brand50); border-radius: 8px; font-size: 13px; color: var(--brand600); font-weight: 600;">
+        ⬇ 以下模块尚未开始，预计工作量约 3.5 天
+      </div>
+
+      <div class="timeline-item">
+        <h4><span class="badge badge-p2">P2-2</span> WebSocket 接入 <span style="color:var(--textMuted)">⏳ 待开始</span></h4>
+        <p>
+          <code>WebSocketService</code>（STOMP 协议）已完整实现（130 行）。
+          接入 <code>home_page._uploadStepAudio</code> 和 <code>record_page._stopRecording</code>，
+          上传音频后连接 WS，根据 <code>AnalysisProgress</code> 枚举（uploading → processing → completed → failed）
+          实时更新 UI。WS 连接失败时自动降级为当前 await 模式。
+        </p>
+        <p style="margin-top:6px"><strong>涉及文件：</strong><code>home_page.dart</code>、<code>record_page.dart</code></p>
+        <p><strong>预估工作量：</strong>1 天</p>
+      </div>
+
+      <div class="timeline-item">
+        <h4><span class="badge badge-p2">P2-3</span> Provider 渐进迁移 <span style="color:var(--textMuted)">⏳ 待开始</span></h4>
+        <p>
+          添加 <code>provider: ^6.1.2</code> 依赖 → <code>main.dart</code> 外包 <code>MultiProvider</code> →
+          注册 <code>UserProvider</code> / <code>ReportProvider</code> / <code>NotificationProvider</code>。
+          <code>MainShell</code> 通知 Tab 加 <code>Badge(unreadCount)</code>。
+          Login / Record / Report 等稳定页面不改动。
+        </p>
+        <p style="margin-top:6px"><strong>新增文件：</strong><code>lib/providers/user_provider.dart</code>、<code>report_provider.dart</code>、<code>notification_provider.dart</code></p>
+        <p><strong>修改文件：</strong><code>pubspec.yaml</code>、<code>main.dart</code>、<code>main_shell.dart</code>、<code>profile_page.dart</code></p>
+        <p><strong>预估工作量：</strong>1.5 天</p>
+      </div>
+
+      <div class="timeline-item">
+        <h4><span class="badge badge-p3">P3</span> 离线缓存 <span style="color:var(--textMuted)">⏳ 待开始</span></h4>
+        <p>
+          <code>CacheService</code> — SharedPreferences 存储最近 20 份报告 JSON。
+          分析完成后自动缓存 → <code>InterviewHistoryPage</code> API 失败时展示缓存报告 →
+          设置页"清除缓存"入口。
+        </p>
+        <p style="margin-top:6px"><strong>新增文件：</strong><code>lib/services/cache_service.dart</code></p>
+        <p><strong>预估工作量：</strong>1 天</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 四、数据总览 ═══════════════ -->
+  <section>
+    <div class="section-title">四、数据总览</div>
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="value">28</div>
+        <div class="label">Dart 文件总数</div>
+      </div>
+      <div class="stat-card">
+        <div class="value">~5500</div>
+        <div class="label">总代码行数</div>
+      </div>
+      <div class="stat-card">
+        <div class="value">87</div>
+        <div class="label">Mock 数据条数</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="dot"></span>Mock 数据明细</h3>
+      <table>
+        <tr><th>数据文件</th><th>数量</th><th>内容</th></tr>
+        <tr><td><code>mock_questions.dart</code></td><td>60 题</td><td>HTML/CSS(10) · JavaScript(10) · React/Vue(10) · 算法(10) · 系统设计(10) · 行为问题(10)</td></tr>
+        <tr><td><code>mock_notifications.dart</code></td><td>15 条</td><td>报告完成(5) · 社区回复(4) · 社区点赞(2) · 系统消息(2) · 混合(2)</td></tr>
+        <tr><td><code>mock_posts.dart</code></td><td>12 篇</td><td>面经分享(4) · 技术讨论(4) · 求职互助(4)，含评论 10+ 条</td></tr>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  InterviewMentorAI · Flutter 前端大补全设计方案 · 2026-07-31 · 版本 v1.1-dev
+</footer>
+
+</body>
+</html>

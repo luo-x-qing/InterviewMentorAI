@@ -7,6 +7,8 @@ import 'package:frontend_flutter/pages/record_page.dart';
 import 'package:frontend_flutter/pages/report_page.dart';
 import 'package:frontend_flutter/services/audio_service.dart';
 import 'package:frontend_flutter/services/api_service.dart';
+import 'package:frontend_flutter/utils/helpers.dart';
+import 'package:frontend_flutter/widgets/empty_state.dart';
 
 enum _StepRecordStatus { pending, processing, completed }
 
@@ -29,6 +31,7 @@ class _HomePageState extends State<HomePage>
   int _currentStep = 0;
 
   List<Map<String, dynamic>>? _reports;
+  bool _reportLoading = true;
   List<_StepRecord> _stepRecords = [];
 
   // Embedded recording state
@@ -67,6 +70,7 @@ class _HomePageState extends State<HomePage>
         setState(() => _currentTab = _tabController.index);
       }
     });
+    _loadReports();
   }
 
   @override
@@ -76,12 +80,6 @@ class _HomePageState extends State<HomePage>
     AudioService.dispose();
     _tabController.dispose();
     super.dispose();
-  }
-
-  String _formatTime(int s) {
-    final m = (s ~/ 60).toString().padLeft(2, '0');
-    final sec = (s % 60).toString().padLeft(2, '0');
-    return '$m:$sec';
   }
 
   // ──── 嵌入录音 ────
@@ -199,13 +197,35 @@ class _HomePageState extends State<HomePage>
     _onRecordingComplete(merged);
   }
 
+  // ──── 报告数据 ────
+
+  Future<void> _loadReports() async {
+    try {
+      final resp = await ApiService.getReportList();
+      if (resp['code'] == 200 && mounted) {
+        final data = resp['data'] as Map<String, dynamic>?;
+        final list = data?['records'] as List<dynamic>? ?? [];
+        setState(() {
+          _reports = list.cast<Map<String, dynamic>>();
+          _reportLoading = false;
+        });
+        return;
+      }
+    } catch (_) {
+      // 网络失败时保留本地已有的报告
+    }
+    if (mounted) setState(() => _reportLoading = false);
+  }
+
   // ──── 录音回调 ────
 
   void _onRecordingComplete(Map<String, dynamic> reportData) {
-    setState(() {
-      if (reportData.isNotEmpty) (_reports ??= []).add(reportData);
-    });
+    if (reportData.isNotEmpty) {
+      setState(() => (_reports ??= []).insert(0, reportData));
+    }
     _showReportReadyDialog();
+    // 后台静默刷新服务端列表
+    _loadReports();
   }
 
   void _showReportReadyDialog() {
@@ -437,8 +457,7 @@ class _HomePageState extends State<HomePage>
     final report = _reports == null || _reports!.isEmpty
         ? ReportPage.mockData() : _reports!.last;
     final score = report['score'] as int? ?? 0;
-    final grade = score >= 90 ? '卓越' : score >= 80 ? '优秀'
-        : score >= 70 ? '良好' : score >= 60 ? '一般' : '待提高';
+    final grade = AppHelpers.gradeLabel(score);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -666,7 +685,7 @@ class _HomePageState extends State<HomePage>
                     ),
                     child: Column(
                       children: [
-                        Text(_formatTime(_recordSeconds),
+                        Text(AppHelpers.formatTime(_recordSeconds),
                             style: const TextStyle(fontSize: 32,
                                 fontWeight: FontWeight.w500,
                                 color: AppTheme.brand500,
@@ -861,25 +880,106 @@ class _HomePageState extends State<HomePage>
 
   // ──────────── Tab 3: 评估报告 ────────────
   Widget _buildReportTab() {
-    if (_reports == null || _reports!.isEmpty) {
-      return _buildDemoReportView();
+    // 加载中
+    if (_reportLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppTheme.brand500),
+      );
     }
 
-    return ListView.separated(
+    // 无报告：引导状态 + 示例入口
+    if (_reports == null || _reports!.isEmpty) {
+      return _buildEmptyReportGuide();
+    }
+
+    // 有报告：下拉刷新列表
+    return RefreshIndicator(
+      onRefresh: _loadReports,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: _reports!.length + 1, // +1 给底部示例入口
+        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          if (index < _reports!.length) {
+            return _buildReportCard(index, _reports![index]);
+          }
+          return _buildDemoEntry();
+        },
+      ),
+    );
+  }
+
+  /// 报告为空时的引导状态
+  Widget _buildEmptyReportGuide() {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      itemCount: _reports!.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final report = _reports![index];
-        return _buildReportCard(index, report);
+      child: Column(
+        children: [
+          EmptyStateWidget(
+            icon: Icons.assignment_outlined,
+            title: '暂无面试报告',
+            subtitle: '完成一次模拟面试后，AI 分析报告将显示在这里',
+            action: ElevatedButton.icon(
+              onPressed: () => _tabController.animateTo(0),
+              icon: const Icon(Icons.mic, size: 18),
+              label: const Text('开始模拟面试'),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildDemoEntry(),
+        ],
+      ),
+    );
+  }
+
+  /// 底部"查看示例报告"入口卡片
+  Widget _buildDemoEntry() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => ReportPage(data: ReportPage.mockData())));
       },
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.warningBg.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+          border: Border.all(color: AppTheme.warningBg),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: AppTheme.warningBg,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.auto_awesome, color: AppTheme.warning, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('示例报告', style: TextStyle(fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary, fontSize: 14)),
+                  Text('查看一份完整的评估报告，了解 AI 分析能力',
+                      style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppTheme.textMuted, size: 20),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildReportCard(int index, Map<String, dynamic> report) {
     final score = report['score'] as int? ?? 0;
-    final grade = score >= 90 ? '卓越' : score >= 80 ? '优秀'
-        : score >= 70 ? '良好' : score >= 60 ? '一般' : '待提高';
+    final grade = AppHelpers.gradeLabel(score);
     return Container(
       decoration: AppTheme.cardDecoration,
       child: Material(
@@ -936,256 +1036,6 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildDemoReportView() {
-    final report = ReportPage.mockData();
-    final score = report['score'] as int? ?? 85;
-    final grade = score >= 90 ? '卓越' : score >= 80 ? '优秀'
-        : score >= 70 ? '良好' : score >= 60 ? '一般' : '待提高';
-    final metrics = report['metrics'] as Map<String, int>? ?? {
-      '表达清晰度': 88, '技术深度': 82, '逻辑思维': 90,
-      '沟通能力': 85, '应变能力': 78, '专业知识': 80,
-    };
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppTheme.warningBg,
-              borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.auto_awesome, size: 14, color: AppTheme.warning),
-                SizedBox(width: 6),
-                Text('模拟报告 · 仅供参考',
-                    style: TextStyle(fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.warning)),
-              ],
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('面试表现分析',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary, letterSpacing: -0.03)),
-                SizedBox(height: 6),
-                Text('基于 AI 多维评估模型，全面分析你的面试表现',
-                    style: TextStyle(fontSize: 14,
-                        color: AppTheme.textSecondary)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: AppTheme.cardDecoration,
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Text('$score',
-                        style: const TextStyle(fontSize: 56,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.brand500)),
-                    const SizedBox(width: 4),
-                    const Text('/100',
-                        style: TextStyle(fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            color: AppTheme.textMuted)),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppTheme.brand50,
-                        borderRadius: BorderRadius.circular(
-                            AppTheme.radiusFull),
-                      ),
-                      child: Text(grade,
-                          style: const TextStyle(fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: AppTheme.brand500)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                ...metrics.entries.map((e) => _buildMetricBar(e.key, e.value)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: AppTheme.cardDecoration,
-            child: Column(
-              children: [
-                const Text('能力维度雷达图',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary)),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 220,
-                  child: _RadarChart(
-                    values: metrics.values.map((v) => v / 100).toList(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _buildInsightCard(
-                  title: '优势亮点',
-                  items: const ['逻辑结构清晰，使用 STAR 法则组织回答',
-                    '技术深度突出，结合真实项目经验',
-                    '表达流畅自信，语速适中'],
-                  tags: const ['架构思维', 'STAR 法则', '表达力'],
-                  isStrength: true,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildInsightCard(
-                  title: '改进建议',
-                  items: const ['用数据支撑观点，展示定量分析思路',
-                    '部分技术描述可更简洁，避免冗长'],
-                  tags: const ['数据思维', '简洁表达'],
-                  isStrength: false,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ReportPage(data: report),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.description_outlined),
-              label: const Text('查看完整报告'),
-            ),
-          ),
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMetricBar(String label, int value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label, style: const TextStyle(fontSize: 13,
-                  color: AppTheme.textSecondary)),
-              Text('$value', style: const TextStyle(fontSize: 13,
-                  fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: value / 100,
-              minHeight: 5,
-              backgroundColor: AppTheme.borderLight,
-              valueColor: const AlwaysStoppedAnimation(AppTheme.brand500),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInsightCard({
-    required String title,
-    required List<String> items,
-    required List<String> tags,
-    required bool isStrength,
-  }) {
-    final iconColor = isStrength ? AppTheme.success : AppTheme.warning;
-    final iconBg = isStrength ? AppTheme.successBg : AppTheme.warningBg;
-    final iconText = isStrength ? '+' : '!';
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: AppTheme.cardDecoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(isStrength ? Icons.favorite : Icons.trending_up,
-                  color: iconColor, size: 18),
-              const SizedBox(width: 6),
-              Text(title, style: const TextStyle(fontSize: 14,
-                  fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...items.map((item) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 20, height: 20,
-                  decoration: BoxDecoration(
-                    color: iconBg,
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: Center(
-                    child: Text(iconText, style: TextStyle(fontSize: 11,
-                        fontWeight: FontWeight.w700, color: iconColor)),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(item, style: const TextStyle(fontSize: 13,
-                      color: AppTheme.textSecondary, height: 1.5)),
-                ),
-              ],
-            ),
-          )),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6, runSpacing: 6,
-            children: tags.map((tag) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppTheme.bgPage,
-                borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-              ),
-              child: Text(tag, style: const TextStyle(fontSize: 11,
-                  fontWeight: FontWeight.w500, color: AppTheme.textSecondary)),
-            )).toList(),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _StepData {
@@ -1194,113 +1044,4 @@ class _StepData {
   final String question;
   final String tip;
   const _StepData(this.name, this.duration, this.question, this.tip);
-}
-
-// ─── Radar Chart ───
-class _RadarChart extends StatelessWidget {
-  final List<double> values;
-  const _RadarChart({required this.values});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return CustomPaint(
-          size: Size(constraints.maxWidth, constraints.maxHeight),
-          painter: _RadarPainter(values),
-        );
-      },
-    );
-  }
-}
-
-class _RadarPainter extends CustomPainter {
-  final List<double> values;
-  _RadarPainter(this.values);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = min(size.width, size.height) / 2 - 20;
-    final n = values.length;
-    final angleStep = 2 * pi / n;
-    final labels = ['表达清晰度', '技术深度', '逻辑思维', '沟通能力', '应变能力', '专业知识'];
-
-    final gridPaint = Paint()
-      ..color = AppTheme.borderLight
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-
-    for (int ring = 1; ring <= 5; ring++) {
-      final r = radius * ring / 5;
-      final path = Path();
-      for (int i = 0; i < n; i++) {
-        final angle = -pi / 2 + i * angleStep;
-        final x = center.dx + r * cos(angle);
-        final y = center.dy + r * sin(angle);
-        i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
-      }
-      path.close();
-      canvas.drawPath(path, gridPaint);
-    }
-
-    for (int i = 0; i < n; i++) {
-      final angle = -pi / 2 + i * angleStep;
-      canvas.drawLine(
-        center,
-        Offset(center.dx + radius * cos(angle),
-            center.dy + radius * sin(angle)),
-        gridPaint,
-      );
-    }
-
-    final dataPaint = Paint()
-      ..color = AppTheme.brand500.withOpacity(0.12)
-      ..style = PaintingStyle.fill;
-    final dataBorder = Paint()
-      ..color = AppTheme.brand500
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5;
-    final dataPath = Path();
-    for (int i = 0; i < n; i++) {
-      final angle = -pi / 2 + i * angleStep;
-      final r = radius * values[i].clamp(0.0, 1.0);
-      final x = center.dx + r * cos(angle);
-      final y = center.dy + r * sin(angle);
-      i == 0 ? dataPath.moveTo(x, y) : dataPath.lineTo(x, y);
-    }
-    dataPath.close();
-    canvas.drawPath(dataPath, dataPaint);
-    canvas.drawPath(dataPath, dataBorder);
-
-    for (int i = 0; i < n; i++) {
-      final angle = -pi / 2 + i * angleStep;
-      final r = radius * values[i].clamp(0.0, 1.0);
-      final pt = Offset(center.dx + r * cos(angle),
-          center.dy + r * sin(angle));
-      canvas.drawCircle(pt, 5, Paint()..color = AppTheme.brand500);
-      canvas.drawCircle(pt, 2.5, Paint()..color = Colors.white);
-    }
-
-    for (int i = 0; i < n; i++) {
-      final angle = -pi / 2 + i * angleStep;
-      final x = center.dx + (radius + 18) * cos(angle);
-      final y = center.dy + (radius + 18) * sin(angle);
-      final tp = TextPainter(
-        text: TextSpan(
-          text: labels[i],
-          style: TextStyle(
-            color: AppTheme.textSecondary,
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, Offset(x - tp.width / 2, y - tp.height / 2));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _RadarPainter old) => old.values != values;
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend_flutter/theme.dart';
 import 'package:frontend_flutter/services/audio_service.dart';
 import 'package:frontend_flutter/services/api_service.dart';
+import 'package:frontend_flutter/utils/helpers.dart';
 
 class RecordPage extends StatefulWidget {
   final Function(Map<String, dynamic>)? onComplete;
@@ -49,12 +50,6 @@ class _RecordPageState extends State<RecordPage>
     _pulseCtrl.dispose();
     AudioService.dispose();
     super.dispose();
-  }
-
-  String _formatTime(int s) {
-    final m = (s ~/ 60).toString().padLeft(2, '0');
-    final sec = (s % 60).toString().padLeft(2, '0');
-    return '$m:$sec';
   }
 
   void _startRecording() async {
@@ -355,7 +350,7 @@ class _RecordPageState extends State<RecordPage>
         ),
         const SizedBox(height: 20),
         Text(
-          _formatTime(_seconds),
+          AppHelpers.formatTime(_seconds),
           style: const TextStyle(
             fontSize: 36,
             fontWeight: FontWeight.w500,

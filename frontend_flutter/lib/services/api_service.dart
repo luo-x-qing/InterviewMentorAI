@@ -88,4 +88,30 @@ class ApiService {
     Response resp = await _dio.get(Constants.interviewListApi);
     return resp.data;
   }
+
+  /// 获取报告列表（分页）
+  static Future<Map<String, dynamic>> getReportList({int page = 1, int size = 20}) async {
+    Response resp = await _dio.get(Constants.reportListApi, queryParameters: {
+      'page': page, 'size': size,
+    });
+    return resp.data;
+  }
+
+  /// 获取用户个人信息
+  static Future<Map<String, dynamic>> getUserProfile() async {
+    Response resp = await _dio.get(Constants.userProfileApi);
+    return resp.data;
+  }
+
+  /// 修改密码
+  static Future<Map<String, dynamic>> updatePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    Response resp = await _dio.put(Constants.userPasswordApi, data: {
+      'oldPassword': oldPassword,
+      'newPassword': newPassword,
+    });
+    return resp.data;
+  }
 }
