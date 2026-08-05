@@ -1,8 +1,9 @@
 """
 知识库管理 API 路由
-提供知识库导入、统计、清空等接口
+提供知识库导入、统计、清空、文档级生命周期接口
 """
 import logging
+import os
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -24,11 +25,22 @@ class KnowledgeImportRequest(BaseModel):
     file_paths: Optional[List[str]] = None  # 指定文件路径，None则导入全部
 
 
+class ImportReportBrief(BaseModel):
+    """单文件入库报告摘要（T3.3）"""
+    source: str
+    status: str
+    self_check: str = ""
+    question_count: int = 0
+    chunk_count: int = 0
+    error: str = ""
+
+
 class KnowledgeImportResponse(BaseModel):
     """知识库导入响应"""
     success: bool
     message: str
     imported_count: int
+    reports: List[ImportReportBrief] = []
 
 
 @router.post("/import", response_model=KnowledgeImportResponse)
@@ -37,18 +49,38 @@ async def import_knowledge(
     knowledge_service: KnowledgeService = Depends(get_knowledge_service)
 ):
     """
-    导入知识库文档
-    
-    将指定目录下的.md和.txt文件进行分块、向量化，存入向量数据库。
+    导入知识库题库（单入口 import_document：幂等 + 自检）
+
+    - file_paths 为空时扫描 rag_doc_root 下全部 MD/TXT
+    - 未变更文件跳过、变更文件蓝绿替换、自检失败回滚
     """
     try:
         logger.info("开始知识库导入")
-        imported_count = knowledge_service.batch_import_knowledge()
+        if request and request.file_paths:
+            paths = request.file_paths
+        else:
+            paths = knowledge_service.list_doc_files()
+        if not paths:
+            return KnowledgeImportResponse(success=True, message="无题库文件", imported_count=0)
 
+        reports = []
+        for p in paths:
+            r = knowledge_service.import_document(p)
+            reports.append(ImportReportBrief(
+                source=os.path.basename(p),
+                status=r.status,
+                self_check=r.self_check,
+                question_count=r.question_count,
+                chunk_count=r.chunk_count,
+                error=r.error,
+            ))
+
+        failed = [r for r in reports if r.status == "failed"]
         return KnowledgeImportResponse(
-            success=True,
-            message="知识库导入完成",
-            imported_count=imported_count
+            success=not failed,
+            message=f"导入完成，{len(reports)} 个题库" if not failed else f"{len(failed)} 个题库导入失败",
+            imported_count=len(reports),
+            reports=reports,
         )
     except AppError as e:
         logger.error(f"知识库导入失败: {e}", exc_info=True)
@@ -56,6 +88,22 @@ async def import_knowledge(
     except Exception as e:
         logger.error(f"知识库导入失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"导入失败: {str(e)}")
+
+
+@router.post("/reconcile")
+async def reconcile_knowledge(
+    knowledge_service: KnowledgeService = Depends(get_knowledge_service)
+):
+    """目录对账：清理已从磁盘消失题库的旧分块与指纹（D3）"""
+    try:
+        removed = knowledge_service.reconcile_directory()
+        return {"success": True, "removed": removed, "message": f"目录对账完成，清理 {removed} 个已消失题库"}
+    except AppError as e:
+        logger.error(f"目录对账失败: {e}", exc_info=True)
+        raise e.to_http_exception()
+    except Exception as e:
+        logger.error(f"目录对账失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"目录对账失败: {str(e)}")
 
 
 @router.get("/stats")
@@ -95,3 +143,20 @@ async def clear_knowledge(
     except Exception as e:
         logger.error(f"清空知识库失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"清空失败: {str(e)}")
+
+
+@router.delete("/{source}")
+async def delete_document(
+    source: str,
+    knowledge_service: KnowledgeService = Depends(get_knowledge_service)
+):
+    """文档级生命周期：删除某来源题库的全部分块与指纹（T3.2）"""
+    try:
+        knowledge_service.delete_document(source)
+        return {"success": True, "message": f"已删除题库 {source}"}
+    except AppError as e:
+        logger.error(f"删除题库失败: {e}", exc_info=True)
+        raise e.to_http_exception()
+    except Exception as e:
+        logger.error(f"删除题库失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")

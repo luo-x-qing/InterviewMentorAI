@@ -3,16 +3,17 @@
 提供文档检索、分块预览等接口
 """
 import logging
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.services.rag_service import RagService
 from app.services.chunking_service import ChunkingService
 from app.models.schemas import RagRetrievalResult
 from app.main import get_rag_service, get_chunking_service
 from app.core.exceptions import AppError
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,15 +22,16 @@ router = APIRouter(prefix="/retrieval", tags=["retrieval"])
 
 class RetrievalRequest(BaseModel):
     question: str
-    top_k: int = 3
+    top_k: int = Field(default_factory=lambda: settings.rag_top_k)
     use_hybrid: bool = True
-    use_rerank: bool = False
+    use_rerank: bool = Field(default_factory=lambda: settings.rag_use_rerank)
 
 
 class RetrievalResponse(BaseModel):
     question: str
     docs: List[dict]
     total_count: int
+    metrics: Optional[dict] = None
 
 
 class ChunkPreviewRequest(BaseModel):
@@ -73,7 +75,8 @@ async def retrieve_documents(
         return RetrievalResponse(
             question=result.question,
             docs=docs_dict,
-            total_count=len(docs_dict)
+            total_count=len(docs_dict),
+            metrics=result.metrics.model_dump() if result.metrics else None
         )
     except AppError as e:
         logger.error(f"检索失败: {e}", exc_info=True)

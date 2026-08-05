@@ -1,0 +1,5 @@
+{
+  "hit_rate": 0.0,
+  "note": "P0 基线：空库检索召回率 0%。rag_eval_script.py 运行后对比此值，跌破则门禁失败。",
+  "updated_at": "2026-08-05"
+}

@@ -28,7 +28,10 @@ class Settings(BaseSettings):
     sqlite_db_path: str = Field(default="./data/interview.db", alias="SQLITE_DB_PATH")
     embedding_model: str = Field(default="text-embedding-v3", alias="EMBEDDING_MODEL")
     rag_top_k: int = Field(default=3, alias="RAG_TOP_K")
-    rag_similar_threshold: float = Field(default=0.01, alias="RAG_THRESHOLD")
+    rag_similar_threshold: float = Field(default=0.25, alias="RAG_THRESHOLD")
+    rag_vector_weight: float = Field(default=0.7, alias="RAG_VECTOR_WEIGHT")
+    rag_bm25_weight: float = Field(default=0.3, alias="RAG_BM25_WEIGHT")
+    rag_use_rerank: bool = Field(default=True, alias="RAG_USE_RERANK")
     chunk_size: int = Field(default=500, alias="CHUNK_SIZE")
     chunk_overlap: int = Field(default=100, alias="CHUNK_OVERLAP")
 

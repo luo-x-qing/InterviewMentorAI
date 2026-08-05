@@ -1,6 +1,7 @@
-#rag效果评估脚本
+#rag效果评估脚本（T4.3 检索可观测：命中率 / 得分分布 / 来源分布，对比 P0 空库基线 0%）
 import sys
 import os
+import json
 
 # 将backend_python目录添加到Python路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -24,7 +25,6 @@ prompt_service = PromptService(llm_client=llm_client)
 rag_service = RagService(
     vector_db=vector_db,
     embedding_service=embedding_service,
-    chunking_service=chunking_service
 )
 rag_mcp = RagMCP(rag_service=rag_service, prompt_service=prompt_service)
 agent_pipeline = AgentPipeline(prompt_service=prompt_service, rag_mcp=rag_mcp)
@@ -36,19 +36,41 @@ test_questions = [
     "SpringBoot自动配置机制"
 ]
 
-def test_retrieval_metrics():
-    """0005 检索质量评估：统计命中、精确率"""
+P0_BASELINE_HIT_RATE = 0.0  # P0 基线：空库检索召回率 0%
+BASELINE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rag_eval_baseline.json")
+
+
+def _load_baseline() -> float:
+    """读取历史基线（初始为 P0 空库基线 0.0）"""
+    try:
+        with open(BASELINE_FILE, "r", encoding="utf-8") as f:
+            return float(json.load(f).get("hit_rate", P0_BASELINE_HIT_RATE))
+    except Exception:
+        return P0_BASELINE_HIT_RATE
+
+
+def test_retrieval_metrics() -> float:
+    """T4.3 检索可观测：命中率对比 P0 基线 + 得分/来源分布"""
+    print("===== 检索质量评估（重排默认开启）=====")
     total_hit = 0
     total_query = len(test_questions)
     for q in test_questions:
         res = rag_service.retrieve_by_question(q)
-        if len(res.docs) > 0:
+        m = res.metrics
+        if m and m.hit_count > 0:
             total_hit += 1
-            print(f"问题：{q} 匹配到{len(res.docs)}条文档")
-            for d in res.docs:
-                print(f"  相似度：{d.score:.2f} 来源：{d.source}")
+        print(f"问题：{q}")
+        if m and m.hit_count > 0:
+            print(f"  命中数：{m.hit_count}  得分范围：{m.score_min:.2f}~{m.score_max:.2f}  均分：{m.score_mean:.2f}")
+            print(f"  来源分布：{m.sources}")
+        else:
+            print("  命中数：0（未命中）")
+        for d in res.docs:
+            print(f"    [{d.score:.2f}] {d.source} · {d.title[:40]}")
     recall = total_hit / total_query
-    print(f"\n检索召回率：{recall:.2f}")
+    baseline = _load_baseline()
+    print(f"\n检索召回率：{recall:.2f}  （基线：{baseline:.2f}，提升 {recall - baseline:.2f}）")
+    return recall
 
 def test_hybrid_retrieval():
     """测试混合检索"""
@@ -97,7 +119,13 @@ def test_end_to_end_rag():
     print(f"分析状态：{resp.status} 报告长度：{len(resp.report)}")
 
 if __name__ == "__main__":
-    test_retrieval_metrics()
+    recall = test_retrieval_metrics()
+    baseline = _load_baseline()
+    if recall >= baseline:
+        print(f"门禁通过：召回率 {recall:.2f} >= 基线 {baseline:.2f}")
+    else:
+        print(f"门禁失败：召回率 {recall:.2f} < 基线 {baseline:.2f}，检索质量回退！")
+        sys.exit(1)
     test_hybrid_retrieval()
     test_vector_only_retrieval()
     test_chunking_methods()

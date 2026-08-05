@@ -3,6 +3,10 @@
 
 使用临时 SQLite 数据库，验证完整的「文档分块 → 向量化 → 混合检索 → MCP 组装」链路。
 不依赖外部 API（LLM/Embedding 调用使用 mock）。
+
+> 待迁移：本文件基于旧版 LlmClient 构造与 batch_import_knowledge（已删除），
+> 当前 6 个用例因接口不匹配报 error；新链路单测见 test_import_pipeline.py，
+> 端到端演练见 rag_e2e_check.py，迁移完成后应全部改走 import_document 单入口。
 """
 import os
 import tempfile

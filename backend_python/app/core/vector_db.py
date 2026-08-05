@@ -18,6 +18,8 @@ except ImportError:
     HAS_SQLITE_VEC = False
     logger.warning("sqlite_vec未安装，将使用备选向量检索方案")
 
+VECTOR_DIM = 1024
+
 class VectorDB:
     def __init__(self, db_path: str | None = None):
         self.db_path = db_path if db_path is not None else settings.sqlite_db_path
@@ -46,7 +48,24 @@ class VectorDB:
             doc_id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
             content TEXT,
-            source TEXT
+            source TEXT,
+            question_no TEXT DEFAULT '',
+            section TEXT DEFAULT ''
+        )
+        """)
+        # 兼容旧库：为已存在但缺列的 rag_docs 补列（T2.2 元数据落库）
+        cols = [row[1] for row in self.conn.execute("PRAGMA table_info(rag_docs)").fetchall()]
+        if "question_no" not in cols:
+            self.conn.execute("ALTER TABLE rag_docs ADD COLUMN question_no TEXT DEFAULT ''")
+        if "section" not in cols:
+            self.conn.execute("ALTER TABLE rag_docs ADD COLUMN section TEXT DEFAULT ''")
+
+        # 文件级指纹索引：幂等入库（D3）——未变更跳过、变更替换、目录对账
+        self.conn.execute("""
+        CREATE TABLE IF NOT EXISTS rag_file_index (
+            source TEXT PRIMARY KEY,
+            fingerprint TEXT NOT NULL,
+            imported_at TEXT DEFAULT (datetime('now', 'localtime'))
         )
         """)
         
@@ -70,12 +89,13 @@ class VectorDB:
         self.conn.commit()
         logger.info("向量数据表初始化完成")
 
-    def insert_chunk(self, title: str, content: str, source: str, embedding: list[float]) -> int:
+    def insert_chunk(self, title: str, content: str, source: str, embedding: list[float],
+                     question_no: str = "", section: str = "") -> int:
         try:
             cur = self.conn.cursor()
             cur.execute(
-                "INSERT INTO rag_docs(title, content, source) VALUES (?, ?, ?)",
-                (title, content, source)
+                "INSERT INTO rag_docs(title, content, source, question_no, section) VALUES (?, ?, ?, ?, ?)",
+                (title, content, source, question_no, section)
             )
             doc_id = cur.lastrowid
             vec_bin = np.array(embedding, dtype=np.float32).tobytes()
@@ -91,6 +111,110 @@ class VectorDB:
             self.conn.rollback()
             raise VectorDbInsertError(f"文档入库失败: {str(e)}")
 
+    # ---------- 文件级指纹与幂等（P3 · 落实 ADR-0002 D3） ----------
+
+    def file_fingerprint(self, source: str) -> str | None:
+        """查询文件指纹；未入库返回 None"""
+        row = self.conn.execute(
+            "SELECT fingerprint FROM rag_file_index WHERE source = ?", (source,)
+        ).fetchone()
+        return row[0] if row else None
+
+    def upsert_file_fingerprint(self, source: str, fingerprint: str) -> None:
+        """记录/更新文件指纹"""
+        self.conn.execute(
+            "INSERT INTO rag_file_index(source, fingerprint, imported_at) "
+            "VALUES (?, ?, datetime('now', 'localtime')) "
+            "ON CONFLICT(source) DO UPDATE SET fingerprint = excluded.fingerprint, "
+            "imported_at = excluded.imported_at",
+            (source, fingerprint),
+        )
+        self.conn.commit()
+
+    def delete_file_index(self, source: str) -> None:
+        """删除文件指纹记录"""
+        self.conn.execute("DELETE FROM rag_file_index WHERE source = ?", (source,))
+        self.conn.commit()
+
+    def delete_docs_by_source(self, source: str) -> int:
+        """删除某来源题库的全部题目分块与向量"""
+        doc_ids = self.list_doc_ids_by_source(source)
+        for doc_id in doc_ids:
+            self.delete_doc_by_id(doc_id)
+        return len(doc_ids)
+
+    def delete_doc_by_id(self, doc_id: int) -> None:
+        """按 doc_id 删除单条文档与向量（回滚用）"""
+        self.conn.execute("DELETE FROM rag_vectors WHERE doc_id = ?", (doc_id,))
+        self.conn.execute("DELETE FROM rag_docs WHERE doc_id = ?", (doc_id,))
+        self.conn.commit()
+        self._idf_dirty = True
+
+    def list_docs_by_source(self, source: str) -> list[dict]:
+        """列出某来源文件的全部文档（回滚恢复用）"""
+        rows = self.conn.execute(
+            "SELECT title, content, question_no, section FROM rag_docs WHERE source = ?",
+            (source,),
+        ).fetchall()
+        return [
+            {"title": r[0], "content": r[1], "question_no": r[2], "section": r[3]}
+            for r in rows
+        ]
+
+    def list_doc_ids_by_source(self, source: str) -> list[int]:
+        """列出某来源题库的全部 doc_id（蓝绿替换时删除旧块用）"""
+        return [r[0] for r in self.conn.execute(
+            "SELECT doc_id FROM rag_docs WHERE source = ?", (source,)
+        ).fetchall()]
+
+    def count_docs_by_source(self, source: str) -> int:
+        """某来源题库的题目分块数（自检对账用）"""
+        return self.conn.execute(
+            "SELECT COUNT(*) FROM rag_docs WHERE source = ?", (source,)
+        ).fetchone()[0]
+
+    def count_vectors_by_source(self, source: str) -> int:
+        """某来源题库的向量数（自检对账用）"""
+        return self.conn.execute(
+            "SELECT COUNT(*) FROM rag_vectors v JOIN rag_docs d ON v.doc_id = d.doc_id "
+            "WHERE d.source = ?", (source,)
+        ).fetchone()[0]
+
+    def count_questions_by_source(self, source: str) -> int:
+        """某来源题库的题目数（自检对账用）"""
+        return self.conn.execute(
+            "SELECT COUNT(DISTINCT question_no) FROM rag_docs WHERE source = ? AND question_no != ''",
+            (source,),
+        ).fetchone()[0]
+
+    def indexed_sources(self) -> list[str]:
+        """已入库题库的 source 清单（目录对账用）"""
+        return [row[0] for row in self.conn.execute(
+            "SELECT source FROM rag_file_index"
+        ).fetchall()]
+
+    def total_docs(self) -> int:
+        """全库题目分块总数（统计用）"""
+        return self.conn.execute("SELECT COUNT(*) FROM rag_docs").fetchone()[0]
+
+    def total_vectors(self) -> int:
+        """全库向量总数（统计用）"""
+        return self.conn.execute("SELECT COUNT(*) FROM rag_vectors").fetchone()[0]
+
+    def source_grouping(self) -> list[tuple]:
+        """按来源分组的 (source, chunk_count) 列表（统计用）"""
+        return self.conn.execute(
+            "SELECT source, COUNT(*) FROM rag_docs GROUP BY source"
+        ).fetchall()
+
+    def clear_all(self) -> None:
+        """清空全部文档、向量与指纹索引（知识库清空）"""
+        self.conn.execute("DELETE FROM rag_vectors")
+        self.conn.execute("DELETE FROM rag_docs")
+        self.conn.execute("DELETE FROM rag_file_index")
+        self.conn.commit()
+        self._idf_dirty = True
+
     def search_vector(self, query_emb: list[float], top_k: int, threshold: float) -> list[RagDoc]:
         """稠密向量检索｜0004密集检索"""
         try:
@@ -99,16 +223,17 @@ class VectorDB:
                 vec_bin = np.array(query_emb, dtype=np.float32).tobytes()
                 cur = self.conn.cursor()
                 rows = cur.execute("""
-                    SELECT d.doc_id, d.title, d.content, d.source, distance
+                    SELECT d.doc_id, d.title, d.content, d.source, d.question_no, d.section, distance
                     FROM rag_vectors v
                     JOIN rag_docs d ON v.doc_id = d.doc_id
                     WHERE embedding MATCH ? AND k = ?
                 """, (vec_bin, top_k)).fetchall()
                 res = []
-                for doc_id, title, content, src, dist in rows:
+                for doc_id, title, content, src, q_no, sec, dist in rows:
                     sim_score = 1 - dist  # 欧式距离转相似度
                     if sim_score >= threshold:
-                        res.append(RagDoc(doc_id=doc_id, title=title, content=content, source=src, score=sim_score))
+                        res.append(RagDoc(doc_id=doc_id, title=title, content=content, source=src,
+                                          question_no=q_no or "", section=sec or "", score=sim_score))
                 return res
             else:
                 # 备选方案：Python计算向量距离
@@ -132,7 +257,7 @@ class VectorDB:
                 res = []
                 for doc_id, score in results[:top_k]:
                     doc_row = self.conn.execute(
-                        "SELECT title, content, source FROM rag_docs WHERE doc_id = ?",
+                        "SELECT title, content, source, question_no, section FROM rag_docs WHERE doc_id = ?",
                         (doc_id,)
                     ).fetchone()
                     if doc_row:
@@ -141,6 +266,8 @@ class VectorDB:
                             title=doc_row[0],
                             content=doc_row[1],
                             source=doc_row[2],
+                            question_no=doc_row[3] or "",
+                            section=doc_row[4] or "",
                             score=score
                         ))
                 return res
@@ -198,36 +325,38 @@ class VectorDB:
             
             cur = self.conn.cursor()
             # 获取所有文档
-            rows = cur.execute("SELECT doc_id, title, content, source FROM rag_docs").fetchall()
-            
+            rows = cur.execute("SELECT doc_id, title, content, source, question_no, section FROM rag_docs").fetchall()
+
             if not rows:
                 return []
-            
+
             # 计算平均文档长度
-            all_doc_tokens = [self._tokenize(content) for _, _, content, _ in rows]
+            all_doc_tokens = [self._tokenize(content) for _, _, content, _, _, _ in rows]
             avg_dl = sum(len(tokens) for tokens in all_doc_tokens) / len(all_doc_tokens) if all_doc_tokens else 1
-            
+
             # 计算每个文档的BM25分数
             doc_scores = []
-            for i, (doc_id, title, content, source) in enumerate(rows):
+            for i, (doc_id, title, content, source, q_no, sec) in enumerate(rows):
                 doc_tokens = all_doc_tokens[i]
                 score = self._bm25_score(query_tokens, doc_tokens, avg_dl)
-                doc_scores.append((doc_id, title, content, source, score))
-            
+                doc_scores.append((doc_id, title, content, source, q_no, sec, score))
+
             # 按分数排序，返回top_k
-            doc_scores.sort(key=lambda x: x[4], reverse=True)
-            
+            doc_scores.sort(key=lambda x: x[6], reverse=True)
+
             res = []
-            for doc_id, title, content, source, score in doc_scores[:top_k]:
+            for doc_id, title, content, source, q_no, sec, score in doc_scores[:top_k]:
                 if score > 0:
                     res.append(RagDoc(
                         doc_id=doc_id,
                         title=title,
                         content=content,
                         source=source,
+                        question_no=q_no or "",
+                        section=sec or "",
                         score=score
                     ))
-            
+
             return res
         except Exception as e:
             logger.error(f"BM25检索失败: {e}")
@@ -268,7 +397,8 @@ class VectorDB:
 
                 total_score = vector_weight * vector_norm + bm25_weight * bm25_norm
 
-                if total_score >= threshold:
+                # 阈值判定：任一路强命中即可放行，避免单一权重通道被阈值整体滤除（T4.1）
+                if total_score >= threshold or vector_norm >= threshold or bm25_norm >= threshold:
                     doc = scores['doc']
                     doc.score = total_score
                     final_results.append(doc)

@@ -1,16 +1,16 @@
 """
 RAG-MCP 模型上下文调度层
-统一封装：检索上下文组装 + LLM增强调用
+统一封装：检索上下文组装 + LLM增强调用 + Agent 知识库工具
 隔离RAG检索逻辑与LLM生成逻辑，标准化RAG调用链路
 """
 import logging
 from typing import Optional
-from app.models.schemas import RagRetrievalResult
+from app.models.schemas import RagRetrievalResult, ImportReport
 
 logger = logging.getLogger(__name__)
 
 class RagMCP:
-    def __init__(self, rag_service=None, prompt_service=None):
+    def __init__(self, rag_service=None, prompt_service=None, knowledge_service=None):
         # 延迟导入，避免循环依赖
         if rag_service is None:
             from app.services.rag_service import RagService
@@ -23,6 +23,24 @@ class RagMCP:
             self.prompt_service = PromptService()
         else:
             self.prompt_service = prompt_service
+
+        if knowledge_service is None:
+            from app.services.knowledge_service import KnowledgeService
+            self._knowledge_service = KnowledgeService()
+        else:
+            self._knowledge_service = knowledge_service
+
+    def import_document(self, file_path: str, max_chunk_size: int = None) -> ImportReport:
+        """Agent 工具：拖入题库入库（清洗→解析→切面→向量化→落库→自检）"""
+        return self._knowledge_service.import_document(file_path, max_chunk_size)
+
+    def delete_document(self, source: str) -> bool:
+        """Agent 工具：删除某来源题库的全部分块与指纹"""
+        return self._knowledge_service.delete_document(source)
+
+    def reconcile_directory(self, root: str = None) -> int:
+        """Agent 工具：目录对账，清理已消失文件的旧分块"""
+        return self._knowledge_service.reconcile_directory(root)
 
     def build_rag_context(self, retrieval_res: RagRetrievalResult) -> str:
         """MCP专属：标准化拼接检索参考上下文"""

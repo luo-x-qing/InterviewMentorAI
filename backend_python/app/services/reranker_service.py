@@ -41,15 +41,22 @@ class RerankerService:
         try:
             pairs = [(query, doc.content) for doc in docs]
             scores = self._model.predict(pairs)
-            
-            scored_docs = list(zip(docs, scores))
+
+            score_list = [float(s) for s in scores]
+            if not score_list:
+                return docs[:top_n]
+            lo, hi = min(score_list), max(score_list)
+            span = hi - lo
+
+            scored_docs = list(zip(docs, score_list))
             scored_docs.sort(key=lambda x: x[1], reverse=True)
-            
+
             reranked_docs = []
             for doc, score in scored_docs[:top_n]:
-                doc.score = float(score)
+                # 归一化回写 score（T4.2）：重排得分映射到 [0,1]
+                doc.score = (score - lo) / span if span > 0 else 0.0
                 reranked_docs.append(doc)
-            
+
             logger.info(f"重排序完成，返回 {len(reranked_docs)} 条结果")
             return reranked_docs
             

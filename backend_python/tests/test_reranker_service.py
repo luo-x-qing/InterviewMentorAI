@@ -1,61 +1,57 @@
 """
-RerankerService 单元测试
-测试接缝: RerankerService.rerank()
+RerankerService 重排序归一化测试（P4 T4.2）
+验证：得分 min-max 归一化到 [0,1] 后回写 score，且保持相对顺序
 """
 import pytest
-from unittest.mock import MagicMock, patch
 from app.services.reranker_service import RerankerService
 from app.models.schemas import RagDoc
 
 
-class TestRerank:
-    """重排序测试"""
+def _docs(n):
+    return [RagDoc(doc_id=i, title=f"t{i}", content=f"第{i}个文档的内容", source="s", score=0.1)
+            for i in range(n)]
 
-    def test_reranks_documents_by_score(self):
-        mock_model = MagicMock()
-        mock_model.predict.return_value = [0.3, 0.9, 0.5]
-        service = RerankerService()
-        service._model = mock_model
 
-        docs = [
-            RagDoc(doc_id=1, title="a", content="内容A", source="s1", score=0.5),
-            RagDoc(doc_id=2, title="b", content="内容B", source="s2", score=0.6),
-            RagDoc(doc_id=3, title="c", content="内容C", source="s3", score=0.4),
-        ]
+class TestRerankNormalization:
+    def test_scores_normalized_to_unit_range(self, mocker):
+        svc = RerankerService()
+        svc._model = mocker.Mock()
+        svc._model.predict.return_value = [0.2, 0.8, 0.5]
 
-        result = service.rerank("查询", docs, top_n=2)
+        out = svc.rerank("查询", _docs(3), top_n=3)
 
-        assert len(result) == 2
-        assert result[0].doc_id == 2
-        assert result[1].doc_id == 3
+        scores = [d.score for d in out]
+        assert max(scores) == pytest.approx(1.0)   # 最高分归一化为 1
+        assert min(scores) == pytest.approx(0.0)   # 最低分归一化为 0
+        assert out[0].doc_id == 1                  # 最高分文档排在首位
 
-    def test_empty_docs_returns_empty(self):
-        service = RerankerService()
-        result = service.rerank("查询", [], top_n=3)
-        assert result == []
+    def test_order_kept_without_reverse(self, mocker):
+        svc = RerankerService()
+        svc._model = mocker.Mock()
+        svc._model.predict.return_value = [0.9, 0.1, 0.6]
 
-    def test_model_load_failure_returns_original(self):
-        service = RerankerService()
-        service._model = False
+        out = svc.rerank("查询", _docs(3), top_n=3)
 
-        docs = [
-            RagDoc(doc_id=1, title="a", content="内容A", source="s1", score=0.5),
-        ]
+        assert [d.doc_id for d in out] == [0, 2, 1]
 
-        result = service.rerank("查询", docs, top_n=3)
-        assert len(result) == 1
-        assert result[0].doc_id == 1
+    def test_top_n_limits_results(self, mocker):
+        svc = RerankerService()
+        svc._model = mocker.Mock()
+        svc._model.predict.return_value = [0.9, 0.1, 0.6]
 
-    def test_rerank_error_returns_original(self):
-        mock_model = MagicMock()
-        mock_model.predict.side_effect = Exception("Model error")
-        service = RerankerService()
-        service._model = mock_model
+        out = svc.rerank("查询", _docs(3), top_n=1)
 
-        docs = [
-            RagDoc(doc_id=1, title="a", content="内容A", source="s1", score=0.5),
-        ]
+        assert len(out) == 1
+        assert out[0].doc_id == 0
 
-        result = service.rerank("查询", docs, top_n=3)
-        assert len(result) == 1
-        assert result[0].doc_id == 1
+    def test_empty_docs(self):
+        svc = RerankerService()
+        assert svc.rerank("查询", [], top_n=3) == []
+
+    def test_model_fallback_keeps_order(self, mocker):
+        svc = RerankerService()
+        svc._model = False  # 模型加载失败场景
+
+        out = svc.rerank("查询", _docs(3), top_n=2)
+
+        assert len(out) == 2

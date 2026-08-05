@@ -4,7 +4,7 @@ RAG 业务层
 """
 import logging
 from app.core.config import settings
-from app.models.schemas import RagDoc, RagRetrievalResult
+from app.models.schemas import RagDoc, RagRetrievalResult, RetrievalMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -13,14 +13,17 @@ class RagService:
     """
     RAG 业务服务
     
-    职责：编排检索流程（混合检索 + 重排序）
+    职责：编排检索流程（混合检索 + 重排序 + 观测埋点）
     不直接处理分块、向量化或重排序逻辑
     """
     
     def __init__(self, vector_db=None, embedding_service=None, reranker_service=None,
-                 top_k: int = None, threshold: float = None):
+                 top_k: int = None, threshold: float = None,
+                 vector_weight: float = None, bm25_weight: float = None):
         self.top_k = top_k if top_k is not None else settings.rag_top_k
         self.threshold = threshold if threshold is not None else settings.rag_similar_threshold
+        self.vector_weight = vector_weight if vector_weight is not None else settings.rag_vector_weight
+        self.bm25_weight = bm25_weight if bm25_weight is not None else settings.rag_bm25_weight
         
         # 依赖注入
         if vector_db is None:
@@ -42,18 +45,19 @@ class RagService:
             self.reranker_service = reranker_service
     
     async def retrieve_by_question(self, interview_question: str, use_hybrid: bool = True,
-                             use_rerank: bool = False) -> RagRetrievalResult:
+                             use_rerank: bool = None) -> RagRetrievalResult:
         """
         在线检索入口
         
         Args:
             interview_question: 面试问题
             use_hybrid: 是否使用混合检索
-            use_rerank: 是否使用重排序
+            use_rerank: 是否使用重排序（默认取 settings.rag_use_rerank，T4.2 默认开启）
             
         Returns:
             检索结果
         """
+        use_rerank = settings.rag_use_rerank if use_rerank is None else use_rerank
         logger.info(f"执行RAG检索，面试问题：{interview_question}")
         
         query_emb = await self.embedding_service.get_embedding(interview_question)
@@ -64,8 +68,8 @@ class RagService:
                 query_emb=query_emb,
                 top_k=self.top_k * 2 if use_rerank else self.top_k,
                 threshold=self.threshold,
-                vector_weight=0.7,
-                bm25_weight=0.3
+                vector_weight=self.vector_weight,
+                bm25_weight=self.bm25_weight
             )
             logger.info(f"混合检索匹配文档数量：{len(hit_docs)}")
         else:
@@ -82,7 +86,25 @@ class RagService:
         
         return RagRetrievalResult(
             question=interview_question,
-            docs=hit_docs
+            docs=hit_docs,
+            metrics=self._collect_metrics(hit_docs)
+        )
+    
+    @staticmethod
+    def _collect_metrics(docs: list[RagDoc]) -> RetrievalMetrics:
+        """检索观测埋点（T4.3）：命中数 / 得分分布 / 来源分布"""
+        if not docs:
+            return RetrievalMetrics(hit_count=0)
+        scores = [d.score for d in docs]
+        sources: dict[str, int] = {}
+        for d in docs:
+            sources[d.source] = sources.get(d.source, 0) + 1
+        return RetrievalMetrics(
+            hit_count=len(docs),
+            score_min=min(scores),
+            score_max=max(scores),
+            score_mean=round(sum(scores) / len(scores), 4),
+            sources=sources,
         )
     
     def close(self):

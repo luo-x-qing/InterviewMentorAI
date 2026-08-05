@@ -44,16 +44,17 @@
 
 | 组件 | 文件 | 职责 |
 |------|------|------|
-| **向量数据库** | `core/vector_db.py` | SQLite + sqlite-vec，存储文本和向量，支持 BM25 和向量检索 |
+| **向量数据库** | `core/vector_db.py` | SQLite + sqlite-vec，存储文本和向量，支持 BM25/向量/混合检索 |
 | **LLM 客户端** | `services/llm_client.py` | 封装 DashScope/OpenAI 调用，支持流式/非流式 |
-| **文档分块** | `services/chunking_service.py` | 文档分段（500字符窗口，100重叠） |
+| **清洗服务** | `services/cleaning_service.py` | 去噪、规范化、内容指纹去重 |
+| **结构化切面** | `services/chunking_service.py` | 以题目为粒度切分，保留题目编号与来源，超长答案二次切分 |
 | **向量化服务** | `services/embedding_service.py` | DashScope Embedding + 本地缓存 |
-| **重排序服务** | `services/reranker_service.py` | Cross-Encoder 相关性重排序 |
-| **RAG 编排层** | `services/rag_service.py` | 混合检索（向量+BM25）编排 |
+| **重排序服务** | `services/reranker_service.py` | Cross-Encoder 相关性重排序（min-max 归一化） |
+| **RAG 编排层** | `services/rag_service.py` | 混合检索（权重融合+阈值判定+默认重排+metrics） |
 | **MCP 调度层** | `services/rag_mcp.py` | 上下文组装、长度截断、LLM 增强调用 |
-| **知识库服务** | `services/knowledge_service.py` | 文档导入、分块、向量化入库 |
+| **入库管道** | `services/knowledge_service.py` | 幂等入库单入口（清洗→切面→向量化→落库→自检→回滚） |
 | **Agent 流水线** | `services/agent_pipeline.py` | 编排 ASR → 分离 → RAG → 评估 → 报告 |
-| **文档转换** | `services/doc_converter/` | PDF/Word/HTML/TXT 转 Markdown |
+| **文档转换** | `services/doc_converter/` | 规划中（PDF/Word/HTML → MD 尚未落地） |
 | **配置管理** | `core/config.py` | 环境变量、API Key、模型配置 |
 
 ---
@@ -110,18 +111,24 @@ Step 5: 结构化报告 (Markdown 格式输出)
 
 ## RAG 系统
 
-### 离线入库流程
+### 离线入库流程（幂等 + 自检）
 
 ```
-题库文档 (PDF/Word/HTML/TXT/MD)
+题库文档 (MD/TXT)
   ↓
-doc_converter 转换为 Markdown
+knowledge_service.import_document(file_path)   # 单入口
   ↓
-rag_service 分块 (500字符, 重叠100)
+清洗 (去噪 + 内容指纹)
+  ↓
+结构化切面 (题目粒度，保留 question_no / section)
   ↓
 DashScope Embedding 生成向量
   ↓
-SQLite 存储 (文本 + 向量 + 元数据)
+蓝绿替换落库 (未变 skipped / 变更 updated)
+  ↓
+自检 (stats 对账 + BM25 抽样) → 失败回滚 → ImportReport
+  ↓
+目录对账 (reconcile_directory 清理已消失文件)
 ```
 
 ### 在线检索流程
@@ -130,23 +137,38 @@ SQLite 存储 (文本 + 向量 + 元数据)
 查询文本
   ↓
 混合检索
-  ├─→ 向量检索 (DashScope embedding + cosine similarity) 70%
-  └─→ BM25 关键词检索 30%
+  ├─→ 向量检索 (cosine similarity) 70%
+  └─→ BM25 关键词检索 30% (min-max 归一化)
   ↓
-重排序 (Cross-Encoder)
+阈值判定 (任一路强命中放行，默认 0.25)
   ↓
-Top-K 结果返回
+重排序 (Cross-Encoder，默认开启 RAG_USE_RERANK=true)
+  ↓
+Top-K 结果返回 + 检索指标 metrics (命中数/得分/来源分布)
 ```
 
 ### 知识库内容
 
 ```
-data/rag_docs/
+data/rag_docs/          # 13 份 MD 题库 + 1 份 PDF（待转换组件接入后补入）
 ├── 通用评估标准.md              # 面试评估维度和评分规则
 ├── 技术难点标准答案.md          # Java 技术难点标准答案
 ├── Java面试题库/                # Java 基础/集合/多线程/JVM/Spring/MySQL
 ├── Python面试题库/              # Python 基础/进阶/框架/数据库
 └── 系统设计面试题.md            # 高并发/缓存/消息队列/微服务
+```
+
+### 入库与演练
+
+```bash
+# 全量入库（幂等：未变更跳过 / 变更蓝绿替换 / 自检失败回滚）
+python scripts/rag_init.py
+
+# 端到端演练（临时库 + 伪 embedding，12 项断言全 PASS，不耗 API 配额）
+python tests/rag_e2e_check.py
+
+# 检索质量评估（对比 P0 空库基线 0%，跌破基线 exit 1）
+python tests/rag_eval_script.py
 ```
 
 ---
@@ -183,27 +205,29 @@ POST /api/v1/analysis/analyze
 }
 ```
 
-### RAG 接口
+### RAG 接口（知识库生命周期）
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/api/v1/rag/knowledge/import` | POST | 导入知识库文档 |
-| `/api/v1/rag/retrieve` | POST | 检索调试 |
-| `/api/v1/rag/chunks/preview` | POST | 分块预览 |
-| `/api/v1/rag/knowledge/stats` | GET | 知识库统计 |
+| `/knowledge/import` | POST | 导入知识库（file_paths 缺省则扫描全目录，幂等） |
+| `/knowledge/reconcile` | POST | 目录对账，清理已消失题库 |
+| `/knowledge/stats` | GET | 知识库统计 |
+| `/knowledge/clear` | DELETE | 清空知识库 |
+| `/knowledge/{source}` | DELETE | 文档级删除 |
 
 ### 检索接口
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/api/v1/rag/retrieve` | POST | 检索调试 |
+| `/retrieval/retrieve` | POST | 检索调试（响应含 metrics） |
+| `/retrieval/chunks/preview` | POST | 分块预览 |
 
 ### MCP 调试接口
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/api/v1/rag/mcp/eval-test` | POST | MCP 评估测试 |
-| `/api/v1/rag/mcp/context-preview` | POST | MCP 上下文预览 |
+| `/mcp/eval-test` | POST | MCP 评估测试 |
+| `/mcp/context-preview` | POST | MCP 上下文预览 |
 
 ---
 
@@ -225,14 +249,15 @@ backend_python/
 │   │   └── mcp_debug_api.py        # MCP 调试 API
 │   └── services/
 │       ├── llm_client.py           # LLM 通信层
-│       ├── chunking_service.py     # 文档分块
+│       ├── cleaning_service.py     # 清洗 + 内容指纹
+│       ├── chunking_service.py     # 结构化切面（题目粒度）
 │       ├── embedding_service.py    # 向量化 + 缓存
 │       ├── reranker_service.py     # 重排序
 │       ├── rag_service.py          # RAG 检索编排
 │       ├── rag_mcp.py              # MCP 调度层
-│       ├── knowledge_service.py    # 知识库管理
+│       ├── knowledge_service.py    # 入库管道单入口
 │       ├── agent_pipeline.py       # Agent 流水线
-│       └── doc_converter/          # 文档转换工具
+│       └── doc_converter/          # 文档转换（规划中）
 ├── data/
 │   └── rag_docs/                   # 知识库目录
 ├── scripts/
@@ -315,5 +340,10 @@ Java 后端
 |------|------|
 | `DASHSCOPE_API_KEY` | DashScope API 密钥 |
 | `LLM_MODEL` | LLM 模型名称 (默认 qwen-plus) |
-| `EMBEDDING_MODEL` | Embedding 模型 (默认 text-embedding-v2) |
+| `EMBEDDING_MODEL` | Embedding 模型 (默认 text-embedding-v3) |
 | `ASR_MODEL` | ASR 模型 (默认 paraformer-v2) |
+| `RAG_TOP_K` | 返回文档数 (默认 3) |
+| `RAG_THRESHOLD` | 混合检索阈值 (默认 0.25，任一通道强命中放行) |
+| `RAG_VECTOR_WEIGHT` | 向量检索权重 (默认 0.7) |
+| `RAG_BM25_WEIGHT` | BM25 权重 (默认 0.3) |
+| `RAG_USE_RERANK` | 是否默认重排 (默认 true) |

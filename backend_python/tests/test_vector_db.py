@@ -257,3 +257,93 @@ class TestSearchHybrid:
         )
         assert len(results_hybrid) >= 1
         assert len(results_vector) >= 1
+
+    def test_bm25_strong_hit_passes_high_threshold(self, vector_db):
+        """T4.1 回归：BM25 强命中但向量弱时，仍应放行（阈值判定为任一路强命中）"""
+        emb = _fake_embedding()
+        vector_db.insert_chunk("题1", "HashMap底层原理是数组加链表", "src", emb)
+        results = vector_db.search_hybrid(
+            query="HashMap底层原理", query_emb=[0.0] * 1024, top_k=5, threshold=0.5
+        )
+        assert any(r.title == "题1" for r in results)
+
+    def test_vector_strong_hit_passes_high_threshold(self, vector_db):
+        """T4.1 回归：向量强命中但 BM25 弱（无重叠词）时，仍应放行"""
+        emb = _fake_embedding()
+        vector_db.insert_chunk("题1", "PyTorch张量运算", "src", emb)
+        results = vector_db.search_hybrid(
+            query="深度学习框架张量计算", query_emb=emb, top_k=5, threshold=0.9
+        )
+        assert any(r.title == "题1" for r in results)
+
+    def test_all_weak_filtered_by_threshold(self, vector_db):
+        """T4.1 回归：两路都弱于阈值时，整体滤除"""
+        emb = _fake_embedding()
+        vector_db.insert_chunk("题1", "HashMap底层原理", "src", emb)
+        results = vector_db.search_hybrid(
+            query="完全不相关的查询文本", query_emb=[0.0] * 1024, top_k=5, threshold=0.99
+        )
+        assert results == []
+
+
+class TestStatsAndClear:
+    """T5.1 统计/清空下沉到 VectorDB 后的行为"""
+
+    def test_total_docs_vectors_and_grouping(self, vector_db):
+        emb = _fake_embedding()
+        vector_db.insert_chunk("题1", "Java基础", "a.md", emb)
+        vector_db.insert_chunk("题2", "Python基础", "a.md", emb)
+        vector_db.insert_chunk("题3", "MySQL索引", "b.md", emb)
+
+        assert vector_db.total_docs() == 3
+        assert vector_db.total_vectors() == 3
+        grouping = dict(vector_db.source_grouping())
+        assert grouping["a.md"] == 2
+        assert grouping["b.md"] == 1
+
+    def test_clear_all_empties_db(self, vector_db):
+        emb = _fake_embedding()
+        vector_db.insert_chunk("题1", "Java基础", "a.md", emb)
+        vector_db.upsert_file_fingerprint("a.md", "fp-a")
+        vector_db.insert_chunk("题2", "Python基础", "b.md", emb)
+        vector_db.upsert_file_fingerprint("b.md", "fp-b")
+
+        vector_db.clear_all()
+
+        assert vector_db.total_docs() == 0
+        assert vector_db.total_vectors() == 0
+        assert vector_db.file_fingerprint("a.md") is None
+        assert vector_db.file_fingerprint("b.md") is None
+        assert vector_db.search_bm25("Java", top_k=5) == []
+
+
+class TestQuestionMetadata:
+    """T2.2 元数据落库：question_no / section"""
+
+    def test_insert_chunk_with_question_metadata(self, vector_db):
+        emb = _fake_embedding()
+        vector_db.insert_chunk("题1", "内容", "源.md", emb, question_no="1", section="Python基础")
+        row = vector_db.conn.execute(
+            "SELECT title, source, question_no, section FROM rag_docs"
+        ).fetchone()
+        assert row[2] == "1"
+        assert row[3] == "Python基础"
+
+    def test_default_question_metadata_empty(self, vector_db):
+        emb = _fake_embedding()
+        vector_db.insert_chunk("题2", "内容", "源.md", emb)
+        row = vector_db.conn.execute("SELECT question_no, section FROM rag_docs").fetchone()
+        assert row[0] == ""
+        assert row[1] == ""
+
+    def test_search_returns_question_metadata(self, vector_db):
+        emb = _fake_embedding()
+        vector_db.insert_chunk(
+            "题1", "HashMap底层原理是数组加链表", "源.md", emb, question_no="1", section="Java基础"
+        )
+        docs = vector_db.search_bm25("HashMap底层原理", top_k=1)
+        assert docs and docs[0].question_no == "1"
+        assert docs[0].section == "Java基础"
+        docs2 = vector_db.search_vector(query_emb=emb, top_k=5, threshold=0.0)
+        assert docs2 and docs2[0].question_no == "1"
+        assert docs2[0].section == "Java基础"

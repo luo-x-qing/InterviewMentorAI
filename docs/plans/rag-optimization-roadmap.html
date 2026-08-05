@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RAG 检索优化 · 任务完成进程目标 — InterviewMentorAI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose", flowchart: { curve: "basis", padding: 12 } });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 5 5; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .title-serif { font-family: Georgia, "Songti SC", serif; }
+      .badge { display: inline-flex; align-items: center; gap: .25rem; font-size: .65rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: .15rem .5rem; border-radius: 9999px; }
+      .timeline-dot { width: 14px; height: 14px; border-radius: 9999px; border: 3px solid #fff; box-shadow: 0 0 0 2px #334155; }
+      .phase-card { transition: transform .15s ease, box-shadow .15s ease; }
+      .phase-card:hover { transform: translateY(-2px); box-shadow: 0 12px 24px -8px rgba(15,23,42,.18); }
+    </style>
+  </head>
+  <body class="bg-stone-100 text-slate-900 font-sans antialiased">
+    <main class="max-w-6xl mx-auto px-6 py-12 space-y-16">
+
+      <!-- ============ Header ============ -->
+      <header>
+        <p class="text-xs uppercase tracking-widest text-indigo-600 font-bold">InterviewMentorAI · backend_python · RAG 专项</p>
+        <h1 class="title-serif text-4xl mt-2 font-bold leading-tight">RAG 检索优化 — 任务完成进程目标</h1>
+        <p class="mt-3 text-slate-600 max-w-3xl">
+          目标：让「拖入一份题库」成为 <span class="font-semibold text-slate-900">后端 Agent 自主完成</span> 的入库动作 ——
+          Agent 自动执行 <span class="text-indigo-700 font-semibold">数据清洗 → 结构化切面 → 向量化 → 入库 → 检索重排</span>，
+          使 RAG 知识库成为 Agent 可持续管理与调优的自有数据库。
+        </p>
+        <div class="mt-6 flex flex-wrap items-center gap-2">
+          <span class="badge bg-emerald-100 text-emerald-800">基线日：2026-08-05</span>
+          <span class="badge bg-slate-200 text-slate-700">版本：Roadmap v0.8</span>
+          <span class="badge bg-emerald-600 text-white">总进度 100% · 15/15</span>
+        </div>
+        <div class="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
+          <span class="inline-flex items-center gap-1.5"><span class="inline-block w-3 h-3 bg-slate-700 rounded-sm"></span> 任务模块</span>
+          <span class="inline-flex items-center gap-1.5"><span class="inline-block w-3 h-3 bg-slate-200 border border-dashed border-slate-400 rounded-sm"></span> 现有流程 / 边界</span>
+          <span class="inline-flex items-center gap-1.5"><span class="inline-block w-3 h-3 bg-emerald-500 rounded-full"></span> Agent 新增能力</span>
+          <span class="inline-flex items-center gap-1.5"><span class="inline-block w-3 h-3 bg-red-500 rounded-sm"></span> 现状痛点</span>
+        </div>
+      </header>
+
+      <!-- ============ 结果导向 Destination ============ -->
+      <section id="destination" class="space-y-6">
+        <div class="flex items-center gap-3">
+          <h2 class="title-serif text-2xl font-bold">1. 结果导向（Destination）</h2>
+          <span class="badge bg-slate-800 text-white">本次优化要到达的终点</span>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+          <p class="text-lg leading-relaxed">
+            终点是一个 <span class="font-semibold">Agent 自治的知识库管道</span>：用户把任意格式的题库拖入指定目录，
+            后端 Agent 全程无需人工干预，自动完成
+            <span class="text-indigo-700 font-semibold">格式转换 → 数据清洗 → 结构化切面 → 向量化 → 幂等入库 → 自检验证</span>，
+            并在此后的每次面试评估中提供 <span class="font-semibold">高质量检索（混合检索 + 重排）</span>。
+          </p>
+          <div class="mt-6 grid md:grid-cols-3 gap-4 text-sm">
+            <div class="rounded-xl bg-slate-50 p-4">
+              <div class="font-bold text-indigo-700">P1 · 入库自动化</div>
+              <p class="mt-1 text-slate-600">拖入题库 → Agent 自动清洗/切面/入库，零手动脚本、零重复数据。</p>
+            </div>
+            <div class="rounded-xl bg-slate-50 p-4">
+              <div class="font-bold text-indigo-700">P2 · 检索质量</div>
+              <p class="mt-1 text-slate-600">结构化切面 + 重排后置，弱项知识点的参考上下文命中率可量化提升。</p>
+            </div>
+            <div class="rounded-xl bg-slate-50 p-4">
+              <div class="font-bold text-indigo-700">P3 · 可观测自证</div>
+              <p class="mt-1 text-slate-600">每一步有日志/统计/验收，Agent 以「自证入库成功」闭环，而非盲跑。</p>
+            </div>
+          </div>
+          <div class="mt-5 text-sm text-slate-500">
+            判定标准（Definition of Done）：<span class="font-mono">拖入一份新题库</span> → 不手改任何代码 → Agent 日志输出清洗/切面/向量化/入库统计 →
+            <span class="font-mono">/api/v1/rag/knowledge/stats</span> 文档数正确 → 检索接口对典型问题命中率达标。
+          </div>
+        </div>
+
+        <!-- 高层 To-Be 流程 -->
+        <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="text-sm font-bold text-slate-700 mb-3">目标态 Agent 入库 & 检索全链路</div>
+          <pre class="mermaid">
+flowchart LR
+  U[用户拖入题库<br/>PDF / Word / HTML / TXT / MD] --> P[格式转换<br/>doc_converter]
+  P --> C["数据清洗 cleaning_service ★新增"]
+  C --> S[结构化切面 chunking ★优化]
+  S --> E[向量化 embedding]
+  E --> DB[("Agent 自有 RAG 数据库<br/>SQLite + sqlite-vec")]
+  DB --> V[自检验证<br/>stats + 抽样自测 ★新增]
+  V -.通过.-> Q[面试评估检索<br/>混合检索 0.7/0.3]
+  Q --> RR[Cross-Encoder 重排]
+  RR --> M[MCP 上下文组装]
+  M --> L[LLM 逐段评估]
+  classDef agent fill:#10b98120,stroke:#10b981,stroke-width:1.5px;
+  classDef new fill:#0f172a,stroke:#0f172a,color:#fff;
+  class C,S,V new;
+  class U,P,DB,Q,RR,M,L agent;
+          </pre>
+        </div>
+      </section>
+
+      <!-- ============ 现状诊断 As-Is ============ -->
+      <section id="asis" class="space-y-6">
+        <div class="flex items-center gap-3">
+          <h2 class="title-serif text-2xl font-bold">2. 现状诊断（As-Is）</h2>
+          <span class="badge bg-amber-100 text-amber-800">已勘察代码，痛点属实</span>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-6">
+          <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="text-sm font-bold text-slate-700 mb-3">现有入库链路</div>
+            <pre class="mermaid">
+flowchart TB
+  U[题库文件<br/>data/rag_docs/] --> A[manual: rag_init.py<br/>或 import API]
+  A --> F[固定 500 字符分块<br/>chunking_service._split_fixed]
+  F --> E[向量化<br/>embedding_service]
+  E --> DB[("SQLite 静态知识库")]
+  DB --> R[混合检索 0.7/0.3]
+  R --> RR[重排<br/>可选 use_rerank=False]
+  classDef pain fill:#fee2e2,stroke:#ef4444,stroke-width:1.5px;
+  class F pain;
+            </pre>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="text-sm font-bold text-slate-700 mb-3">痛点清单（friction）</div>
+            <ul class="space-y-3 text-sm">
+              <li class="flex gap-3"><span class="text-red-500 font-bold">×</span><span><b>数据库当前为空</b> — interview.db 中 rag_docs=0 行，知识库从未入库，RAG 检索实际零命中。</span></li>
+              <li class="flex gap-3"><span class="text-red-500 font-bold">×</span><span><b>无数据清洗环节</b> — doc_converter 只做格式转换；`knowledge_service.batch_import_knowledge` 直接读文件入库。</span></li>
+              <li class="flex gap-3"><span class="text-red-500 font-bold">×</span><span><b>切面不感知题目结构</b> — 固定 500 字符滑动切分，一道题被拦腰切断；结构化切面实测可直接切出完整题目。</span></li>
+              <li class="flex gap-3"><span class="text-red-500 font-bold">×</span><span><b>入库依赖人工</b> — 手动跑脚本，无增量/去重/替换。</span></li>
+              <li class="flex gap-3"><span class="text-red-500 font-bold">×</span><span><b>阈值失真</b> — `RAG_THRESHOLD=0.01` 近似不过滤；混合权重 0.7/0.3 硬编码。</span></li>
+              <li class="flex gap-3"><span class="text-red-500 font-bold">×</span><span><b>重排默认关闭</b> — 检索接口 `use_rerank=False`，与评估链路不一致。</span></li>
+              <li class="flex gap-3"><span class="text-red-500 font-bold">×</span><span><b>新题库未入库</b> — 已存在 29.9MB PDF 题库（1-2026年更新-Java工程师常见面试八股文-精简版.pdf），未转换未入库。</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- 涉事文件 -->
+        <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="text-sm font-bold text-slate-700 mb-3">涉事文件（seams）</div>
+          <div class="flex flex-wrap gap-2 font-mono text-xs">
+            <span class="bg-slate-100 rounded px-2 py-1">app/services/knowledge_service.py</span>
+            <span class="bg-slate-100 rounded px-2 py-1">app/services/chunking_service.py</span>
+            <span class="bg-slate-100 rounded px-2 py-1">app/services/rag_service.py</span>
+            <span class="bg-slate-100 rounded px-2 py-1">app/services/rag_mcp.py</span>
+            <span class="bg-slate-100 rounded px-2 py-1">app/core/vector_db.py</span>
+            <span class="bg-slate-100 rounded px-2 py-1">app/core/config.py</span>
+            <span class="bg-slate-100 rounded px-2 py-1">app/models/schemas.py</span>
+            <span class="bg-slate-100 rounded px-2 py-1">app/services/doc_converter/</span>
+            <span class="bg-slate-100 rounded px-2 py-1">scripts/rag_init.py</span>
+            <span class="bg-slate-100 rounded px-2 py-1">app/api/knowledge_api.py</span>
+            <span class="bg-slate-100 rounded px-2 py-1">tests/rag_eval_script.py</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 目标架构（ADR-0002 已固化） ============ -->
+      <section id="target-arch" class="space-y-6">
+        <div class="flex items-center gap-3">
+          <h2 class="title-serif text-2xl font-bold">3. 目标架构（已固化）</h2>
+          <span class="badge bg-emerald-600 text-white">ADR-0002 · accepted</span>
+          <span class="badge bg-slate-200 text-slate-700">docs/adr/0002-rag-ingest-pipeline.md</span>
+        </div>
+        <p class="text-sm text-slate-600 max-w-3xl">
+          基线后先定架构再推进：以下五项决策已逐条与你确认并写入 ADR，作为 P1-P5 全部实现的锚点，任何实现不得与以下条款冲突。
+        </p>
+
+        <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="text-sm font-bold text-slate-700 mb-3">目标架构总览</div>
+          <pre class="mermaid">
+flowchart LR
+  U[用户拖入题库] --> I["Ingest Pipeline 深度模块<br/>import_document(path) → ImportReport ★单入口"]
+  subgraph PIPE[内部编排 · 不外露]
+    C[清洗 + 指纹] --> PS[解析 Q-A] --> SC[题目级切面] --> EM[向量化 + 落库]
+  end
+  I --> PIPE
+  PIPE --> V["自检闭环 ★<br/>stats 对账 + 抽样检索自测 + 失败回滚"]
+  V --> DB[("Agent 自有 RAG 数据库<br/>rag_documents + rag_docs + rag_vectors")]
+  DB --> Q[检索 · 混合 + 重排默认开 ★]
+  Q --> M[参考上下文 → MCP → LLM 评估]
+  classDef dec fill:#0f172a,stroke:#0f172a,color:#fff;
+  class I,V,Q dec;
+          </pre>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-4 text-sm">
+          <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
+            <div class="font-bold text-emerald-800">D1 · 题目为一等概念</div>
+            <p class="mt-1 text-slate-600 text-xs">入库/清洗/切面/检索/评估均以「一道完整题目 Q-A」为基本单位；检索命中返回完整题目。</p>
+          </div>
+          <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
+            <div class="font-bold text-emerald-800">D2 · 单入口深度模块</div>
+            <p class="mt-1 text-slate-600 text-xs">入库收敛为 import_document(path)→ImportReport，HTTP 与 Agent 共用；否决 watchdog 常驻进程。</p>
+          </div>
+          <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
+            <div class="font-bold text-emerald-800">D3 · 幂等 + 生命周期</div>
+            <p class="mt-1 text-slate-600 text-xs">指纹比对跳过重复、变更替换、目录对账删旧；否决仅去重与全量重建。</p>
+          </div>
+          <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
+            <div class="font-bold text-emerald-800">D4 · 检索统一默认</div>
+            <p class="mt-1 text-slate-600 text-xs">接口与评估链路统一 use_hybrid=True + use_rerank=True；权重/阈值/top_k 入 config。</p>
+          </div>
+          <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
+            <div class="font-bold text-emerald-800">D5 · 自检闭环</div>
+            <p class="mt-1 text-slate-600 text-xs">入库后 stats 对账 + 抽样检索自测；不一致回滚并输出错误入库报告，失败不静默。</p>
+          </div>
+          <div class="rounded-xl border border-slate-200 p-4">
+            <div class="font-bold text-slate-700">边界不变</div>
+            <p class="mt-1 text-slate-600 text-xs">不碰 Java t_knowledge_document、不换底层模型、不改前端、不引入多租户。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ Agent 流程要求与边界 ============ -->
+      <section id="agent-boundary" class="space-y-6">
+        <div class="flex items-center gap-3">
+          <h2 class="title-serif text-2xl font-bold">4. Agent 流程要求与边界</h2>
+          <span class="badge bg-slate-800 text-white">职责即边界，要求即验收</span>
+        </div>
+
+        <div class="grid lg:grid-cols-2 gap-6">
+          <!-- Agent 职责 -->
+          <div class="rounded-2xl border-2 border-emerald-200 bg-emerald-50/40 p-6">
+            <div class="font-bold text-emerald-800 mb-4">Agent 职责范围（In-Scope）</div>
+            <ul class="space-y-2.5 text-sm">
+              <li class="flex gap-2"><span class="text-emerald-600 font-bold">1.</span> 接收拖入的题库文件，自动判定格式并触发转换</li>
+              <li class="flex gap-2"><span class="text-emerald-600 font-bold">2.</span> 执行数据清洗：去噪、规范化、去重（指纹）</li>
+              <li class="flex gap-2"><span class="text-emerald-600 font-bold">3.</span> 结构化切面：识别题目/答案/评估要点，保留溯源元数据</li>
+              <li class="flex gap-2"><span class="text-emerald-600 font-bold">4.</span> 向量化 + 幂等入库（增量/替换），全程日志可追踪</li>
+              <li class="flex gap-2"><span class="text-emerald-600 font-bold">5.</span> 入库自检：stats 对账 + 抽样检索自测，产出入库报告</li>
+              <li class="flex gap-2"><span class="text-emerald-600 font-bold">6.</span> 检索链路：混合检索 + 重排，评估阶段默认启用</li>
+              <li class="flex gap-2"><span class="text-emerald-600 font-bold">7.</span> 以 MCP/工具接口暴露知识库管理（导入/更新/删除/统计）</li>
+            </ul>
+          </div>
+          <!-- Agent 边界 -->
+          <div class="rounded-2xl border border-slate-200 bg-white p-6">
+            <div class="font-bold text-slate-700 mb-4">边界（Out-of-Scope / 不做）</div>
+            <ul class="space-y-2.5 text-sm text-slate-600">
+              <li class="flex gap-2"><span class="text-slate-400">→</span> 不触碰 Java 业务后端的 <span class="font-mono">t_knowledge_document</span> CRUD 与鉴权</li>
+              <li class="flex gap-2"><span class="text-slate-400">→</span> 不替换 LLM / ASR / Embedding 底层模型（仅参数化调优）</li>
+              <li class="flex gap-2"><span class="text-slate-400">→</span> 不改 Flutter 前端页面与交互</li>
+              <li class="flex gap-2"><span class="text-slate-400">→</span> 不引入多租户 / RBAC（纯个人模式，见 commit 151eeef）</li>
+              <li class="flex gap-2"><span class="text-slate-400">→</span> 不做跨文档语义级知识图谱（本期仅为题库 RAG 优化）</li>
+            </ul>
+            <div class="mt-5 border-t border-slate-200 pt-4">
+              <div class="text-xs font-bold text-slate-500 mb-2">流程要求（Agent 硬约束）</div>
+              <div class="flex flex-wrap gap-2 text-xs">
+                <span class="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1">幂等：重复导入不产生重复分块</span>
+                <span class="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1">可溯源：分块保留 source / 题号 / 标题</span>
+                <span class="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1">可回滚：文档级删除 / 替换</span>
+                <span class="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1">可观测：每步日志 + 统计</span>
+                <span class="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1">自证：入库后自动验证，失败不静默</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 任务完成进程 ============ -->
+      <section id="roadmap" class="space-y-8">
+        <div class="flex items-center gap-3">
+          <h2 class="title-serif text-2xl font-bold">5. 任务完成进程目标</h2>
+          <span class="badge bg-emerald-100 text-emerald-800">5 阶段 · 15 项任务 · 已完成 7</span>
+        </div>
+
+        <!-- 进度总览 -->
+        <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex items-center justify-between text-sm mb-2">
+            <span class="font-bold text-slate-700">总体进度</span>
+            <span class="font-mono text-indigo-700 font-bold">2 / 15</span>
+          </div>
+          <div class="h-3 rounded-full bg-slate-100 overflow-hidden">
+            <div class="h-full w-[100%] bg-gradient-to-r from-indigo-500 to-emerald-500"></div>
+          </div>
+          <div class="mt-4 grid grid-cols-5 gap-3 text-center text-xs">
+            <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-2"><div class="font-bold text-emerald-700">P0 基线</div><span class="text-emerald-600">2/2 ✓</span></div>
+            <div class="rounded-lg bg-slate-50 p-2"><div class="font-bold text-slate-800">P1 清洗</div><span class="text-slate-500">0/3</span></div>
+            <div class="rounded-lg bg-slate-50 p-2"><div class="font-bold text-slate-800">P2 切面</div><span class="text-slate-500">0/3</span></div>
+            <div class="rounded-lg bg-slate-50 p-2"><div class="font-bold text-slate-800">P3 入库</div><span class="text-slate-500">0/4</span></div>
+            <div class="rounded-lg bg-slate-50 p-2"><div class="font-bold text-slate-800">P4 检索</div><span class="text-slate-500">0/3</span></div>
+          </div>
+        </div>
+
+        <!-- 状态徽章说明 -->
+        <div class="flex flex-wrap gap-3 text-xs text-slate-600">
+          <span class="inline-flex items-center gap-1"><span class="badge bg-slate-200 text-slate-600">待启动</span></span>
+          <span class="inline-flex items-center gap-1"><span class="badge bg-amber-100 text-amber-800">进行中</span></span>
+          <span class="inline-flex items-center gap-1"><span class="badge bg-emerald-600 text-white">已完成</span></span>
+        </div>
+
+        <!-- ===== Phase 0（已完成）===== -->
+        <div class="relative pl-8">
+          <div class="absolute left-0 top-1.5 timeline-dot bg-emerald-500"></div>
+          <div class="phase-card rounded-2xl border-l-4 border-emerald-500 bg-white p-6 shadow-sm">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="badge bg-emerald-600 text-white">Phase 0 ✓</span>
+              <h3 class="font-bold text-lg">基线评估：摸清现状数据</h3>
+              <span class="badge bg-emerald-600 text-white">已完成 · 2026-08-05</span>
+            </div>
+            <p class="mt-2 text-sm text-slate-600">关键结论：<b class="text-red-600">知识库从未入库</b>，RAG 检索实际零命中；MD 源文件结构完好；已有新 PDF 题库待入库。</p>
+            <div class="mt-4 grid md:grid-cols-2 gap-4">
+              <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T0.1 知识库数据质量扫描</b><span class="badge bg-emerald-600 text-white">已完成</span></div>
+                <ul class="mt-2 space-y-1 text-slate-600 text-xs">
+                  <li>· <b>interview.db</b>：rag_docs=0 行（36KB），空库</li>
+                  <li>· 源文件：13 个 MD + 1 个 PDF</li>
+                  <li>· 结构化题库 12 个文件共 <b>55 题</b>，问题/答案/评估要点标签全部匹配</li>
+                  <li>· 参考文件 2 个（通用评估标准、技术难点标准答案）无题目结构，属正常</li>
+                  <li>· <b>新 PDF</b>：1-2026年更新-Java工程师常见面试八股文-精简版.pdf（29.9MB）未转换未入库</li>
+                </ul>
+              </div>
+              <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T0.2 检索命中基线</b><span class="badge bg-emerald-600 text-white">已完成</span></div>
+                <ul class="mt-2 space-y-1 text-slate-600 text-xs">
+                  <li>· 5 个典型问题（HashMap/列表元组/SpringBoot/MySQL索引/线程池）</li>
+                  <li>· 空库 BM25 命中：<b>0 条 / 召回率 0%</b>（真实现状）</li>
+                  <li>· 固定分块实测「腰斩」：块2 以「圾回收算法。」开头、块4 从句子中间截断</li>
+                  <li>· 结构化切面对照：按 ## 标题切分正好 6 段（1 文件头 + 5 题），每题 317-487 字符，落在合理块长内</li>
+                  <li>· 结论：P2 结构化切面方案直接可行</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== Phase 1 ===== -->
+        <div class="relative pl-8">
+          <div class="absolute left-0 top-1.5 timeline-dot bg-indigo-500"></div>
+          <div class="phase-card rounded-2xl border-l-4 border-indigo-500 bg-white p-6 shadow-sm">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="badge bg-indigo-600 text-white">Phase 1</span>
+              <h3 class="font-bold text-lg">数据清洗：新增 cleaning_service</h3>
+              <span class="badge bg-emerald-600 text-white">已完成</span>
+              <span class="text-xs text-slate-400">← 落实 ADR-0002 D1/D2 的第一块落地</span>
+            </div>
+            <p class="mt-2 text-sm text-slate-600">为「拖入的题库」建立首个自动清洗环节，产出干净、可溯源的 Markdown 结构化题库。</p>
+            <div class="mt-4 grid md:grid-cols-3 gap-4">
+              <div class="rounded-xl border border-slate-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T1.1 文本清洗器</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">去 BOM/控制字符/行尾空格/压缩空行/合并分隔线/首尾空白</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">落地：</b>clean_text(text)→str，纯函数</p>
+              </div>
+              <div class="rounded-xl border border-slate-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T1.2 题库结构解析</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">识别「## 题目N / **问题：** / **标准答案：** / **评估要点：**」抽取 Q-A 结构，兼容题库变体；参考文件（无问题标签）不解析为题目</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">验收：</b>真实题库解析 55/55（11 份 MD），参考文件不解析为题目</p>
+              </div>
+              <div class="rounded-xl border border-slate-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T1.3 内容指纹去重</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">md5 hexdigest 指纹，为跨文件去重与幂等入库（D3）提供基础</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">落地：</b>fingerprint(content)→str</p>
+              </div>
+            </div>
+            <p class="mt-3 text-xs font-mono text-slate-400">测试：tests/test_cleaning_service.py · 18 用例全绿；全量回归 121 passed（6 errors 为存量 e2e 接口不匹配，待 P3 一并修复）</p>
+          </div>
+        </div>
+
+        <!-- ===== Phase 2 ===== -->
+        <div class="relative pl-8">
+          <div class="absolute left-0 top-1.5 timeline-dot bg-indigo-500"></div>
+          <div class="phase-card rounded-2xl border-l-4 border-indigo-500 bg-white p-6 shadow-sm">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="badge bg-indigo-600 text-white">Phase 2</span>
+              <h3 class="font-bold text-lg">结构化切面：以题目为粒度的 chunking</h3>
+              <span class="badge bg-emerald-600 text-white">已完成</span>
+            </div>
+            <p class="mt-2 text-sm text-slate-600">让「分块」尊重题库结构而非固定窗口 —— 一条题目的问题与标准答案永远落在同一块（P0 已实测可行）。</p>
+            <div class="mt-4 grid md:grid-cols-2 gap-4">
+              <div class="rounded-xl border border-slate-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T2.1 题目级切面</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">chunk_questions：按题目为块，title 携带「来源 · 题号 [· 序号]」，问题保留首块；超长答案句边界二次切分</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">验收：</b>真实题库 55 题 → 181 块，问题保留首块、题目数对账、title 唯一，0 问题</p>
+              </div>
+              <div class="rounded-xl border border-slate-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T2.2 元数据落库</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">RagDoc 增加 question_no / section；rag_docs 表加列（含旧库 ALTER 迁移）；insert_chunk 与三类检索均带出元数据</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">落地：</b>schemas.py · vector_db.py 表结构变更（含迁移）</p>
+              </div>
+            </div>
+            <p class="mt-3 text-xs font-mono text-slate-400">测试：tests/test_chunking_service.py（6 新增）+ tests/test_vector_db.py（3 新增）</p>
+          </div>
+        </div>
+
+        <!-- ===== Phase 3 ===== -->
+        <div class="relative pl-8">
+          <div class="absolute left-0 top-1.5 timeline-dot bg-indigo-500"></div>
+          <div class="phase-card rounded-2xl border-l-4 border-indigo-500 bg-white p-6 shadow-sm">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="badge bg-indigo-600 text-white">Phase 3</span>
+              <h3 class="font-bold text-lg">Agent 数据库化：幂等入库管道</h3>
+              <span class="badge bg-emerald-600 text-white">已完成</span>
+              <span class="text-xs text-slate-400">← 对应「变为后端 Agent 自己的数据库」</span>
+            </div>
+            <p class="mt-2 text-sm text-slate-600">把入库从「人跑脚本」改造为 Agent 可反复调用的自有数据库管道。</p>
+            <div class="mt-4 grid md:grid-cols-2 gap-4">
+              <div class="rounded-xl border border-slate-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T3.1 增量入库</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">import_document 单入口：指纹比对未变更跳过 / 变更蓝绿替换（只删旧 doc_id）/ 失败回滚 / 自检不过回滚</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">验收：</b>真实题库二次导入全 skipped，stats 不翻倍（198→198）；变更文件 updated 替换</p>
+              </div>
+              <div class="rounded-xl border border-slate-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T3.2 文档级生命周期</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">delete_document + reconcile_directory（目录对账：磁盘消失文件的分块与指纹全清理）</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">落地：</b>删除某题库文件 → 分块全部移除</p>
+              </div>
+              <div class="rounded-xl border border-slate-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T3.3 入库报告</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">ImportReport：识别题目数/分块数/向量数/去重数/失败项/自检结论，状态 imported/updated/skipped/failed</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">落地：</b>schemas.py ImportReport + 日志输出</p>
+              </div>
+              <div class="rounded-xl border border-slate-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T3.4 Agent 工具化 + 自检</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">RagMCP 暴露 import_document / delete_document / reconcile_directory；入库自动 stats 对账 + 抽样检索自测</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">落地：</b>rag_mcp.py Agent 工具 + 自检闭环（含回滚）</p>
+              </div>
+            </div>
+            <p class="mt-3 text-xs font-mono text-slate-400">测试：tests/test_import_pipeline.py（12 用例）；剩余：knowledge_api 文档级接口 + scripts/rag_init 接通</p>
+          </div>
+        </div>
+
+        <!-- ===== Phase 4 ===== -->
+        <div class="relative pl-8">
+          <div class="absolute left-0 top-1.5 timeline-dot bg-indigo-500"></div>
+          <div class="phase-card rounded-2xl border-l-4 border-indigo-500 bg-white p-6 shadow-sm">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="badge bg-indigo-600 text-white">Phase 4</span>
+              <h3 class="font-bold text-lg">检索与重排调优</h3>
+              <span class="badge bg-emerald-600 text-white">已完成</span>
+            </div>
+            <p class="mt-2 text-sm text-slate-600">让检索链路可配、可测、默认高质量。</p>
+            <div class="mt-4 grid md:grid-cols-3 gap-4">
+              <div class="rounded-xl border border-slate-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T4.1 参数化配置</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">RAG_VECTOR_WEIGHT / RAG_BM25_WEIGHT 入 config；阈值 0.01 → 0.25；RagService 权重透传</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">验收：</b>.env 可调权重（test_custom_weights_override_settings）</p>
+              </div>
+              <div class="rounded-xl border border-slate-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T4.2 重排默认开启</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">retrieve_by_question / retrieval API / MCP 预览默认 use_rerank=True；重排得分 min-max 归一化回写</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">验收：</b>检索接口默认返回重排结果（test_rerank_enabled_by_default）</p>
+              </div>
+              <div class="rounded-xl border border-slate-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T4.3 检索可观测</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">RetrievalMetrics 埋点：命中数/得分分布/来源分布；rag_eval_script 对比 P0 基线</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">落地：</b>现实校验 6/6 命中（P0 基线 0%，提升 1.00）</p>
+              </div>
+            </div>
+            <p class="mt-3 text-xs font-mono text-slate-400">测试：test_rag_service.py（10 用例）· test_reranker_service.py（5 用例）；涉及 rag_service.py · reranker_service.py · config.py · schemas.py · retrieval_api.py</p>
+          </div>
+        </div>
+
+        <!-- ===== Phase 5 ===== -->
+        <div class="relative pl-8">
+          <div class="absolute left-0 top-1.5 timeline-dot bg-slate-400"></div>
+          <div class="phase-card rounded-2xl border-l-4 border-slate-300 bg-white p-6 shadow-sm">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="badge bg-emerald-600 text-white">Phase 5</span>
+              <h3 class="font-bold text-lg">验收与固化</h3>
+              <span class="badge bg-emerald-600 text-white">已完成</span>
+            </div>
+            <div class="mt-4 grid md:grid-cols-3 gap-4">
+              <div class="rounded-xl border border-emerald-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T5.1 测试补全</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">knowledge_api 文档级接口 8 用例 + vector_db 阈值回归/统计/清空 5 用例；全量 168 passed</p>
+              </div>
+              <div class="rounded-xl border border-emerald-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T5.2 端到端演练</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">rag_init 接通 import_document 单入口；rag_e2e_check.py 全链路 12/12 PASS（入库→幂等→替换→删除→对账）</p>
+              </div>
+              <div class="rounded-xl border border-emerald-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T5.3 文档同步</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">RAG_MCP_Architecture.md v2.0 + backend_python README + 本报告 15/15 同步</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ Top recommendation ============ -->
+      <section id="top" class="rounded-2xl deep text-white p-8 shadow-lg">
+        <div class="flex items-center gap-3">
+          <h2 class="title-serif text-2xl font-bold">6. 首要行动（Top Recommendation）</h2>
+          <span class="badge bg-emerald-400 text-emerald-950">Recommended</span>
+        </div>
+        <p class="mt-4 text-white/90 max-w-3xl leading-relaxed">
+           P0 基线已证实：<b class="text-red-300">RAG 当时跑在空库上，检索召回率 0%</b>。
+           P1-P5 已全部完成：目标架构由 <b class="text-emerald-300">ADR-0002</b> 固化（题目级模型 · 单入口管道 · 幂等对账 · 自检闭环），
+           13 份题库可经 <b class="text-emerald-300">import_document</b> 幂等入库，检索默认重排 + 参数可配 + 观测埋点，
+           现实校验命中率 <b class="text-emerald-300">6/6（P0 基线 0%，提升 1.00）</b>，
+           端到端演练 12/12 PASS，全量单测 <b class="text-emerald-300">168 passed</b>，文档已同步。
+        </p>
+        <div class="mt-5 flex flex-wrap gap-3">
+          <span class="badge bg-emerald-400 text-emerald-950">Phase 5 验收通过：15/15 · 全流程完成</span>
+          <span class="badge bg-white/10 text-white/80">命中率 0% → 100% · 全量单测 168 passed · 端到端 12/12</span>
+        </div>
+      </section>
+
+      <footer class="text-center text-xs text-slate-400 pb-8">
+        InterviewMentorAI · backend_python RAG 优化专项 · 由 Agent 基于 .agents/skills 生成 · 更新于 2026-08-05
+      </footer>
+    </main>
+  </body>
+</html>
