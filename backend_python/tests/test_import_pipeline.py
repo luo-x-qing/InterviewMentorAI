@@ -294,6 +294,76 @@ class TestDocumentLifecycle:
         assert services.get_stats()["total_documents"] == total_before - 1
 
 
+class TestPdfImport:
+    """PDF 阶段：import_document 将 .pdf 路由到 PdfConverter 转标准 MD 后入库（与 MD 同管道）"""
+
+    def _fake_pdf(self, path):
+        """构造一个假的 .pdf（不依赖真实 PDF），并 mock PdfConverter 返回标准 MD"""
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("fake pdf binary")
+        md = ("# Java八股文\n\n"
+              "## 题目1：1.String 区别\n\n"
+              "**问题：** 1.String 区别\n\n"
+              "**标准答案：** String 不可变。\n\n"
+              "**评估要点：** 核心原理。\n\n"
+              "## 题目2：2.反射机制\n\n"
+              "**问题：** 2.反射机制\n\n"
+              "**标准答案：** 运行时动态获取类信息。\n\n"
+              "**评估要点：** 原理。\n\n")
+        return md
+
+    def test_import_pdf_routes_to_converter(self, services, tmp_path, mocker):
+        doc = tmp_path / "Java八股文.pdf"
+        md = self._fake_pdf(str(doc))
+        converter = mocker.Mock()
+        converter.to_markdown.return_value = md
+        mocker.patch("app.services.doc_converter.PdfConverter", return_value=converter)
+
+        report = services.import_document(str(doc))
+
+        converter.to_markdown.assert_called_once_with(str(doc))
+        assert report.status == "imported"
+        assert report.question_count == 2
+        assert report.self_check == "passed"
+        assert services.vector_db.file_fingerprint("Java八股文.pdf") is not None
+
+    def test_import_pdf_is_idempotent(self, services, tmp_path, mocker):
+        doc = tmp_path / "Java八股文.pdf"
+        md = self._fake_pdf(str(doc))
+        converter = mocker.Mock()
+        converter.to_markdown.return_value = md
+        mocker.patch("app.services.doc_converter.PdfConverter", return_value=converter)
+
+        r1 = services.import_document(str(doc))
+        r2 = services.import_document(str(doc))
+
+        assert r1.status == "imported"
+        assert r2.status == "skipped"
+        assert services.get_stats()["total_documents"] == r1.chunk_count
+
+    def test_pdf_converter_error_marks_failed(self, services, tmp_path, mocker):
+        doc = tmp_path / "坏文件.pdf"
+        with open(doc, "w", encoding="utf-8") as f:
+            f.write("not a pdf")
+        mocker.patch("app.services.doc_converter.PdfConverter",
+                     side_effect=Exception("无法读取"))
+
+        report = services.import_document(str(doc))
+
+        assert report.status == "failed"
+        assert "无法读取" in report.error
+        assert services.get_stats()["total_documents"] == 0
+
+    def test_list_doc_files_includes_pdf(self, services, tmp_path):
+        (tmp_path / "基础.md").write_text("# 基础\n", encoding="utf-8")
+        (tmp_path / "题库.pdf").write_text("pdf", encoding="utf-8")
+
+        files = services.list_doc_files(str(tmp_path))
+
+        assert any(f.endswith("题库.pdf") for f in files)
+        assert any(f.endswith("基础.md") for f in files)
+
+
 class TestAgentTools:
     """T3.4 Agent 工具化：RagMCP 暴露入库/删除工具"""
 

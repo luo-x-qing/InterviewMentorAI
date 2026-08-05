@@ -95,6 +95,30 @@ def main():
     removed = ks.reconcile_directory(temp_dir)
     check("对账清理数=0（来源已在库外）", removed == 0)
 
+    # 7. 真实 PDF 题库入库（PDF 阶段）：转换 → 入库 → 幂等 → 检索命中
+    pdf_path = os.path.join(os.path.dirname(__file__), "..", "data", "rag_docs",
+                            "Java面试题库", "1-2026年更新-Java工程师常见面试八股文-精简版.pdf")
+    pdf_path = os.path.abspath(pdf_path)
+    if os.path.exists(pdf_path):
+        rp = ks.import_document(pdf_path)
+        check("175页PDF入库为 imported", rp.status == "imported",
+              f"({rp.question_count}题 / {rp.chunk_count}块 / 自检{rp.self_check})")
+        check("PDF入库自检通过", rp.self_check == "passed")
+        check("PDF识别题目数>=100", rp.question_count >= 100, f"实际{rp.question_count}题")
+
+        rp2 = ks.import_document(pdf_path)
+        check("PDF未变更重跑为 skipped（幂等）", rp2.status == "skipped")
+
+        for q in ("反射机制", "StringBuffer", "JVM 内存结构", "RabbitMQ 消息重复消费"):
+            docs = db.search_bm25(q, top_k=3)
+            check(f"PDF检索命中「{q}」", any(q.split(" ")[0] in d.title for d in docs),
+                  f"候选: {[d.title[:24] for d in docs[:2]]}")
+
+        ks.delete_document(os.path.basename(pdf_path))
+        check("PDF删除后无残留", db.search_bm25("反射", top_k=5) == [])
+    else:
+        check("真实PDF文件存在（跳过PDF演练）", True, f"未找到: {pdf_path}")
+
     print(f"\n演练结果：{'全部通过' if not failures else '存在失败'}")
     if failures:
         print("失败项：", failures)

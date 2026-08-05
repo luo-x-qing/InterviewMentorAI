@@ -54,7 +54,7 @@
 | **MCP 调度层** | `services/rag_mcp.py` | 上下文组装、长度截断、LLM 增强调用 |
 | **入库管道** | `services/knowledge_service.py` | 幂等入库单入口（清洗→切面→向量化→落库→自检→回滚） |
 | **Agent 流水线** | `services/agent_pipeline.py` | 编排 ASR → 分离 → RAG → 评估 → 报告 |
-| **文档转换** | `services/doc_converter/` | 规划中（PDF/Word/HTML → MD 尚未落地） |
+| **文档转换** | `services/doc_converter/` | PDF → 标准题库 MD（`PdfConverter`：NFKC 归一、章节/题目重组、跨页断行拼接）；Word/HTML → MD 规划中 |
 | **配置管理** | `core/config.py` | 环境变量、API Key、模型配置 |
 
 ---
@@ -150,7 +150,7 @@ Top-K 结果返回 + 检索指标 metrics (命中数/得分/来源分布)
 ### 知识库内容
 
 ```
-data/rag_docs/          # 13 份 MD 题库 + 1 份 PDF（待转换组件接入后补入）
+data/rag_docs/          # 13 份 MD 题库 + 1 份 PDF（经 PdfConverter 实时转换入库）
 ├── 通用评估标准.md              # 面试评估维度和评分规则
 ├── 技术难点标准答案.md          # Java 技术难点标准答案
 ├── Java面试题库/                # Java 基础/集合/多线程/JVM/Spring/MySQL
@@ -257,7 +257,7 @@ backend_python/
 │       ├── rag_mcp.py              # MCP 调度层
 │       ├── knowledge_service.py    # 入库管道单入口
 │       ├── agent_pipeline.py       # Agent 流水线
-│       └── doc_converter/          # 文档转换（规划中）
+│       └── doc_converter/          # 文档转换（PDF 已落地，Word/HTML 规划中）
 ├── data/
 │   └── rag_docs/                   # 知识库目录
 ├── scripts/

@@ -49,8 +49,13 @@ class KnowledgeService:
         if not os.path.exists(path):
             return ImportReport(path=path, status="failed", error="文件不存在")
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                raw = f.read()
+            # PDF 经转换器提取为标准 MD 题库文本后，与 MD 走完全相同的清洗/解析/切面/自检管道
+            if path.lower().endswith(".pdf"):
+                from app.services.doc_converter import PdfConverter
+                raw = PdfConverter().to_markdown(path)
+            else:
+                with open(path, "r", encoding="utf-8") as f:
+                    raw = f.read()
         except Exception as e:
             return ImportReport(path=path, status="failed", error=f"读取文件失败: {e}")
 
@@ -231,7 +236,7 @@ class KnowledgeService:
         return removed
 
     def list_doc_files(self, root: Optional[str] = None) -> List[str]:
-        """扫描知识库根目录下的题库文件（MD/TXT），供 API 与离线脚本共享（P5 验收收敛）
+        """扫描知识库根目录下的题库文件（MD/TXT/PDF），供 API 与离线脚本共享（P5 验收收敛）
 
         Returns:
             绝对路径列表
@@ -243,7 +248,7 @@ class KnowledgeService:
             os.path.join(dirpath, fn)
             for dirpath, _, filenames in os.walk(root)
             for fn in sorted(filenames)
-            if fn.lower().endswith((".md", ".txt"))
+            if fn.lower().endswith((".md", ".txt", ".pdf"))
         ]
     
     def get_stats(self) -> Dict:

@@ -33,8 +33,8 @@
         </p>
         <div class="mt-6 flex flex-wrap items-center gap-2">
           <span class="badge bg-emerald-100 text-emerald-800">基线日：2026-08-05</span>
-          <span class="badge bg-slate-200 text-slate-700">版本：Roadmap v0.8</span>
-          <span class="badge bg-emerald-600 text-white">总进度 100% · 15/15</span>
+          <span class="badge bg-slate-200 text-slate-700">版本：Roadmap v0.9</span>
+          <span class="badge bg-emerald-600 text-white">总进度 100% · 18/18</span>
         </div>
         <div class="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
           <span class="inline-flex items-center gap-1.5"><span class="inline-block w-3 h-3 bg-slate-700 rounded-sm"></span> 任务模块</span>
@@ -262,24 +262,25 @@ flowchart LR
       <section id="roadmap" class="space-y-8">
         <div class="flex items-center gap-3">
           <h2 class="title-serif text-2xl font-bold">5. 任务完成进程目标</h2>
-          <span class="badge bg-emerald-100 text-emerald-800">5 阶段 · 15 项任务 · 已完成 7</span>
+          <span class="badge bg-emerald-100 text-emerald-800">6 阶段 · 18 项任务 · 已完成 18</span>
         </div>
 
         <!-- 进度总览 -->
         <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div class="flex items-center justify-between text-sm mb-2">
             <span class="font-bold text-slate-700">总体进度</span>
-            <span class="font-mono text-indigo-700 font-bold">2 / 15</span>
+            <span class="font-mono text-indigo-700 font-bold">18 / 18</span>
           </div>
           <div class="h-3 rounded-full bg-slate-100 overflow-hidden">
             <div class="h-full w-[100%] bg-gradient-to-r from-indigo-500 to-emerald-500"></div>
           </div>
-          <div class="mt-4 grid grid-cols-5 gap-3 text-center text-xs">
+          <div class="mt-4 grid grid-cols-6 gap-3 text-center text-xs">
             <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-2"><div class="font-bold text-emerald-700">P0 基线</div><span class="text-emerald-600">2/2 ✓</span></div>
-            <div class="rounded-lg bg-slate-50 p-2"><div class="font-bold text-slate-800">P1 清洗</div><span class="text-slate-500">0/3</span></div>
-            <div class="rounded-lg bg-slate-50 p-2"><div class="font-bold text-slate-800">P2 切面</div><span class="text-slate-500">0/3</span></div>
-            <div class="rounded-lg bg-slate-50 p-2"><div class="font-bold text-slate-800">P3 入库</div><span class="text-slate-500">0/4</span></div>
-            <div class="rounded-lg bg-slate-50 p-2"><div class="font-bold text-slate-800">P4 检索</div><span class="text-slate-500">0/3</span></div>
+            <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-2"><div class="font-bold text-emerald-700">P1 清洗</div><span class="text-emerald-600">3/3 ✓</span></div>
+            <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-2"><div class="font-bold text-emerald-700">P2 切面</div><span class="text-emerald-600">3/3 ✓</span></div>
+            <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-2"><div class="font-bold text-emerald-700">P3 入库</div><span class="text-emerald-600">4/4 ✓</span></div>
+            <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-2"><div class="font-bold text-emerald-700">P4 检索</div><span class="text-emerald-600">3/3 ✓</span></div>
+            <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-2"><div class="font-bold text-emerald-700">P5 固化</div><span class="text-emerald-600">3/3 ✓</span></div>
           </div>
         </div>
 
@@ -476,6 +477,36 @@ flowchart LR
             </div>
           </div>
         </div>
+
+        <!-- ===== Phase 6（PDF 阶段）===== -->
+        <div class="relative pl-8">
+          <div class="absolute left-0 top-1.5 timeline-dot bg-emerald-500"></div>
+          <div class="phase-card rounded-2xl border-l-4 border-emerald-500 bg-white p-6 shadow-sm">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="badge bg-emerald-600 text-white">Phase 6</span>
+              <h3 class="font-bold text-lg">PDF 题库入库（高级阶段）</h3>
+              <span class="badge bg-emerald-600 text-white">已完成</span>
+            </div>
+            <p class="mt-1 text-slate-500 text-xs">在 MD 基础之上，将 <code>data/rag_docs/Java面试题库/1-2026年更新-Java工程师常见面试八股文-精简版.pdf</code>（175 页）接入同一条入库管道，复用清洗/切面/自检全部能力。</p>
+            <div class="mt-4 grid md:grid-cols-3 gap-4">
+              <div class="rounded-xl border border-emerald-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T6.1 PdfConverter 转换器</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">doc_converter/pdf_to_md.py：NFKC 兼容字归一 + 章节/题目重组 + 答案列表项特征排除 + 空答案合并 + 跨页断行拼接；test_doc_converter.py 14 用例</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">验收：</b>175 页 PDF 识别 147 题，无空答案，反射/消息/集合列表答案完整</p>
+              </div>
+              <div class="rounded-xl border border-emerald-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T6.2 管道接入</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">import_document 对 .pdf 实时调用 PdfConverter（指纹基于转换产物，无需中间 MD 文件）；list_doc_files 纳入 .pdf；test_import_pipeline.py PDF 场景 4 用例</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">验收：</b>PDF 入库 imported → 幂等 skipped → 转换异常 failed 且零残留</p>
+              </div>
+              <div class="rounded-xl border border-emerald-200 p-4 text-sm">
+                <div class="flex items-center justify-between"><b>T6.3 真实 PDF 演练与文档</b><span class="badge bg-emerald-100 text-emerald-800">已完成</span></div>
+                <p class="mt-1 text-slate-500 text-xs">rag_e2e_check.py 扩真实 175 页 PDF：入库 147 题/284 块 → 幂等 → 4 词检索命中 → 删除无残留（演练 20/20 PASS）；架构/README/本报告同步</p>
+                <p class="mt-2 text-xs"><b class="text-indigo-700">落地：</b>全量单测 188 passed + 6 项既有 LlmClient error（无关）</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- ============ Top recommendation ============ -->
@@ -486,14 +517,15 @@ flowchart LR
         </div>
         <p class="mt-4 text-white/90 max-w-3xl leading-relaxed">
            P0 基线已证实：<b class="text-red-300">RAG 当时跑在空库上，检索召回率 0%</b>。
-           P1-P5 已全部完成：目标架构由 <b class="text-emerald-300">ADR-0002</b> 固化（题目级模型 · 单入口管道 · 幂等对账 · 自检闭环），
-           13 份题库可经 <b class="text-emerald-300">import_document</b> 幂等入库，检索默认重排 + 参数可配 + 观测埋点，
+           P1-P6 已全部完成：目标架构由 <b class="text-emerald-300">ADR-0002</b> 固化（题目级模型 · 单入口管道 · 幂等对账 · 自检闭环），
+           13 份 MD 题库 + 1 份 PDF（175 页，经 <b class="text-emerald-300">PdfConverter</b> 实时转换识别 147 题）可经
+           <b class="text-emerald-300">import_document</b> 幂等入库，检索默认重排 + 参数可配 + 观测埋点，
            现实校验命中率 <b class="text-emerald-300">6/6（P0 基线 0%，提升 1.00）</b>，
-           端到端演练 12/12 PASS，全量单测 <b class="text-emerald-300">168 passed</b>，文档已同步。
+           端到端演练 20/20 PASS，全量单测 <b class="text-emerald-300">188 passed</b>，文档已同步。
         </p>
         <div class="mt-5 flex flex-wrap gap-3">
-          <span class="badge bg-emerald-400 text-emerald-950">Phase 5 验收通过：15/15 · 全流程完成</span>
-          <span class="badge bg-white/10 text-white/80">命中率 0% → 100% · 全量单测 168 passed · 端到端 12/12</span>
+          <span class="badge bg-emerald-400 text-emerald-950">Phase 6 验收通过：18/18 · 全流程完成</span>
+          <span class="badge bg-white/10 text-white/80">命中率 0% → 100% · PDF 147 题入库 · 全量单测 188 passed · 端到端 20/20</span>
         </div>
       </section>
 
