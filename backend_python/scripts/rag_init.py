@@ -7,7 +7,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import settings
 from app.core.vector_db import VectorDB
-from app.services.llm_client import LlmClient
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_service import EmbeddingService
 from app.services.knowledge_service import KnowledgeService
@@ -16,9 +15,8 @@ from app.services.knowledge_service import KnowledgeService
 def main():
     print("===== 开始批量入库面试题库（幂等 + 自检）=====")
     vector_db = VectorDB()
-    llm_client = LlmClient()
     chunking_service = ChunkingService()
-    embedding_service = EmbeddingService(llm_client=llm_client)
+    embedding_service = EmbeddingService()
     knowledge_service = KnowledgeService(
         vector_db=vector_db,
         chunking_service=chunking_service,

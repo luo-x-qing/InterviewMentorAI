@@ -136,6 +136,27 @@ class RagRetrievalResult(BaseModel):
     metrics: Optional["RetrievalMetrics"] = None
 
 
+@dataclass
+class RagCandidate:
+    """Agentic RAG 组装后的完整题目候选（同一题全部块拼接，不再截断）"""
+    source: str
+    question_no: str
+    title: str            # 题目标题（去掉块序号后缀）
+    score: float          # 组内最高分
+    full_answer: str      # 同一题全部块拼接后的完整答案
+    related: bool         # assess 判定的相关性
+
+
+@dataclass
+class RagAnswerResult:
+    """Agentic RAG 答案合成结果"""
+    question: str
+    candidates: List[RagCandidate]
+    status: str           # answered（有相关候选）/ no_match（无相关候选）
+    iterations: int       # 检索轮数
+    log: List[str] = field(default_factory=list)
+
+
 class RetrievalMetrics(BaseModel):
     """检索观测指标（T4.3）：命中数 / 得分分布 / 来源分布"""
     hit_count: int = 0

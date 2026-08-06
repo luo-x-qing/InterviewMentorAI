@@ -36,8 +36,8 @@ class RetrievalResponse(BaseModel):
 
 class ChunkPreviewRequest(BaseModel):
     text: str
-    chunk_size: int = 500
-    chunk_overlap: int = 100
+    chunk_size: int = 300
+    chunk_overlap: int = 60
     method: str = "fixed"
 
 

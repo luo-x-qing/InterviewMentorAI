@@ -70,6 +70,9 @@ class KnowledgeService:
         cleaner = CleaningService()
         questions = cleaner.parse_questions(cleaner.clean_text(raw), source=source)
         chunks = self.chunking_service.chunk_questions(questions, max_chunk_size)
+        # 过滤 CID 乱码块：PDF 文字层缺 ToUnicode 映射时提取出 (cid:xxxx) 垃圾，
+        # 检索无价值且污染结果，一律不入库
+        chunks = [c for c in chunks if "(cid:" not in c.content]
 
         # 记录旧分块以便失败回滚（蓝绿替换：先新后旧，只删旧 doc_id）
         old_docs = self.vector_db.list_docs_by_source(source)

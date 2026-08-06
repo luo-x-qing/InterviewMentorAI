@@ -15,6 +15,8 @@
 | SQLite + sqlite-vec | 0.1.6 | 向量数据库 |
 | rank-bm25 | 0.2.2 | BM25 关键词检索 |
 | httpx | 0.25+ | HTTP 客户端 |
+| LangChain | 1.3+（装于项目 `lib/`） | Agentic RAG 标准化检索组件 |
+| LangGraph | 1.2+（装于项目 `lib/`） | Agentic RAG 工作流编排 |
 
 ---
 
@@ -31,7 +33,9 @@
 │  3. MCP 调度层    rag_mcp.py          检索+上下文+LLM 统一  │
 │       ↓                        ↓                            │
 │  2. RAG 工具层  rag_service.py    LLM 通用层  llm_service   │
-│       ↓                        ↓                            │
+│       ↓                ↓                                   │
+│  2.5 Agentic 层  agentic_rag_service.py   LangGraph 工作流  │
+│       ↓                                                     │
 │  1. 底层存储层    vector_db.py        SQLite + sqlite-vec   │
 │       ↓                                                     │
 │  0. 数据源层      data/rag_docs/      面试题库知识库         │
@@ -51,10 +55,11 @@
 | **向量化服务** | `services/embedding_service.py` | DashScope Embedding + 本地缓存 |
 | **重排序服务** | `services/reranker_service.py` | Cross-Encoder 相关性重排序（min-max 归一化） |
 | **RAG 编排层** | `services/rag_service.py` | 混合检索（权重融合+阈值判定+默认重排+metrics） |
+| **Agentic RAG** | `services/agentic_rag_service.py` | LangGraph 工作流：retrieve→expand→assess→（re_query）→finalize；LangChain `RagRetriever` 提供标准化检索组件 |
 | **MCP 调度层** | `services/rag_mcp.py` | 上下文组装、长度截断、LLM 增强调用 |
-| **入库管道** | `services/knowledge_service.py` | 幂等入库单入口（清洗→切面→向量化→落库→自检→回滚） |
+| **入库管道** | `services/knowledge_service.py` | 幂等入库单入口（清洗→切面→向量化→落库→自检→回滚），含块级 `(cid:` 乱码过滤 |
 | **Agent 流水线** | `services/agent_pipeline.py` | 编排 ASR → 分离 → RAG → 评估 → 报告 |
-| **文档转换** | `services/doc_converter/` | PDF → 标准题库 MD（`PdfConverter`：NFKC 归一、章节/题目重组、跨页断行拼接）；Word/HTML → MD 规划中 |
+| **文档转换** | `services/doc_converter/` | PDF → 标准题库 MD（`PdfConverter`：NFKC 归一、章节/题目重组、跨页断行拼接、图片 OCR、CID 乱码页整页 OCR、句号/右括号题号识别）；Word/HTML → MD 规划中 |
 | **配置管理** | `core/config.py` | 环境变量、API Key、模型配置 |
 
 ---
@@ -147,10 +152,29 @@ DashScope Embedding 生成向量
 Top-K 结果返回 + 检索指标 metrics (命中数/得分/来源分布)
 ```
 
+### Agentic 答案合成（LangGraph 工作流）
+
+`AgenticRagService.answer(question)` 解决「答案被截断」与「无关候选」两个痛点，编排图：
+
+```
+retrieve ─▶ expand ─▶ assess ─┬─(相关/超限/无法改写)─▶ finalize
+                              └─(全不相关)───────────▶ re_query ─▶ retrieve
+```
+
+| 节点 | 职责 |
+|------|------|
+| retrieve | LangChain `RagRetriever`（BaseRetriever/Document）封装混合检索 + 重排，top_k=6 |
+| expand | 按（来源, 题号）拉取同一题**全部块**拼接（去相邻块重叠），解决超长题目只命中首块（1/6）的截断 |
+| assess | 离线规则相关性：相似度 ≥0.6 且与问题共享关键词（jieba 去停用词）；标记相关/无关 |
+| re_query | 全不相关时抽核心关键词二次检索（最多 max_iterations 轮，防死循环） |
+| finalize | 组装完整候选（相关优先排序），状态 answered / no_match |
+
+LangChain/LangGraph 下载在项目目录 `backend_python/lib/`（非全局环境），由 `agentic_rag_service` 顶部显式注入 `sys.path` 加载。
+
 ### 知识库内容
 
 ```
-data/rag_docs/          # 13 份 MD 题库 + 1 份 PDF（经 PdfConverter 实时转换入库）
+data/rag_docs/          # 13 份 MD 题库 + 3 份 PDF（经 PdfConverter 实时转换入库）
 ├── 通用评估标准.md              # 面试评估维度和评分规则
 ├── 技术难点标准答案.md          # Java 技术难点标准答案
 ├── Java面试题库/                # Java 基础/集合/多线程/JVM/Spring/MySQL
@@ -169,7 +193,13 @@ python tests/rag_e2e_check.py
 
 # 检索质量评估（对比 P0 空库基线 0%，跌破基线 exit 1）
 python tests/rag_eval_script.py
+
+# RAG 检索问答验证（原始检索 / agentic 完整答案）
+python scripts/rag_query.py "Java HashMap底层原理"
+python scripts/rag_query.py answer "解释 Spring 框架中 bean 的生命周期"
 ```
+
+> 注：扫描版 PDF（如 485 页合集）已落地「CID 乱码页整页 OCR + 块级乱码过滤 + 句号/右括号题号识别」，入库题目数与检索质量显著提升。
 
 ---
 
@@ -254,6 +284,7 @@ backend_python/
 │       ├── embedding_service.py    # 向量化 + 缓存
 │       ├── reranker_service.py     # 重排序
 │       ├── rag_service.py          # RAG 检索编排
+│       ├── agentic_rag_service.py  # Agentic RAG（LangGraph 工作流 + LangChain RagRetriever）
 │       ├── rag_mcp.py              # MCP 调度层
 │       ├── knowledge_service.py    # 入库管道单入口
 │       ├── agent_pipeline.py       # Agent 流水线
@@ -261,11 +292,55 @@ backend_python/
 ├── data/
 │   └── rag_docs/                   # 知识库目录
 ├── scripts/
-│   └── rag_init.py                 # 离线入库脚本
+│   ├── rag_init.py                 # 离线入库脚本
+│   └── rag_query.py                # 检索问答验证（原始 / agentic answer）
+├── lib/                            # 项目目录依赖（LangChain / LangGraph 及依赖）
 ├── tests/                          # 测试
 ├── requirements.txt                # Python 依赖
 └── .env                            # 环境变量 (DASHSCOPE_API_KEY)
 ```
+
+---
+
+## 本地离线资源（体积大不入库，如何获取）
+
+以下三类资源是服务运行必需，但**不进 Git**（`.gitignore` 已忽略）：要么体积超 GitHub 单文件 100MB 限制（模型），要么可由命令重建（依赖、数据库）。clone 后首次使用请按本节重建或拷贝。
+
+### 1. 项目目录依赖 `lib/`（LangChain / LangGraph）
+
+- **是什么**：Agentic RAG 的标准化组件与编排库（`langchain>=1.0`、`langgraph>=1.0` 及其传递依赖，共约 33MB）。
+- **为什么不入库**：属于可 `pip` 重建的第三方依赖，入库既膨胀仓库又与本机 Python 环境绑定。
+- **安装命令**（在 `backend_python/` 下执行）：
+
+```bash
+python -m pip install --target lib langchain langgraph
+```
+
+- **加载机制**：`app/services/agentic_rag_service.py` 顶部把 `lib/` 显式注入 `sys.path[0]`，仅 Agentic RAG 运行时使用，全局 Anaconda 环境保持零污染（`sitecustomize.py` 方案已弃用）。
+- **如何验证**：`python -m pytest tests/test_agentic_rag_service.py -q` 全 PASS；`python scripts/rag_query.py answer "解释 Spring 框架中 bean 的生命周期"` 正常返回完整答案即加载成功。
+
+### 2. 本地模型缓存 `models/hf_cache/`（约 3.5GB）
+
+- **是什么**：HuggingFace hub 格式的本地离线模型（配置项 `MODEL_CACHE_DIR`，默认 `backend_python/models/hf_cache`）：
+  - `models--BAAI--bge-large-zh-v1.5/`：向量化 Embedding（`EMBEDDING_MODEL`）
+  - `models--BAAI--bge-reranker-base/`：重排序 Reranker
+- **为什么不入库**：单个 `model.safetensors` 达 1.2GB，远超 GitHub 单文件 100MB 硬限制，直接提交会导致 push 被拒。
+- **获取方式（二选一）**：
+  1. **首次运行自动下载**：Embedding / Reranker 首次加载时自动从 HuggingFace 拉取到 `MODEL_CACHE_DIR`，之后完全离线（不耗 API 配额）。
+  2. **手动拷贝预置**：从已下载的机器整体拷贝 `models/hf_cache/` 到本项目对应位置即可，无需改任何配置。
+- **注意**：如需「模型随仓库分发、开箱离线」，请用 Git LFS（`git lfs track "backend_python/models/**"`），不要普通提交。
+
+### 3. 数据库 `data/interview.db`（运行时产物）
+
+- **是什么**：SQLite + sqlite-vec 向量库（分块、向量、检索索引），由入库管道生成，`*.db` 已在 `.gitignore` 全局忽略。
+- **重建方式**（全量入库，幂等 + 自检 + 对账）：
+
+```bash
+cd backend_python
+python scripts/rag_init.py
+```
+
+- **备份文件**：`data/interview.db.pre_*`（如 `pre_ocr_backup`、`pre_period_rule`、`pre_paren_rule`）是历次重灌前的本地快照，**仅本地保留**，不入 Git。
 
 ---
 

@@ -341,6 +341,33 @@ class TestPdfImport:
         assert r2.status == "skipped"
         assert services.get_stats()["total_documents"] == r1.chunk_count
 
+    def test_cid_garbage_chunks_are_filtered(self, services, tmp_path, mocker):
+        """含 (cid:xxxx) 乱码的块不入库，正常块保留"""
+        doc = tmp_path / "Java八股文.pdf"
+        doc.write_bytes(b"fake pdf binary")
+        md = ("# Java八股文\n\n"
+              "## 题目1：1.String 区别\n\n"
+              "**问题：** 1.String 区别\n\n"
+              "**标准答案：** String 不可变。\n\n"
+              "**评估要点：** 核心原理。\n\n"
+              "## 题目2：2.垃圾乱码\n\n"
+              "**问题：** 2.垃圾乱码\n\n"
+              "**标准答案：** (cid:1540)(cid:24073)）相比，(cid:1796)(cid:19716)。\n\n"
+              "**评估要点：** 乱码。\n\n")
+        converter = mocker.Mock()
+        converter.to_markdown.return_value = md
+        mocker.patch("app.services.doc_converter.PdfConverter", return_value=converter)
+
+        report = services.import_document(str(doc))
+
+        assert report.status == "imported"
+        assert report.chunk_count == 1
+        rows = services.vector_db.conn.execute(
+            "SELECT content FROM rag_docs WHERE source = ?", (doc.name,)
+        ).fetchall()
+        assert len(rows) == 1
+        assert "(cid:" not in rows[0][0]
+
     def test_pdf_converter_error_marks_failed(self, services, tmp_path, mocker):
         doc = tmp_path / "坏文件.pdf"
         with open(doc, "w", encoding="utf-8") as f:

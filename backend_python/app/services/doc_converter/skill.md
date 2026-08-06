@@ -83,8 +83,10 @@ pip install python-docx
 # HTML转换
 pip install beautifulsoup4
 
-# OCR（扫描版PDF）
-pip install pytesseract Pillow
+# OCR（PDF 图片文字，离线）
+pip install rapidocr-onnxruntime
+# onnxruntime 需 1.19.x：1.23+ 依赖更新的 VC++ 运行库，本机 DLL 加载失败
+pip install onnxruntime==1.19.2
 ```
 
 ## 注意事项
@@ -92,8 +94,14 @@ pip install pytesseract Pillow
 1. **编码统一**：所有输出文件使用UTF-8编码
 2. **格式清理**：移除多余空行、特殊字符
 3. **表格处理**：保留表格结构，转换为Markdown表格
-4. **图片处理**：当前版本跳过图片，仅提取文字
-5. **大文件处理**：超过10MB的文件会分块处理
+4. **图片处理**：含图页渲染 300dpi → 裁剪图片区域 → RapidOCR 离线识别，文本以 `图片内容:` + `- ` 列表行并入所在页题目答案（`- ` 前缀避免 OCR 编号行被误判为题号）；OCR 不可用时优雅降级跳过图片
+5. **CID 乱码页整页 OCR**：缺 ToUnicode 映射的 PDF（如 485 页扫描版合集）文字层是 `(cid:xxxx)` 垃圾。`_is_cid_garbage(text)` 以 `(cid:\d+)` 占比 >3% 判定乱码页，`_ocr_page_full(page)` 整页渲染 300dpi + RapidOCR 替代文字层；正常页照旧走图片区域 OCR。入库侧 `knowledge_service` 另做块级兜底：任何含 `(cid:` 的块一律不入库
+6. **题目识别规则**（`_QUESTION_RE`）：
+   - 题号支持 `.` / `、` / `．` / `)` / `]` 分隔（如「476) java 集合」）
+   - 行尾标点启发式：冒号/右括号结尾、含反引号/可变参数签名的行视为答案列表项，不判为题号
+   - 句号结尾的题号行：行长 ≤15 字视为编号列表项（如「2.消费者错误,导致重新分发。」）；中等长度视为真实题目（如「27、解释...bean的生命周期。」），避免子题被并入上一题答案
+   - 题号行长度上限 50 字，超长视为「题号+答案连体」列表项
+7. **大文件处理**：超过10MB的文件会分块处理
 
 ## Agent执行指南
 

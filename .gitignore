@@ -69,6 +69,11 @@ desktop.ini
 *.log
 logs/
 
+# === 大体积二进制不入库（模型缓存/项目依赖/数据库备份） ===
+backend_python/models/
+backend_python/lib/
+backend_python/data/interview.db.*
+
 # === Node (前端工具链) ===
 node_modules/
 .npm/

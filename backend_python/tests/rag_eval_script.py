@@ -20,7 +20,7 @@ from app.models.schemas import AnalysisRequest
 vector_db = VectorDB()
 llm_client = LlmClient()
 chunking_service = ChunkingService()
-embedding_service = EmbeddingService(llm_client=llm_client)
+embedding_service = EmbeddingService()
 prompt_service = PromptService(llm_client=llm_client)
 rag_service = RagService(
     vector_db=vector_db,

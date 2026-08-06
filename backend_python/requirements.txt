@@ -26,8 +26,18 @@ pdfplumber>=0.10.0
 python-docx>=1.0.0
 beautifulsoup4>=4.12.0
 
+# PDF 图片 OCR（离线，RapidOCR；onnxruntime 需 1.19.x，1.23+ 在本机缺 VC++ 运行库）
+rapidocr-onnxruntime>=1.4.0
+onnxruntime==1.19.2
+
 # 重排序模型（Cross-Encoder Reranker）
 sentence-transformers>=3.0.0
+
+# Agentic RAG：LangChain 提供标准化组件（RagRetriever），LangGraph 编排工作流。
+# 注意：这两个库下载在项目目录 backend_python/lib 下（非全局环境），
+#       由 agentic_rag_service 模块顶部显式注入 sys.path 加载。
+langchain>=1.0.0
+langgraph>=1.0.0
 
 # 测试
 pytest>=7.0.0

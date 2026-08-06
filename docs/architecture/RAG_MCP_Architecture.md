@@ -1,7 +1,7 @@
 # InterviewMentorAI RAG + MCP + Skill 架构说明
 
-> 版本：v2.0（P1-P5 同步版）｜上次同步：2026-08-05
-> 覆盖：结构化切面、幂等入库管道、混合检索调优、检索可观测、端到端演练
+> 版本：v2.1（P1-P5 + Agentic RAG 同步版）｜上次同步：2026-08-06
+> 覆盖：结构化切面、幂等入库管道、混合检索调优、检索可观测、端到端演练、Agentic 答案合成（LangGraph 工作流）
 
 ## 一、架构总览
 
@@ -103,9 +103,72 @@
 4. **与 MD 同管道**：`import_document` 对 `.pdf` 实时调用 `PdfConverter().to_markdown()`，
    指纹基于转换产物计算，幂等/自检/回滚与 MD 完全一致；无需生成中间 MD 文件
 
-`data/rag_docs/Java面试题库/` 下 1 份 PDF（175 页，2026-01-05 上传）经转换后识别
-147 题，已通过入库管道（e2e 演练验证：入库 imported → 幂等 skipped → BM25/混合
-检索命中 → 删除无残留）。Word/HTML → MD 仍规划中。
+`data/rag_docs/Java面试题库/` 下 PDF（含 485 页扫描版合集）经转换后识别 885 题，
+已通过入库管道（幂等 imported → skipped → BM25/混合检索命中 → 删除无残留）。
+扫描版 PDF 另有质量加固（见 2.5.3）。Word/HTML → MD 仍规划中。
+
+### 2.5 Agentic RAG 答案合成（LangGraph 工作流）
+
+**作用**：解决单块检索的两个痛点——超长题目被切成多块（如「（1/6）」）导致答案截断、
+低分无关候选混入命中。
+
+**技术分工**：
+- **LangChain** 提供标准化检索组件：`RagRetriever(BaseRetriever)` 封装混合检索+重排，
+  将 `RagDoc` 映射为 `Document`（`app/services/agentic_rag_service.py`）
+- **LangGraph** 编排复杂流转：`StateGraph` 状态图管理 检索→扩展→评估→（重查）→合成
+- 两库下载在**项目目录 `backend_python/lib/`**（非全局环境），由 `agentic_rag_service`
+  顶部显式注入 `sys.path` 加载
+
+**工作流图**：
+
+```
+retrieve ─▶ expand ─▶ assess ─┬─(相关/超限/无法改写)─▶ finalize
+                              └─(全不相关)───────────▶ re_query ─▶ retrieve
+```
+
+| 节点 | 职责 | 实现 |
+|------|------|------|
+| `retrieve` | 检索候选块 | LangChain `RagRetriever.ainvoke()`，top_k=6 |
+| `expand` | 按（来源, 题号）拉取**同一题全部块**拼接完整答案 | 块标题解析（`来源 · 题N 标题（i/total）`）+ 最长公共重叠去重 |
+| `assess` | 离线规则相关性判定 | 相似度 ≥0.6 且与问题共享关键词（jieba 去停用词）；标记 related/无关 |
+| `re_query` | 全不相关时二次检索 | 抽取核心关键词改写问题（最多 max_iterations 轮，防死循环） |
+| `finalize` | 组装答案候选 | 相关优先排序，状态 answered / no_match |
+
+**对外入口**：`AgenticRagService.answer(question) → RagAnswerResult`
+（candidates 含 来源/题号/完整答案/相关性；验证脚本 `scripts/rag_query.py answer "问题"`）。
+
+**关键设计**：
+1. `expand` 复用入库侧结构化切面的溯源元数据（`question_no`/`source`），从向量库
+   `WHERE source=? AND question_no=?` 拉取整题块，与检索命中的首块无关联也能聚合
+2. `assess` 保持**离线规则**（无 LLM），验证脚本可离线跑；阈值/关键词可配置
+3. `re_query` 条件边路由：有相关候选、达到迭代上限、或改写无改进时收尾
+
+#### 2.5.1 新增组件
+
+| 文件 | 职责 |
+|------|------|
+| `app/services/agentic_rag_service.py` | AgenticRagService（LangGraph 图）+ RagRetriever（LangChain 组件） |
+| `app/models/schemas.py` | 新增 `RagCandidate` / `RagAnswerResult` |
+| `scripts/rag_query.py` | 交互验证脚本（`answer` 子命令走工作流） |
+
+#### 2.5.2 依赖安装（项目目录）
+
+```bash
+# 在 backend_python/ 下执行：两库下载到项目目录 lib/，不污染全局环境
+python -m pip install --target lib langchain langgraph
+```
+
+> 说明：`lib/`（依赖）、`models/hf_cache/`（3.5GB 本地模型缓存，单文件超 GitHub 100MB 限制）、
+> `data/interview.db`（运行时向量库，可由 `rag_init.py` 重建）均已在 `.gitignore` 忽略，不入 Git。
+> 获取/重建/验证方式详见 `backend_python/README.md`「本地离线资源（体积大不入库，如何获取）」一节。
+
+#### 2.5.3 文档转换质量加固（支撑检索质量）
+
+| 项 | 说明 |
+|----|------|
+| CID 乱码页整页 OCR | 缺 ToUnicode 映射的扫描版 PDF 文字层是 `(cid:xxxx)` 垃圾；`_is_cid_garbage` 以 `(cid:\d+)` 占比 >3% 判定，`_ocr_page_full` 整页渲染 300dpi + RapidOCR 替代（3 号 PDF 题目数 36 → 885） |
+| 块级乱码过滤 | `import_document` 对含 `(cid:` 的块一律不入库（兜底拦截半乱码块） |
+| 题目识别规则 | 句号结尾题号行 ≤15 字判列表项、中等长度判题目（子题独立）；题号支持 `. 、 ． ) ]` 分隔 |
 
 ## 三、分层架构
 
@@ -131,6 +194,12 @@
 │  │ - 混合检索/重排    │      │ - 通用模型调用     │            │
 │  │ - metrics采集      │      │ - ASR/评估/报告    │            │
 │  └────────────────────┘      └────────────────────┘            │
+│              ↓                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  3.5 Agentic 层（agentic_rag_service.py）               │   │
+│  │     - LangChain RagRetriever（标准化检索组件）           │   │
+│  │     - LangGraph 编排 检索→扩展→评估→（重查）→合成       │   │
+│  └─────────────────────────────────────────────────────────┘   │
 │              ↓                                                 │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │  2. 底层存储层（vector_db.py）                          │   │
@@ -159,6 +228,7 @@ backend_python/
 │   │   ├── embedding_service.py     # 向量化（缓存）
 │   │   ├── reranker_service.py      # 重排（min-max 归一化）
 │   │   ├── rag_service.py           # RAG业务层（混合检索/重排/metrics）
+│   │   ├── agentic_rag_service.py   # Agentic RAG（LangGraph 工作流 + LangChain RagRetriever）
 │   │   ├── rag_mcp.py               # MCP调度层（含 import_document/delete_document 工具）
 │   │   ├── llm_client.py            # LLM通用层
 │   │   ├── prompt_service.py        # 提示词编排
@@ -172,12 +242,14 @@ backend_python/
 │   │   ├── mcp_debug_api.py         # MCP调试接口
 │   │   └── analysis.py              # 分析API接口
 │   └── models/
-│       └── schemas.py               # 数据模型（含 ImportReport / RetrievalMetrics）
+│       └── schemas.py               # 数据模型（含 ImportReport / RetrievalMetrics / RagCandidate / RagAnswerResult）
 ├── data/
-│   ├── rag_docs/                    # 知识库目录（13 份 MD + 1 份 PDF）
+│   ├── rag_docs/                    # 知识库目录（13 份 MD + 3 份 PDF 经 PdfConverter 实时转换）
 │   └── embedding_cache.json         # 向量缓存
+├── lib/                             # 项目目录依赖（LangChain / LangGraph 及依赖）
 ├── scripts/
-│   └── rag_init.py                  # 离线入库脚本（走 import_document 单入口 + 对账）
+│   ├── rag_init.py                  # 离线入库脚本（走 import_document 单入口 + 对账）
+│   └── rag_query.py                 # 检索问答验证（原始 / agentic answer）
 └── tests/
     ├── test_import_pipeline.py      # 入库管道测试（幂等/替换/回滚/自检）
     ├── test_cleaning_service.py     # 清洗测试
@@ -262,16 +334,16 @@ RAG_THRESHOLD=0.25
 RAG_VECTOR_WEIGHT=0.7
 RAG_BM25_WEIGHT=0.3
 RAG_USE_RERANK=true
-CHUNK_SIZE=500
-CHUNK_OVERLAP=100
+CHUNK_SIZE=300
+CHUNK_OVERLAP=60
 ```
 
 ### 6.2 RAG参数调优
 
 | 参数 | 默认值 | 说明 | 调优建议 |
 |------|--------|------|----------|
-| `chunk_size` | 500 | 分块大小（字符，结构化切面 max） | 越大语义越完整，但检索精度下降 |
-| `chunk_overlap` | 100 | 分块重叠 | 保持上下文连贯 |
+| `chunk_size` | 300 | 分块大小（字符，结构化切面 max） | 越大语义越完整，但检索精度下降 |
+| `chunk_overlap` | 60 | 分块重叠 | 保持上下文连贯 |
 | `rag_top_k` | 3 | 返回文档数 | 影响上下文丰富度 |
 | `rag_similar_threshold` | 0.25 | 混合检索阈值（任一通道强命中放行） | 越高越严格 |
 | `rag_vector_weight` | 0.7 | 向量检索权重 | 语义检索为主 |
@@ -312,12 +384,16 @@ sentence-transformers>=3.0.0
 
 # 文档转换依赖（PDF 已使用 pdfplumber；docx/html 规划中）
 pdfplumber>=0.10.0
+
+# Agentic RAG 依赖（下载在项目目录 lib/，非全局环境）
+langchain>=1.0.0            # 标准化检索组件（RagRetriever/BaseRetriever/Document）
+langgraph>=1.0.0            # 工作流编排（StateGraph 检索→扩展→评估→合成）
 ```
 
 ## 九、测试与演练
 
 ```bash
-# 全量单元测试（基线：155 passed + 6 存量 error，见下）
+# 全量单元测试（基线：215 passed + 6 存量 error，见下）
 python -m pytest tests/ -q
 
 # RAG 端到端演练（T5.2：临时库 + 伪 embedding，12 项全 PASS）
@@ -325,6 +401,12 @@ python tests/rag_e2e_check.py
 
 # 检索质量评估（T4.3：命中率对比 P0 空库基线 0%，跌破基线 exit 1）
 python tests/rag_eval_script.py
+
+# Agentic RAG 工作流测试（LangChain RagRetriever + LangGraph 状态图）
+python -m pytest tests/test_agentic_rag_service.py -q
+
+# RAG 检索问答验证（agentic 完整答案：同题全部块拼接 + 无关候选过滤）
+python scripts/rag_query.py answer "解释 Spring 框架中 bean 的生命周期"
 
 # API测试
 curl -X POST http://localhost:8000/knowledge/import \
@@ -335,4 +417,4 @@ curl -X POST http://localhost:8000/retrieval/retrieve \
 ```
 
 > 已知存量问题：`tests/test_knowledge_e2e.py` 6 个用例报 error，源于其直接构造
-> `LlmClient.__init__()` 的旧接口不匹配，与本次 RAG 改动无关，列为独立跟进项。
+> `LlmClient.__init__()` 的旧接口不匹配，与 RAG 改动无关，列为独立跟进项。

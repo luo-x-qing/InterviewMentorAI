@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
     from app.services.embedding_service import EmbeddingService
     from app.services.reranker_service import RerankerService
     
-    embedding_service = EmbeddingService(llm_client=llm_client)
+    embedding_service = EmbeddingService()
     reranker_service = RerankerService()
     
     # 3. 创建依赖中间服务的业务服务
