@@ -487,32 +487,32 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 
 > `backend_springai/` **已删除**（历史实现归档至 `docs/recycle_bin/` 文档），新架构代码落在 Python 单后端内渐进演进。
 
-> **骨架状态**：阶段 A/B/C/D 的核心接口与深模块骨架已落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`），实体/库/MCP/Coach/画像均有单测覆盖（`tests/test_agent_arch.py`，19 例）。以下编号勾选为本轮骨架完成项。
+> **骨架状态**：阶段 A/B/C/D 的核心接口、深模块骨架与业务 REST 已全部落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`、`app/services/auth_service.py`、`app/services/ws_service.py`、`app/api/*`），实体/库/MCP/Coach/画像/认证/WS 均有单测覆盖（`tests/test_agent_arch.py` 21 例 + `tests/test_api_stage_d.py` 12 例 + 既有回归，全量 249 passed）。以下编号勾选为实际落地状态。
 
 ### 阶段 A：业务能力迁入（无 Java）
 
-1. 在 `backend_python/` 新增 `auth` / `user` / `interview` / `report` 业务模块与 JWT 认证。
+1. ✅ `backend_python/` 新增 `auth` / `user` / `interview` / `report` 业务模块与 JWT 认证（`app/services/auth_service.py` 双 Token、`app/api/{auth,user,interview,report}_api.py`）。
 2. ✅（骨架）新增 SQLite 业务表：`app/core/database.py`（user / interview / coach_session / coach_session_question / user_profile 五表 + 兼容补列），实体见 `app/models/entities.py`。
-3. 新增原生 WebSocket / SSE 实时推送模块，替换 STOMP。
-4. Flutter 前端切换 API 基址到 Python 单后端，WebSocket 适配原生协议。
+3. ✅ 新增原生 WebSocket / SSE 实时推送模块，替换 STOMP（`app/services/ws_service.py` `WebSocketHub` + `app/api/ws_api.py` `/ws`；主题 `interview.{id}.progress/complete/error`、`coach.{sessionId}.feedback`、`user.{id}.notifications`，JWT query 认证）。
+4. ✅ Flutter 前端切换 API 基址到 Python 单后端（`constants.dart` 单源），`websocket_service.dart` 从 STOMP 迁移至原生 `web_socket_channel`（移除 `stomp_dart_client` 依赖），`auth_service.dart` / `login_page.dart` 对齐后端 `/auth/*` 契约。
 
 ### 阶段 B：流水线 Agent 化
 
-5. ✅（骨架）`app/agents/orchestrator.py`：对外 `run(request)` + `subscribe(progress_cb)`，默认委托既有 `AgentPipeline`（已注入可选 `progress_cb`）；`build_graph()` 预留 LangGraph 拓扑落点（作为阶段 B 迁移点）。
+5. ✅ `app/agents/orchestrator.py`：对外 `run(request)` + `subscribe(progress_cb)` + `build_graph()`（LangGraph StateGraph：transcribe→separate→evaluate→reflex→report，节点复用 `AgentPipeline` 既有能力，reflex 接反思回路，可 `ainvoke` 独立运行）。默认执行器仍为既有 `AgentPipeline`。
 6. ✅（骨架）`app/agents/reflexion.py`：反思回路（薄弱项 → 深度检索 → 知识点扩展）。
 7. ✅（骨架）`app/agents/retrieval_agent.py`：检索 Agent（包装 `AgenticRagService.answer`，`retrieve_candidates` 候选兜底）。
 
 ### 阶段 C：MCP 工具层
 
 8. ✅（骨架）`app/mcp/server.py`（`ToolRegistry`：`register / list_tools / call_tool`）+ `app/mcp/retrieval_tools.py`、`app/mcp/knowledge_tools.py`（浅适配器转发既有服务）。
-9. 业务服务（auth/interview/report）注册为 MCP 工具；REST 与 MCP 双通道共享实现。
+9. ✅ Coach 业务服务注册为 MCP 工具（`app/mcp/coach_tools.py`）；REST（`app/api/coach_api.py`）与 MCP 双通道共享同一 `CoachService` 实现。
 10. ✅ `AgentPipeline` 装配 `tool_registry`，评估单题前的检索改走 `call_tool("retrieve.retrieve", ...)`（未装配时回落既有 `rag_mcp` 链路，向后兼容）；Orchestrator 默认执行器即此 AgentPipeline。
 
 ### 阶段 D：AI 辅助面试（Coach）
 
-11. ✅（骨架）`app/services/coach_service.py` 会话状态机（idle→active→done）+ `app/mcp/coach_tools.py`（`coach.start / next_question / submit_answer / end`）；REST `/coach/*` 待补。
+11. ✅ `app/services/coach_service.py` 会话状态机（idle→active→done）+ `app/mcp/coach_tools.py` + REST `/coach/session|{id}/question|{id}/answer|{id}/end`（`app/api/coach_api.py`，Bearer 认证 + 归属校验）。
 12. ✅（骨架）`app/services/profiling_service.py`（v1 统计聚合 + v2 相似度选题 + v3 难度自适应，`suggest_difficulty`）+ 画像表。
-13. ✅（骨架）Coach 经 MCP `coach.*` 工具接入（`app/mcp/coach_tools.py` 已在 `main.py` 装配）；复盘后一键推荐针对性练习待接 Orchestrator。
+13. ✅ Coach 经 MCP `coach.*` 工具接入（已在 `main.py` 装配）；复盘后一键推荐针对性练习待接 Orchestrator（阶段 B 深化落点）。
 
 ### 阶段 E：收尾（✅ 已完成）
 

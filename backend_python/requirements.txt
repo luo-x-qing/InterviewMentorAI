@@ -45,6 +45,9 @@ langgraph>=1.0.0
 # MCP 协议封装业务接口（进程内 FastMCP server + call_tool；v1 API，2.x 改名 MCPServer）
 mcp>=1.20,<2
 
+# JWT 双 Token 认证（阶段 D：auth/user/interview/report 业务模块）
+pyjwt>=2.8.0
+
 # 测试
 pytest>=7.0.0
 pytest-mock>=3.0.0

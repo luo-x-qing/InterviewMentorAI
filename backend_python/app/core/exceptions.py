@@ -16,9 +16,14 @@ API 层根据异常类型映射到不同的 HTTP 状态码。
     ├── ChunkingError      # 分块相关
     ├── KnowledgeError     # 知识库管理相关
     │   └── KnowledgeImportError
-    └── PipelineError      # 流水线相关
+    ├── PipelineError      # 流水线相关
+    └── AuthError          # 认证/授权（阶段 D）
+        ├── AuthCredentialsError  → 401
+        ├── RegisterError         → 409
+        └── ForbiddenError        → 403
 """
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 
 class AppError(Exception):
@@ -131,3 +136,50 @@ class PipelineError(AppError):
     
     def to_http_exception(self) -> HTTPException:
         return HTTPException(status_code=500, detail=self.detail)
+
+
+# ─── 认证异常（阶段 D：用户 /auth /user 业务）────────────────
+
+class AuthError(AppError):
+    """认证/授权异常基类"""
+    pass
+
+
+class AuthCredentialsError(AuthError):
+    """凭证无效（登录失败 / token 无效 / 已过期）"""
+    def __init__(self, message: str = "凭证无效或已过期", detail: str = None):
+        super().__init__(message, detail)
+
+    def to_http_exception(self) -> HTTPException:
+        return HTTPException(status_code=401, detail=self.detail, headers={"WWW-Authenticate": "Bearer"})
+
+
+class RegisterError(AuthError):
+    """注册冲突（手机号已存在）"""
+    def __init__(self, message: str = "注册失败", detail: str = None):
+        super().__init__(message, detail)
+
+    def to_http_exception(self) -> HTTPException:
+        return HTTPException(status_code=409, detail=self.detail)
+
+
+class ForbiddenError(AuthError):
+    """资源归属校验失败（用户无权访问他人资源）"""
+    def __init__(self, message: str = "无权访问该资源", detail: str = None):
+        super().__init__(message, detail)
+
+    def to_http_exception(self) -> HTTPException:
+        return HTTPException(status_code=403, detail=self.detail)
+
+
+def register_error_handlers(app: FastAPI) -> None:
+    """注册全局异常处理器：所有 AppError 子类统一转 HTTPException（生产 main 与测试均可复用）"""
+
+    @app.exception_handler(AppError)
+    async def _app_error_handler(_: Request, exc: AppError) -> JSONResponse:
+        http_exc = exc.to_http_exception()
+        return JSONResponse(
+            status_code=http_exc.status_code,
+            content={"detail": http_exc.detail},
+            headers=http_exc.headers or {},
+        )

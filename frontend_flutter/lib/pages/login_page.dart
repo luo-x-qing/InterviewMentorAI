@@ -15,11 +15,9 @@ class _LoginPageState extends State<LoginPage>
 
   late final TabController _tabCtrl;
 
-  final _usernameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _nicknameCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
 
   bool _loading = false;
   String? _error;
@@ -36,19 +34,17 @@ class _LoginPageState extends State<LoginPage>
   @override
   void dispose() {
     _tabCtrl.dispose();
-    _usernameCtrl.dispose();
+    _phoneCtrl.dispose();
     _passwordCtrl.dispose();
     _nicknameCtrl.dispose();
-    _emailCtrl.dispose();
-    _phoneCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    final username = _usernameCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
     final password = _passwordCtrl.text.trim();
-    if (username.isEmpty || password.isEmpty) {
-      return _setError('用户名和密码不能为空');
+    if (phone.isEmpty || password.isEmpty) {
+      return _setError('手机号和密码不能为空');
     }
     if (password.length < 6) {
       return _setError('密码长度至少 6 位');
@@ -57,22 +53,20 @@ class _LoginPageState extends State<LoginPage>
     try {
       if (_isRegister) {
         await AuthService.register(
-          username: username,
+          phone: phone,
           password: password,
           nickname: _nicknameCtrl.text.trim(),
-          email: _emailCtrl.text.trim(),
-          phone: _phoneCtrl.text.trim(),
         );
       } else {
-        await AuthService.login(username: username, password: password);
+        await AuthService.login(phone: phone, password: password);
       }
       if (mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
       }
     } catch (e) {
       _setError(_isRegister
-          ? '注册失败，请检查输入或更换用户名'
-          : '登录失败，请检查用户名和密码');
+          ? '注册失败，请检查输入或更换手机号'
+          : '登录失败，请检查手机号和密码');
     }
   }
 
@@ -178,9 +172,10 @@ class _LoginPageState extends State<LoginPage>
           ],
 
           TextField(
-            controller: _usernameCtrl,
+            controller: _phoneCtrl,
+            keyboardType: TextInputType.phone,
             decoration: const InputDecoration(
-              labelText: '用户名', prefixIcon: Icon(Icons.person_outline),
+              labelText: '手机号', prefixIcon: Icon(Icons.phone_outlined),
               border: OutlineInputBorder(),
             ),
             textInputAction: TextInputAction.next,
@@ -204,26 +199,6 @@ class _LoginPageState extends State<LoginPage>
               controller: _nicknameCtrl,
               decoration: const InputDecoration(
                 labelText: '昵称（选填）', prefixIcon: Icon(Icons.badge_outlined),
-                border: OutlineInputBorder(),
-              ),
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: _emailCtrl,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: '邮箱（选填）', prefixIcon: Icon(Icons.email_outlined),
-                border: OutlineInputBorder(),
-              ),
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: _phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: '手机号（选填）', prefixIcon: Icon(Icons.phone_outlined),
                 border: OutlineInputBorder(),
               ),
               textInputAction: TextInputAction.done,

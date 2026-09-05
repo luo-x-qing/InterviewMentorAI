@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
-import 'package:stomp_dart_client/stomp.dart';
-import 'package:stomp_dart_client/stomp_config.dart';
-import 'package:stomp_dart_client/stomp_handler.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+import 'package:frontend_flutter/services/token_storage.dart';
 import 'package:frontend_flutter/utils/constants.dart';
 
 /// 面试分析状态枚举
@@ -17,17 +19,15 @@ enum AnalysisProgress {
 /// 分析进度回调
 typedef ProgressCallback = void Function(AnalysisProgress status, String? message);
 
-/// STOMP WebSocket 服务 —— 订阅 AI 分析实时进度
+/// 原生 WebSocket 服务 —— 订阅 AI 分析实时进度
 ///
-/// 连接到 Java 后端的 STOMP Broker：
-/// - /topic/interview/{id}/progress  — AI 分析进度推送
-/// - /topic/interview/{id}/complete  — 分析完成推送
-/// - /topic/interview/{id}/error     — 分析失败推送
+/// 连接 Python 单后端（架构 AGENT-ARCHITECTURE.md §9.4）：
+///   `ws://host/ws?token=<access>&subscribe=interview.{id}`
+/// 推送消息体：`{"type": "interview.{id}.progress", "payload": {...}}`
+///   type 后缀 `.progress` / `.complete` / `.error` → AnalysisProgress 状态机
 class WebSocketService {
-  StompClient? _client;
-  StompUnsubscribe? _progressSub;
-  StompUnsubscribe? _completeSub;
-  StompUnsubscribe? _errorSub;
+  WebSocketChannel? _channel;
+  StreamSubscription? _sub;
 
   AnalysisProgress _status = AnalysisProgress.idle;
   AnalysisProgress get status => _status;
@@ -43,57 +43,45 @@ class WebSocketService {
   Future<void> connect(int interviewId) async {
     if (_disposed) return;
 
-    _client?.deactivate();
-    _client = StompClient(
-      config: StompConfig(
-        url: Constants.wsUrl,
-        onConnect: (frame) {
-          if (kDebugMode) print('[WS] STOMP 连接成功');
+    await _close();
 
-          // 订阅进度
-          _progressSub = _client!.subscribe(
-            destination: '/topic/interview/$interviewId/progress',
-            callback: (frame) {
-              final body = _parseBody(frame.body);
-              _updateStatus(AnalysisProgress.processing, body);
-            },
-          );
+    final accessToken = TokenStorage.accessToken ?? '';
+    final url = '${Constants.wsUrl}?token=$accessToken&subscribe=interview.$interviewId';
+    if (kDebugMode) print('[WS] 连接: interview=$interviewId');
 
-          // 订阅完成
-          _completeSub = _client!.subscribe(
-            destination: '/topic/interview/$interviewId/complete',
-            callback: (frame) {
-              final body = _parseBody(frame.body);
-              _updateStatus(AnalysisProgress.completed, body);
-            },
-          );
-
-          // 订阅错误
-          _errorSub = _client!.subscribe(
-            destination: '/topic/interview/$interviewId/error',
-            callback: (frame) {
-              final body = _parseBody(frame.body);
-              _updateStatus(AnalysisProgress.failed, body);
-            },
-          );
-        },
-        onWebSocketError: (error) {
-          if (kDebugMode) print('[WS] WebSocket 错误: $error');
-        },
-        onStompError: (frame) {
-          if (kDebugMode) print('[WS] STOMP 错误: ${frame.body}');
-        },
-        onDisconnect: (frame) {
-          if (kDebugMode) print('[WS] 连接断开');
-        },
-        // 心跳间隔 10s
-        heartbeatOutgoing: const Duration(seconds: 10),
-        heartbeatIncoming: const Duration(seconds: 10),
-      ),
+    _channel = WebSocketChannel.connect(Uri.parse(url));
+    _sub = _channel!.stream.listen(
+      (data) => _onMessage(data),
+      onError: (err) {
+        if (kDebugMode) print('[WS] 错误: $err');
+      },
+      onDone: () {
+        if (kDebugMode) print('[WS] 连接关闭');
+        _updateStatus(AnalysisProgress.idle, null);
+      },
     );
 
-    _client!.activate();
     _updateStatus(AnalysisProgress.uploading, '正在上传音频...');
+  }
+
+  void _onMessage(dynamic data) {
+    if (kDebugMode) print('[WS] 收到: $data');
+    try {
+      final map = jsonDecode(data as String) as Map<String, dynamic>;
+      final type = map['type'] as String? ?? '';
+      final payload = map['payload'] as Map<String, dynamic>? ?? const {};
+      final message = payload['message'] as String?;
+
+      if (type.endsWith('.progress')) {
+        _updateStatus(AnalysisProgress.processing, message);
+      } else if (type.endsWith('.complete')) {
+        _updateStatus(AnalysisProgress.completed, message ?? '分析完成');
+      } else if (type.endsWith('.error')) {
+        _updateStatus(AnalysisProgress.failed, message ?? '分析失败');
+      }
+    } catch (e) {
+      if (kDebugMode) print('[WS] 解析失败: $e');
+    }
   }
 
   void _updateStatus(AnalysisProgress status, String? message) {
@@ -102,23 +90,17 @@ class WebSocketService {
     onProgressChanged?.call(status, message);
   }
 
-  String? _parseBody(String? body) {
-    if (body == null) return null;
-    try {
-      final map = jsonDecode(body) as Map<String, dynamic>;
-      return map['message'] as String? ?? body;
-    } catch (_) {
-      return body;
-    }
+  Future<void> _close() async {
+    await _sub?.cancel();
+    _sub = null;
+    await _channel?.sink.close();
+    _channel = null;
   }
 
   /// 断开连接并清理资源
   void disconnect() {
-    _progressSub?.call();
-    _completeSub?.call();
-    _errorSub?.call();
-    _client?.deactivate();
-    _client = null;
+    _updateStatus(AnalysisProgress.idle, null);
+    _close();
     _status = AnalysisProgress.idle;
   }
 

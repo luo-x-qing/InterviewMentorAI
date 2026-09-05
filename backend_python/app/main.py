@@ -92,14 +92,21 @@ async def lifespan(app: FastAPI):
     # 5. v3.1 业务库 / Coach / Orchestrator
     from app.core.database import Database
     from app.mcp.coach_tools import CoachTools
+    from app.services.auth_service import AuthService
     from app.services.coach_service import CoachService
     from app.agents.orchestrator import Orchestrator
 
     database = Database()
+    auth_service = AuthService(database=database)
     coach_service = CoachService(database=database)
     CoachTools(coach=coach_service).register(tool_registry)
 
     orchestrator = Orchestrator(pipeline=agent_pipeline)
+
+    # 6. 阶段 A：WebSocket 广播中枢（Orchestrator / Coach 进度钩子注入）
+    from app.services.ws_service import WebSocketHub
+
+    ws_hub = WebSocketHub()
     
     # 存储到 app.state
     app.state.vector_db = vector_db
@@ -114,10 +121,12 @@ async def lifespan(app: FastAPI):
     app.state.knowledge_service = knowledge_service
     app.state.agentic_rag = agentic_rag
     app.state.database = database
+    app.state.auth_service = auth_service
     app.state.coach_service = coach_service
     app.state.retrieval_agent = retrieval_agent
     app.state.tool_registry = tool_registry
     app.state.orchestrator = orchestrator
+    app.state.ws_hub = ws_hub
     
     logger.info(f"所有服务实例创建完成（tool_registry 已注册 {len(tool_registry.list_tools())} 个工具）")
     
@@ -152,6 +161,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 全局异常处理：AppError 子类统一转 HTTP 状态码
+from app.core.exceptions import register_error_handlers
+register_error_handlers(app)
 
 
 # 依赖注入函数
@@ -220,11 +233,23 @@ from app.api.analysis import router as analysis_router
 from app.api.knowledge_api import router as knowledge_router
 from app.api.retrieval_api import router as retrieval_router
 from app.api.mcp_debug_api import router as mcp_debug_router
+from app.api.auth_api import router as auth_router
+from app.api.user_api import router as user_router
+from app.api.interview_api import router as interview_router
+from app.api.report_api import router as report_router
+from app.api.coach_api import router as coach_router
+from app.api.ws_api import router as ws_router
 
 app.include_router(analysis_router)
 app.include_router(knowledge_router)
 app.include_router(retrieval_router)
 app.include_router(mcp_debug_router)
+app.include_router(auth_router)
+app.include_router(user_router)
+app.include_router(interview_router)
+app.include_router(report_router)
+app.include_router(coach_router)
+app.include_router(ws_router)
 
 
 @app.get("/")

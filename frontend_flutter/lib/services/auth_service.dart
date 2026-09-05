@@ -11,44 +11,47 @@ class AuthService {
   ));
 
   static Future<Map<String, dynamic>> login({
-    required String username,
+    required String phone,
     required String password,
   }) async {
-    final body = <String, dynamic>{
-      'username': username,
+    final resp = await _dio.post(Constants.loginApi, data: {
+      'phone': phone,
       'password': password,
-    };
-    final resp = await _dio.post(Constants.loginApi, data: body);
+    });
     final data = _extractData(resp);
     await TokenStorage.save(
-      accessToken: data['accessToken'] as String,
-      refreshToken: data['refreshToken'] as String,
+      accessToken: data['access_token'] as String,
+      refreshToken: data['refresh_token'] as String,
     );
-    return data['userInfo'] as Map<String, dynamic>;
+    return <String, dynamic>{
+      'id': data['user_id'],
+      'phone': phone,
+      'nickname': '',
+    };
   }
 
   static Future<Map<String, dynamic>> register({
-    required String username,
+    required String phone,
     required String password,
     String? nickname,
-    String? email,
-    String? phone,
   }) async {
     final body = <String, dynamic>{
-      'username': username,
+      'phone': phone,
       'password': password,
     };
     if (nickname != null && nickname.isNotEmpty) body['nickname'] = nickname;
-    if (email != null && email.isNotEmpty) body['email'] = email;
-    if (phone != null && phone.isNotEmpty) body['phone'] = phone;
 
     final resp = await _dio.post(Constants.registerApi, data: body);
     final data = _extractData(resp);
     await TokenStorage.save(
-      accessToken: data['accessToken'] as String,
-      refreshToken: data['refreshToken'] as String,
+      accessToken: data['access_token'] as String,
+      refreshToken: data['refresh_token'] as String,
     );
-    return data['userInfo'] as Map<String, dynamic>;
+    return <String, dynamic>{
+      'id': data['user_id'],
+      'phone': phone,
+      'nickname': nickname ?? '',
+    };
   }
 
   static Future<String?> tryRefresh() async {
@@ -56,10 +59,10 @@ class AuthService {
     if (refresh == null || refresh.isEmpty) return null;
     try {
       final resp = await _dio.post(Constants.refreshTokenApi, data: {
-        'refreshToken': refresh,
+        'refresh_token': refresh,
       });
       final data = _extractData(resp);
-      final newAccess = data['accessToken'] as String;
+      final newAccess = data['access_token'] as String;
       await TokenStorage.updateAccessToken(newAccess);
       return newAccess;
     } catch (_) {
@@ -73,13 +76,7 @@ class AuthService {
   }
 
   static Map<String, dynamic> _extractData(Response resp) {
-    final body = resp.data as Map<String, dynamic>;
-    if (body['code'] != 200) {
-      throw DioException(
-        requestOptions: resp.requestOptions,
-        message: body['message'] as String? ?? '请求失败',
-      );
-    }
-    return body['data'] as Map<String, dynamic>;
+    // 后端 Python 单后端直接返回 payload（200=成功）
+    return resp.data as Map<String, dynamic>;
   }
 }

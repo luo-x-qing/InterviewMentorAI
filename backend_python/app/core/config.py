@@ -55,6 +55,16 @@ class Settings(BaseSettings):
     chunk_size: int = Field(default=300, alias="CHUNK_SIZE")
     chunk_overlap: int = Field(default=60, alias="CHUNK_OVERLAP")
 
+    # JWT 认证（阶段 D）：生产环境务必通过 .env 提供强随机 JWT_SECRET
+    jwt_secret: str = Field(
+        default="interview-mentor-dev-secret-change-me",
+        alias="JWT_SECRET",
+        exclude=True,
+    )
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    jwt_access_expire_minutes: int = Field(default=30, alias="JWT_ACCESS_EXPIRE_MINUTES")
+    jwt_refresh_expire_days: int = Field(default=7, alias="JWT_REFRESH_EXPIRE_DAYS")
+
     @field_validator("rag_doc_root", "sqlite_db_path", "model_cache_dir", "audio_storage_path")
     @classmethod
     def _anchor_paths(cls, value: str) -> str:

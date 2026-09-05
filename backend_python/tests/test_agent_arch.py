@@ -260,14 +260,60 @@ class TestOrchestrator:
         assert cbs[0] == (0, 4)      # 初始化
         assert cbs[-1] == (4, 4)     # 完成
 
-    def test_build_graph_not_implemented_yet(self):
-        class _FakePipeline:
-            async def run(self, request):
-                return None
+    def test_build_graph_compiles(self):
+        """阶段 B：build_graph() 落地为可编译 LangGraph 状态图"""
+        from app.services.agent_pipeline import AgentPipeline
 
-        orch = Orchestrator(pipeline=_FakePipeline())
-        with pytest.raises(NotImplementedError):
-            orch.build_graph()
+        pipeline = AgentPipeline(prompt_service=object(), rag_mcp=object())
+        orch = Orchestrator(pipeline=pipeline)
+        graph = orch.build_graph()
+        # 图已编译：存在可调用的 5 个节点
+        for node in ("transcribe", "separate", "evaluate", "reflex", "report"):
+            assert node in graph.nodes
+        assert orch.__repr__() is not None
+
+    @pytest.mark.asyncio
+    async def test_build_graph_ainvoke_runs_full_flow(self, mocker):
+        """阶段 B：图 ainvoke 走完整 ASR→分离→评估→反思→报告 链路"""
+        from app.models.schemas import (
+            AgentState,
+            AnalysisRequest,
+            DialogueItem,
+            EvaluationLevel,
+            EvaluationResult,
+            Speaker,
+        )
+        from app.services.agent_pipeline import AgentPipeline
+
+        pipeline = AgentPipeline(prompt_service=mocker.MagicMock(), rag_mcp=mocker.MagicMock())
+        pipeline.prompt_service.transcribe_interview = mocker.AsyncMock(return_value="面试官：Q1\n候选人：A1")
+        pipeline._parse_dialogue = mocker.AsyncMock(return_value=[
+            DialogueItem(speaker=Speaker.INTERVIEWER, content="Q1"),
+            DialogueItem(speaker=Speaker.CANDIDATE, content="A1"),
+        ])
+        pipeline._evaluate_answers = mocker.AsyncMock(return_value=[
+            EvaluationResult(question="Q1", answer="A1", score=60,
+                             level=EvaluationLevel.WEAK, strengths="s", weaknesses="w1, w2",
+                             correction="c", knowledge_points="kp1"),
+        ])
+        pipeline._generate_report = mocker.AsyncMock(return_value="# 复盘报告\n主体")
+        pipeline.prompt_service.evaluate_answer = mocker.AsyncMock(return_value="{}")
+
+        # 反思回路：有薄弱项 → 深度检索出扩展 → 追加进报告
+        class FakeRetrievalAgent:
+            async def answer(self, q):
+                from app.models.schemas import RagAnswerResult
+                return RagAnswerResult(question=q, candidates=[], status="no_match", iterations=1)
+
+        orch = Orchestrator(pipeline=pipeline, retrieval_agent=FakeRetrievalAgent())
+        graph = orch.build_graph()
+        result = await graph.ainvoke({"request": AnalysisRequest(interview_id=1, audio_file_path="/tmp/x.wav")})
+        state: AgentState = result["state"]
+        assert state.raw_transcript == "面试官：Q1\n候选人：A1"
+        assert len(state.dialogue_list) == 2
+        assert len(state.evaluation_list) == 1
+        assert state.final_report.startswith("# 复盘报告")
+        pipeline._evaluate_answers.assert_awaited_once()
 
 
 # ── AgentPipeline × ToolRegistry（阶段 C：检索走 call_tool）──────
