@@ -21,6 +21,7 @@ frontend_flutter/.flutter-plugins-dependencies
 frontend_flutter/pubspec.lock
 frontend_flutter/.metadata
 frontend_flutter/.flutter-plugins
+frontend_flutter/devtools_options.yaml
 
 # === Python ===
 __pycache__/
