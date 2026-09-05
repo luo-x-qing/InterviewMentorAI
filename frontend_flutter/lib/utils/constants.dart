@@ -1,9 +1,9 @@
 class Constants {
-  /// 后端 API 基础地址
+  /// 后端 API 基础地址（Python Agent 单后端）
   /// Docker 中 nginx 反向代理同源访问，留空表示同源
-  /// 本地开发时可改为 http://localhost:8080
-  static const String baseUrl = "http://localhost:8081";
-  static const String wsUrl = "ws://localhost:8081/ws";
+  /// 本地开发时可改为 http://localhost:8000
+  static const String baseUrl = "http://localhost:8000";
+  static const String wsUrl = "ws://localhost:8000/ws";
 
   /// Auth
   static const String loginApi = "$baseUrl/auth/login";

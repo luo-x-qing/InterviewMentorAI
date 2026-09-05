@@ -4,9 +4,12 @@
 
 **项目名称：** InterviewMentorAI  
 **项目定位：** AI驱动的模拟面试复盘助手  
-**技术架构：** 前后端分离 + Java/Python双后端  
+**技术架构（现状）：** 全 Agent 驱动 · Python 单后端（多 Agent 协作 + 机器学习 + RAG + MCP）  
+**历史技术架构：** 前期为 Java/Python 双后端（Java 业务后端已迁移删除，见下）  
 **开发周期：** 2026年7月11日 - 至今  
 **当前分支：** `feature/arch-core`
+
+> ⚠️ **现状说明（2026-09-05）**：本项目已由「Java/Python 双后端」迁移至「全 Agent 驱动的 Python 单后端」，`backend_springai/`（Java）代码已删除，旧设计文档归档于 `docs/recycle_bin/`。下方各迭代日志为**真实历史记录**，其中涉及的 Java 具体实现均已下架，仅供追溯。
 
 ---
 

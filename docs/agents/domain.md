@@ -18,7 +18,7 @@ This repo is multi-context:
 /
 ├── CONTEXT-MAP.md
 ├── docs/adr/                          ← system-wide decisions
-├── backend_springai/
+├── backend_python/                    ← Python Agent 后端（唯一后端）
 │   ├── CONTEXT.md
 │   └── docs/adr/                      ← backend-specific decisions
 └── frontend_flutter/

@@ -26,15 +26,17 @@
 
 前端用 **Flutter**，一套代码同时覆盖 Android 和 iOS。
 
-后端用 **Spring Boot 3 + Spring AI**。Spring AI 是 Spring 官方的 AI 框架，提供了统一的大模型接入抽象，方便切换不同的模型供应商，比如 OpenAI、通义千问、DeepSeek 等。
+后端用 **Python FastAPI 单后端 + 全 Agent 驱动**。不再使用 Java，业务、认证、AI、RAG 全部由一个 Python 后端承载。核心是 **多 Agent 协作**，用 LangGraph 状态图编排多个专职 Agent：
 
-核心亮点是设计了一个 **AI Agent 流水线**。我把整个复盘过程抽象为一个状态图（StateGraph），由三个节点串联执行：
+1. **ASR Agent** — 语音转文字（DashScope paraformer-v2）
+2. **说话人分离 Agent** — 重组问答对
+3. **检索 Agent（RAG）** — 从知识库检索相关知识点，失败自动重查（Agentic RAG）
+4. **评估 Agent** — 逐题评估，并发执行
+5. **报告 Agent** — 汇总生成 Markdown 复盘报告，并对薄弱项做深度反思检索，延伸关联知识点
 
-1. **DialogueParseNode** — 说话人分离节点
-2. **AnswerEvaluateNode** — 回答评估节点
-3. **ReportGenNode** — 报告生成节点
+另外还有 **面试教练 Coach Agent**——AI 辅助面试模块：模拟面试陪练、个性化选题、薄弱点画像、难度自适应，全部用轻度机器学习（统计 + Embedding 相似度），不依赖重训练。
 
-每个节点执行完后更新全局状态 `AgentState`，下一个节点基于最新状态继续处理。这种设计的好处是：每个节点职责单一、可独立测试、方便后续扩展新的处理步骤。
+业务接口则通过 **MCP 协议**封装为标准化工具（auth / interview / report / knowledge / coach），Agent 用统一 `call_tool` 调用，与具体业务实现解耦。
 
 ## 四、技术难点与亮点 (1分钟)
 

@@ -28,4 +28,4 @@ P0 基线（2026-08-05）证实：`interview.db` 中 `rag_docs` 为 0 行，知�
 - 分块策略不再固定 500 字符，改以题目为粒度（超长答案按句/段边界二次切分）。
 - 新增 `cleaning_service`（清洗 + 结构解析 + 指纹）；改造 `chunking_service`、`knowledge_service`、`vector_db`、`rag_mcp`、`knowledge_api`、`config`。
 - 现有 `tests/rag_eval_script.py` 的检索语义随之变化，需同步；存量 103 用例保持通过。
-- 边界不变：不触碰 Java 后端 `t_knowledge_document` CRUD、不换底层模型、不改前端、不引入多租户。
+- 边界不变（v3.1 更新：原「不触碰 Java 后端 `t_knowledge_document` CRUD」已随 Java 后端删除失效，`t_knowledge_document` 迁移为 Python `knowledge` 模块 + SQLite `knowledge_documents` 表）：不换底层模型、不改前端、不引入多租户。

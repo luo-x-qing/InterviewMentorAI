@@ -390,22 +390,20 @@ API 文档: `http://localhost:8000/docs`
 
 ---
 
-## 与 Java 后端的交互
+## 系统定位（v3.1 全 Agent 单后端）
 
-Python 后端为无状态 AI 服务，不参与业务认证与租户隔离，仅接收 Java 后端的分析请求。
+> 本后端现为 **唯一后端**：不再有 Java 业务后端。认证、业务 CRUD、多 Agent 编排、RAG、Coach 陪练全部由此承载。
 
 ```
-Java 后端 (@Async)
-  ↓ POST http://localhost:8000/api/v1/analysis/analyze
-  ↓ { audio_file_id, audio_file_path }
-Python AI 后端
-  ↓ 执行 5 步 Agent 流水线
-  ↓ 返回 { status, transcript, dialogue, evaluations, report }
-Java 后端
-  ↓ 解析响应
-  ↓ 写入 t_interview / t_evaluation / t_report
-  ↓ STOMP 推送给 Flutter
+Flutter 移动端
+  ↓ HTTP(Python 单后端 :8000) + WebSocket
+Python Agent 后端
+  ↓ 多 Agent 编排（复盘 Orchestrator / Coach）
+  ↓ MCP 工具层（auth/interview/report/knowledge/retrieval/coach）
+  ↓ LLM/ASR/RAG/ML + SQLite + sqlite-vec
 ```
+
+分析链路不再跨服务：音频上传后由编排层直接调度 Agent，结果持久化到本地库，经 WebSocket 推送给 Flutter。原「5 步流水线」仍为复盘 Orchestrator 的业务骨架。
 
 ---
 

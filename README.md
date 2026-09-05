@@ -1,18 +1,19 @@
 # InterviewMentorAI
 
-> AI 驱动的模拟面试复盘助手 —— 面试录音，Agent 自动生成会议纪要与评估报告。
+> AI 驱动的模拟面试复盘助手 —— 面试录音，多 Agent 自动生成会议纪要与评估报告。
 
 ---
 
 ## 项目简介
 
-InterviewMentorAI 是一款面向求职者的 **AI 面试复盘工具**，支持 Android 和 iOS 平台。用户在面试中一键开启录音，面试结束后 AI Agent 自动执行完整复盘流水线：
+InterviewMentorAI 是一款面向求职者的 **AI 面试复盘工具**，支持 Android 和 iOS 平台。用户在面试中一键开启录音，面试结束后由 **多 Agent 协作**自动执行完整复盘流程：
 
-1. **语音转文字** — 基于 DashScope ASR 模型将面试录音转录为文本
-2. **说话人分离** — LLM 分析对话语义，自动区分面试官与面试者的发言内容
-3. **RAG 检索增强** — 从知识库检索相关技术知识点，为评估提供准确参考依据
-4. **智能评估** — 逐段评估面试者回答质量，结合知识库给出得分与等级
-5. **结构化报告** — 输出面试问题、回答内容、薄弱项/熟练项分析及改进建议
+1. **语音转文字** — 基于 ASR 模型（DashScope paraformer-v2）将面试录音转录为文本
+2. **说话人分离** — 专职 Agent 分析对话语义，自动区分面试官与面试者的发言内容
+3. **RAG 检索增强** — 检索 Agent 从知识库检索相关技术知识点，为评估提供准确参考依据
+4. **智能评估** — 评估 Agent 逐段评估面试者回答质量，结合知识库给出得分与等级
+5. **反思增强** — 对薄弱项做深度补充检索，延伸关联知识点
+6. **结构化报告** — 报告 Agent 汇总输出面试问题、回答内容、薄弱项/熟练项分析及改进建议
 
 **初级定位（安卓、苹果客户端）：** 面试时打开软件，自动录音，记录面试会话，面试结束之后，Agent 自动生成会议纪要，并且针对我在面对面试官语气不确定、回答不正确的部分进行补充，并延伸关联知识点，帮助面试者补充；针对我完全掌握的知识点只进行概述。
 
@@ -23,104 +24,126 @@ InterviewMentorAI 是一款面向求职者的 **AI 面试复盘工具**，支持
 | 特性 | 说明 |
 |------|------|
 | 一键录音 | Flutter 移动端支持 Android & iOS，面试开始即录音 |
-| 说话人分离 | AI 自动区分面试官 / 面试者发言 |
-| RAG 增强 | 基于知识库检索增强评估准确性，减少 LLM 幻觉 |
+| 说话人分离 | 专责 Agent 自动区分面试官 / 面试者发言 |
+| RAG 增强 | 检索 Agent 基于知识库检索增强评估准确性，减少 LLM 幻觉 |
+| 多 Agent 协作 | LangGraph 编排 Orchestrator + 专职 Agent，可并行/反思/重试 |
+| 机器学习 | 本地 Embedding / Reranker 推理 + ASR，离线可用 |
 | 智能评估 | 熟练项简短概括 / 薄弱项详细修正与知识点拓展 |
 | 结构化复盘 | 输出面试纪要 + Markdown 评估报告 |
 | 知识库管理 | 支持多格式题库导入（PDF/Word/HTML/TXT/MD） |
-| 实时推送 | STOMP WebSocket 实时推送分析进度和状态 |
+| 实时推送 | WebSocket 实时推送分析进度和状态 |
 
 ---
 
-## 技术架构
+## 技术架构（v3.0 · 全 Agent 驱动）
 
-采用 **前后端分离 + Java/Python 双后端** 架构：
+采用 **纯 Python 单后端 + 全 Agent 驱动** 架构，**不再使用 Java**。业务、认证、AI、RAG、多 Agent 协作统一由 FastAPI 承载；业务接口经 **MCP 协议封装为工具**，供 Agent 统一调用；并提供 **AI 辅助面试（Coach）** 模块，用轻度机器学习支撑个性化陪练：
 
 ```
-┌──────────────────────┐
-│   Flutter 移动端      │
-│  (Android + iOS)     │
-└──────────┬───────────┘
-           │
-     ┌─────┴─────┐
-     ▼           ▼
-┌─────────┐   ┌─────────┐
-│  Java   │   │ Python  │
-│业务后端  │◄─►│AI 后端   │
-│(8080)   │   │(8000)   │
-└────┬────┘   └────┬────┘
-     │             │
-      ▼             ▼
-   MySQL 8.0    LLM + ASR + RAG
-   (个人模式)    (DashScope + SQLite)
+┌─────────────────────────┐
+│   Flutter 移动端         │
+│  (Android + iOS)        │
+└────────────┬────────────┘
+             │ HTTP + JWT / WebSocket
+┌────────────▼────────────┐
+│  Python FastAPI 后端     │
+│  ┌────────────────────┐ │
+│  │ Agent 编排层        │ │  复盘 Orchestrator + Coach
+│  │ (LangGraph)        │ │  ASR/分离/检索/评估/报告
+│  └─────────┬──────────┘ │  陪练(出题/反馈/画像)
+│  ┌─────────▼──────────┐ │
+│  │ MCP 工具层          │ │  业务接口即工具
+│  │ (auth/interview/…) │ │  call_tool 统一调用
+│  └─────────┬──────────┘ │
+│  ┌─────────▼──────────┐ │
+│  │ AI 能力层           │ │  ML(ASR/Embedding/
+│  └─────────┬──────────┘ │  Reranker/轻量画像)+RAG
+│  ┌─────────▼──────────┐ │
+│  │ 业务层              │ │  认证/CRUD/WebSocket 推送
+│  └─────────┬──────────┘ │
+│  ┌─────────▼──────────┐ │
+│  │ 存储层              │ │  SQLite + sqlite-vec
+│  └────────────────────┘ │
+└─────────────────────────┘
 ```
 
 ### 模块说明
 
 | 模块 | 技术栈 | 职责 | 详细文档 |
 |------|--------|------|----------|
-| **Flutter 移动端** | Flutter 3.12 | 录音采集、文件上传、报告展示、历史记录 | [前端架构](frontend_flutter/README.md) |
-| **Java 业务后端** | Spring Boot 3.2.5 + Java 17 | JWT 认证、业务 CRUD、异步调用 | [Java 后端架构](backend_springai/README.md) |
-| **Python AI 后端** | FastAPI + DashScope | ASR 语音识别、LLM 对话分析、RAG 检索增强、Agent 流水线 | [Python 后端架构](backend_python/README.md) |
-| **RAG 系统** | SQLite + sqlite-vec | 知识库存储、向量检索、BM25 混合检索、重排序 | [RAG+MCP 架构](docs/architecture/RAG_MCP_Architecture.md) |
+| **Flutter 移动端** | Flutter 3.12 | 录音采集、文件上传、报告展示、历史记录、模拟面试 | [前端架构](frontend_flutter/README.md) |
+| **Python Agent 后端** | FastAPI + LangGraph + DashScope | 认证/业务 CRUD、多 Agent 编排（复盘 + Coach）、ASR、LLM、RAG、ML、MCP 工具层 | [Agent 架构设计](docs/architecture/AGENT-ARCHITECTURE.md) |
+| **RAG 系统** | SQLite + sqlite-vec + 本地 bge 模型 | 知识库存储、向量检索、BM25 混合检索、重排序 | [Agent 架构设计](docs/architecture/AGENT-ARCHITECTURE.md) |
+| **MCP 工具层** | mcp SDK / FastMCP | 业务接口（auth/interview/report/knowledge/retrieval/coach）封装为标准化工具 | [Agent 架构设计](docs/architecture/AGENT-ARCHITECTURE.md) |
+| **AI 辅助面试（Coach）** | Coach Agent + 轻量 ML | 模拟面试陪练：个性化选题、即时点评、薄弱点画像、难度自适应 | [Agent 架构设计](docs/architecture/AGENT-ARCHITECTURE.md) |
 
----
+### 多 Agent 协作
 
-## Java 业务后端概述
-
-基于 Spring Boot 3.2.5 + Java 17 的业务后端。
-
-### 基础设施
-
-- **认证授权**：Spring Security + JWT 双 Token（accessToken 2h + refreshToken 7d）
-- **异步框架**：ThreadPoolTaskExecutor + @Async，异步调用 Python AI 后端
-- **WebSocket**：STOMP + SockJS，实时推送分析进度和状态
-
-### 业务模块
-
-| 模块 | 接口数 | 说明 |
-|------|--------|------|
-| Auth | 3 | 登录/注册/刷新Token |
-| User | 3 | 个人信息查看/修改/改密码 |
-| Interview | 5 | 创建面试/上传音频/详情/列表 |
-| Report | 3 | 评估列表/报告详情/报告列表 |
-| Knowledge | 6 | 知识库CRUD/搜索 |
-
-### 数据库设计
-
-> 详细架构见 [Java 后端架构文档](backend_springai/README.md)
-
----
-
-## Python AI 后端概述
-
-基于 FastAPI + DashScope 的 AI 面试分析引擎。
-
-### Agent 流水线（5步）
+Orchestrator-Workers 模型（LangGraph `StateGraph` 编排），两条主线：
 
 ```
-音频文件 → ASR转文字 → 说话人分离 → RAG检索增强 → 逐段评估 → 结构化报告
+① 面试复盘 Orchestrator（任务拆解/调度/状态管理）
+   ├─ ASR Agent          语音转文字
+   ├─ 说话人分离 Agent    重组问答对
+   ├─ 检索 Agent（RAG）   逐题检索增强 → 失败 re_query
+   ├─ 评估 Agent         逐题评估（并发）
+   └─ 报告 Agent         汇总生成 Markdown 报告
+        └─ 反思回路：薄弱项 → 深度检索 → 知识点扩展
+
+② 面试教练 Coach Agent（AI 辅助面试）
+   ├─ 出题 Agent         按画像与难度选题（RAG + 相似度）
+   ├─ 反馈 Agent         即时点评（LLM + RAG 上下文）
+   └─ 画像 Agent         汇总历史表现生成薄弱点画像（轻量 ML）
 ```
 
-| 步骤 | 模型 | 说明 |
+### MCP 协议封装业务接口
+
+后端全部业务/检索能力经 **MCP 协议**封装为标准化工具（`call_tool` 统一调用），Agent 与业务实现解耦，REST（面向 Flutter）与 MCP（面向 Agent）共享同一实现，可被任意 MCP 兼容客户端复用。
+
+### 机器学习
+
+| 能力 | 模型 | 形态 |
 |------|------|------|
+| 语音识别 | DashScope paraformer-v2 | API |
+| 向量化 | bge-large-zh-v1.5 | **本地推理**（离线可用，支撑 RAG + Coach 个性化） |
+| 重排序 | bge-reranker-base | **本地推理**（离线可用） |
+| 轻量画像 | 统计聚合 + Embedding 相似度 | **轻度机器学习**（无训练开销） |
+| LLM | qwen-plus / qwen3.5-omni-plus | API |
+
+---
+
+## Python Agent 后端概述
+
+### Agent 流水线（多 Agent 协作）
+
+```
+音频 → [ASR Agent] → [说话人分离 Agent] → [检索 Agent(RAG)]
+    → [评估 Agent] → [反思增强] → [报告 Agent] → 结构化报告
+```
+
+| 步骤 | 模型/能力 | 说明 |
+|------|-----------|------|
 | ASR 语音转文字 | DashScope paraformer-v2 | 面试录音转文本 |
 | 说话人分离 | LLM (qwen-plus) | 区分面试官/面试者发言 |
-| RAG 检索增强 | 向量检索 70% + BM25 30% | 检索知识库相关知识点 |
-| 逐段智能评估 | LLM + RAG 上下文 | 每道题评估打分 |
-| 结构化报告 | LLM 汇总 | 生成 Markdown 复盘报告 |
+| RAG 检索增强 | 向量检索 70% + BM25 30% + 重排 | 检索知识库相关知识点 |
+| 逐段智能评估 | 评估 Agent + RAG 上下文 | 每道题评估打分 |
+| 反思增强 | RAG 反思维度 | 薄弱项深度检索、知识点扩展 |
+| 结构化报告 | 报告 Agent 汇总 | 生成 Markdown 复盘报告 |
 
 ### 核心组件
 
 | 组件 | 文件 | 说明 |
 |------|------|------|
-| 向量数据库 | `vector_db.py` | SQLite + sqlite-vec |
-| RAG 业务层 | `rag_service.py` | 分块/向量化/检索/重排序 |
-| MCP 调度层 | `rag_mcp.py` | 上下文组装/截断/LLM 增强 |
-| Agent 流水线 | `agent_pipeline.py` | 5步分析流程编排 |
-| LLM 服务 | `llm_service.py` | DashScope/OpenAI 调用封装 |
+| Agent 编排 | `app/agents/orchestrator.py` | LangGraph 多 Agent 状态图编排（复盘） |
+| Coach 会话 | `app/agents/coach.py` + `services/coach_service.py` | AI 辅助面试：出题/反馈/画像/难度自适应 |
+| MCP 工具层 | `app/mcp/*.py` | 业务接口封装为标准化工具（call_tool） |
+| 向量数据库 | `core/vector_db.py` | SQLite + sqlite-vec |
+| RAG 业务层 | `services/rag_service.py` | 分块/向量化/检索/重排序 |
+| Agentic RAG | `services/agentic_rag_service.py` | 检索 Agent 工作流（检索→扩展→评估→合成） |
+| 画像服务 | `services/profiling_service.py` | 薄弱点画像（统计聚合 + 相似度，轻量 ML） |
+| LLM 服务 | `services/llm_client.py` | DashScope/OpenAI 调用封装 |
 
-> 详细架构见 [Python 后端架构文档](backend_python/README.md)
+> 详细架构见 [Agent 架构设计文档](docs/architecture/AGENT-ARCHITECTURE.md)
 
 ---
 
@@ -140,7 +163,7 @@ InterviewMentorAI 是一款面向求职者的 **AI 面试复盘工具**，支持
 ### 核心流程
 
 ```
-面试录音 → 上传音频 → 等待AI分析(STOMP推送) → 查看报告
+面试录音 → 上传音频 → 等待多 Agent 分析(WebSocket 推送) → 查看报告
 ```
 
 > 详细架构见 [前端架构文档](frontend_flutter/README.md)
@@ -161,39 +184,24 @@ InterviewMentorAI/
 │   ├── pubspec.yaml
 │   └── README.md                      # 前端架构说明
 │
-├── backend_springai/                  # Java 业务后端
-│   ├── pom.xml
-│   ├── src/main/java/com/interview/mentor/
-│   │   ├── InterviewMentorApplication.java
-│   │   ├── config/                    # SecurityConfig + CorsConfig + MyBatisPlusConfig
-│   │   ├── security/                  # JWT (Provider + Filter + UserDetailsService)
-│   │   ├── async/                     # AsyncConfig 线程池
-│   │   ├── websocket/                 # WebSocketConfig + WsPushService
-│   │   ├── exception/                 # BusinessException + GlobalExceptionHandler
-│   │   ├── entity/                    # 7个实体类 + 7个DTO
-│   │   ├── mapper/                    # 6个Mapper接口
-│   │   ├── service/                   # 5个Service (接口+实现)
-│   │   └── controller/                # 6个Controller (25+个API)
-│   ├── src/main/resources/
-│   │   ├── application.yml            # 应用配置
-│   │   ├── schema.sql                 # 单库建表脚本 (7表)
-│   │   └── mapper/                    # MyBatis XML
-│   └── README.md                      # Java 后端架构说明
-│
-├── backend_python/                    # Python AI 后端
+├── backend_python/                    # Python Agent 后端（业务 + AI 一体化）
 │   ├── app/
 │   │   ├── main.py                    # FastAPI 入口 (lifespan)
 │   │   ├── core/
 │   │   │   ├── config.py              # 配置管理
 │   │   │   └── vector_db.py           # SQLite + sqlite-vec 向量数据库
+│   │   ├── agents/                    # ★ 多 Agent 层（编排/ASR/分离/检索/评估/报告/Coach）
+│   │   ├── mcp/                       # ★ MCP 工具层（业务接口即工具，standard call_tool）
 │   │   ├── services/
-│   │   │   ├── agent_pipeline.py      # Agent 5步流水线
+│   │   │   ├── agent_pipeline.py      # Agent 流水线
+│   │   │   ├── agentic_rag_service.py # Agentic RAG（LangGraph）
 │   │   │   ├── rag_service.py         # RAG 业务层
-│   │   │   ├── rag_mcp.py             # MCP 调度层
-│   │   │   ├── llm_service.py         # LLM 调用封装
+│   │   │   ├── coach_service.py       # Coach 面试陪练（出题/反馈/画像）
+│   │   │   ├── profiling_service.py   # 薄弱点画像（轻量 ML）
+│   │   │   ├── llm_client.py          # LLM 调用封装
 │   │   │   ├── knowledge_service.py   # 知识库服务
 │   │   │   └── doc_converter/         # 文档转换 (PDF/Word/HTML→MD)
-│   │   ├── api/                       # API 接口
+│   │   ├── api/                       # API 接口（含 /coach/*）
 │   │   └── models/                    # Pydantic 数据模型
 │   ├── data/rag_docs/                 # 知识库 (面试题库)
 │   ├── scripts/rag_init.py            # 离线入库脚本
@@ -202,12 +210,13 @@ InterviewMentorAI/
 │
 ├── docs/                              # 项目文档中心
 │   ├── README.md                      # 文档索引
-│   ├── architecture/                  # 架构设计
-│   ├── plans/                         # 技术方案
-│   ├── reports/                       # 项目报告 & 评审
-│   ├── learning/                      # 学习资料
-│   ├── vision/                        # 项目愿景
+│   ├── architecture/
+│   │   └── AGENT-ARCHITECTURE.md      # ★ 现行 Agent 架构设计
+│   ├── recycle_bin/                   # ★ 回收站（陈旧的 Java 双后端设计文档归档）
+│   │   └── README.md                  # 回收站说明
+│   ├── api/                           # API 接口文档
 │   ├── dev/                           # 开发日志
+│   ├── learning/                      # 学习资料
 │   └── agents/                        # Agent 文档
 ├── docker-compose.yml                 # Docker 编排
 └── README.md                          # 本文件 (项目入口)
@@ -220,12 +229,11 @@ InterviewMentorAI/
 ### 环境要求
 
 - Python 3.10+
-- Java 17+
 - Flutter 3.12+
-- MySQL 8.0+
 - DashScope API Key
+- （可选）本地模型：bge-large-zh-v1.5 / bge-reranker-base（首次自动下载）
 
-### Python AI 后端
+### Python Agent 后端
 
 ```bash
 cd backend_python
@@ -242,23 +250,6 @@ python scripts/rag_init.py
 uvicorn app.main:app --reload --port 8000
 ```
 
-### Java 业务后端
-
-```bash
-cd backend_springai
-
-# 初始化数据库
-mysql -u root -p -e "CREATE DATABASE interview_mentor DEFAULT CHARSET utf8mb4;"
-mysql -u root -p interview_mentor < src/main/resources/schema.sql
-
-# 配置环境变量
-export MYSQL_PASSWORD=your-password
-export JWT_SECRET=your-secret-key
-
-# 启动
-mvn spring-boot:run
-```
-
 ### Flutter 移动端
 
 ```bash
@@ -273,13 +264,11 @@ flutter run
 
 | 文档 | 说明 |
 |------|------|
-| [Java 后端架构](backend_springai/README.md) | Spring Boot 业务后端说明 |
-| [Python 后端架构](backend_python/README.md) | FastAPI AI 引擎完整说明 |
-| [前端架构](frontend_flutter/README.md) | Flutter 移动端完整说明 |
-| [MVP 技术方案](docs/plans/INTERVIEW-MVP-PLAN.html) | 完整技术方案（浏览器打开） |
-| [RAG+MCP 架构](docs/architecture/RAG_MCP_Architecture.md) | RAG 系统详细设计 |
-| [API 接口文档](docs/api/api_document.md) | 完整 API 接口说明 |
-| [架构设计文档](docs/architecture/architecture.md) | 整体架构设计说明 |
+| [Agent 架构设计](docs/architecture/AGENT-ARCHITECTURE.md) | 现行全 Agent 架构设计（多 Agent 协作/ML/RAG/MCP 工具层/Coach 陪练模块） |
+| [Python 后端架构](backend_python/README.md) | Python Agent 后端说明 |
+| [前端架构](frontend_flutter/README.md) | Flutter 移动端说明 |
+| [API 接口文档](docs/api/api_document.md) | API 接口说明 |
+| [回收站（旧方案）](docs/recycle_bin/README.md) | 旧 Java/Python 双后端设计文档归档 |
 | [文档索引](docs/README.md) | 全部文档目录 |
 
 ---

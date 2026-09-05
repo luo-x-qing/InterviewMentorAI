@@ -6,8 +6,7 @@
 *.swo
 *~
 
-# === Java / Spring Boot ===
-backend_springai/target/
+# === Java / Spring Boot (已移除) ===
 *.class
 *.jar
 *.war
@@ -46,7 +45,6 @@ env/
 *.sqlite3
 *.mv.db
 *.trace.db
-backend_springai/data/
 backend_python/data/*.db
 backend_python/data/*.json
 !backend_python/data/rag_docs/

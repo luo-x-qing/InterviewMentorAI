@@ -20,7 +20,9 @@ InterviewMentorAI/
 │   ├── 0006-interview-mentor-integration.html
 │   ├── 0007-implementation-guide.html
 │   ├── 0008-optimization-extension.html
-│   └── 0009-summary-next-steps.html
+│   ├── 0009-summary-next-steps.html
+│   ├── 0010-0018                  # ⚠️ 历史 SaaS/Java 课程（技术栈已废弃，仅供追溯）
+│   └── ...
 └── docs/learning/records/        # 学习记录
     └── 0001-rag-learning-start.md
 ```

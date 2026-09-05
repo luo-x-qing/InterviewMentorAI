@@ -34,9 +34,6 @@ class Settings(BaseSettings):
     # 音频文件存储路径（锚定项目内）
     audio_storage_path: str = Field(default=str(DATA_DIR / "audio"), alias="AUDIO_STORAGE_PATH")
 
-    # Java 业务后端地址
-    java_backend_url: str = Field(default="http://localhost:8080", alias="JAVA_BACKEND_URL")
-
     # RAG配置（本地离线模型：首次自动从 HuggingFace 下载到项目内缓存，之后完全离线）
     rag_doc_root: str = Field(default=str(DATA_DIR / "rag_docs"), alias="RAG_DOC_ROOT")
     sqlite_db_path: str = Field(default=str(DATA_DIR / "interview.db"), alias="SQLITE_DB_PATH")

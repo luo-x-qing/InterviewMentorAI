@@ -2,7 +2,13 @@
 
 ## 总览
 
-项目包含两套 API 服务：
+> **现状（v3.1）**：本项目已转向全 Agent 驱动架构，采用 Python 单后端。原两套后端（Java 业务后端 + Python AI 后端）合并为单一 FastAPI 服务：
+> - **Base URL**：`http://localhost:8000`（原 Java 业务 API 路径不变，host 平移）
+> - 原「Java 业务后端」一节内容仍描述同名 API 路径，前端/客户端可按新 host 对接，路径语义不变。
+> - AI/Agent API（分析/检索/知识库/Coach）见下方对应小节。
+> - 完整架构见 [Agent 架构设计](../architecture/AGENT-ARCHITECTURE.md)。
+
+## 总览（历史）
 
 | 服务 | 地址 | 技术栈 | 接口数 |
 |------|------|--------|--------|
