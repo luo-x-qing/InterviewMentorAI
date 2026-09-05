@@ -30,10 +30,9 @@ void main() {
     await tester.tap(find.text('注册'));
     await tester.pumpAndSettle();
 
-    // 注册模式下应展示额外字段
+    // 注册模式下应展示额外字段（新后端契约：手机号必填，昵称选填，无邮箱）
     expect(find.text('昵称（选填）'), findsOneWidget);
-    expect(find.text('邮箱（选填）'), findsOneWidget);
-    expect(find.text('手机号（选填）'), findsOneWidget);
+    expect(find.text('手机号'), findsWidgets);
 
     // 切换回登录
     await tester.tap(find.text('登录'));
@@ -41,7 +40,7 @@ void main() {
     expect(find.text('昵称（选填）'), findsNothing);
   });
 
-  testWidgets('空用户名密码时显示错误提示', (WidgetTester tester) async {
+  testWidgets('空手机号密码时显示错误提示', (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle();
 
@@ -50,6 +49,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // 应显示错误提示
-    expect(find.text('用户名和密码不能为空'), findsOneWidget);
+    expect(find.text('手机号和密码不能为空'), findsOneWidget);
   });
 }
