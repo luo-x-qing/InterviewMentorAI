@@ -17,6 +17,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def _retrieve_docs(rag_service, query: str) -> list:
+    """把 RagService 检索结果（RagRetrievalResult）规整为 AgenticRag 需要的 RagDoc 列表"""
+    result = await rag_service.retrieve_by_question(query, use_hybrid=True, use_rerank=True)
+    return list(result.docs)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理 - 严格按依赖顺序创建服务实例"""
@@ -62,6 +68,31 @@ async def lifespan(app: FastAPI):
         chunking_service=chunking_service,
         embedding_service=embedding_service
     )
+
+    # 5. v3.1 全 Agent 架构：Agentic RAG / 业务库 / MCP 工具 / Coach / Orchestrator
+    from app.services.agentic_rag_service import AgenticRagService
+    from app.core.database import Database
+    from app.mcp.server import ToolRegistry
+    from app.mcp.retrieval_tools import RetrievalTools
+    from app.mcp.knowledge_tools import KnowledgeTools
+    from app.services.coach_service import CoachService
+    from app.mcp.coach_tools import CoachTools
+    from app.agents.orchestrator import Orchestrator
+    from app.agents.retrieval_agent import RetrievalAgent
+
+    agentic_rag = AgenticRagService(
+        retrieve_fn=lambda query: _retrieve_docs(rag_service, query),
+    )
+    database = Database()
+    coach_service = CoachService(database=database)
+    retrieval_agent = RetrievalAgent(agentic_rag=agentic_rag)
+
+    tool_registry = ToolRegistry()
+    RetrievalTools(rag_service=rag_service, agentic_rag=agentic_rag).register(tool_registry)
+    KnowledgeTools(knowledge_service=knowledge_service).register(tool_registry)
+    CoachTools(coach=coach_service).register(tool_registry)
+
+    orchestrator = Orchestrator(pipeline=agent_pipeline)
     
     # 存储到 app.state
     app.state.vector_db = vector_db
@@ -74,8 +105,14 @@ async def lifespan(app: FastAPI):
     app.state.rag_mcp = rag_mcp
     app.state.agent_pipeline = agent_pipeline
     app.state.knowledge_service = knowledge_service
+    app.state.agentic_rag = agentic_rag
+    app.state.database = database
+    app.state.coach_service = coach_service
+    app.state.retrieval_agent = retrieval_agent
+    app.state.tool_registry = tool_registry
+    app.state.orchestrator = orchestrator
     
-    logger.info("所有服务实例创建完成")
+    logger.info(f"所有服务实例创建完成（tool_registry 已注册 {len(tool_registry.list_tools())} 个工具）")
     
     yield
     
@@ -87,6 +124,8 @@ async def lifespan(app: FastAPI):
         app.state.rag_service.close()
     if hasattr(app.state, 'vector_db'):
         app.state.vector_db.close()
+    if hasattr(app.state, 'database'):
+        app.state.database.close()
     logger.info("所有资源已清理")
 
 
@@ -147,6 +186,26 @@ def get_agent_pipeline(request: Request):
 
 def get_knowledge_service(request: Request):
     return request.app.state.knowledge_service
+
+
+def get_database(request: Request):
+    return request.app.state.database
+
+
+def get_coach_service(request: Request):
+    return request.app.state.coach_service
+
+
+def get_tool_registry(request: Request):
+    return request.app.state.tool_registry
+
+
+def get_orchestrator(request: Request):
+    return request.app.state.orchestrator
+
+
+def get_retrieval_agent(request: Request):
+    return request.app.state.retrieval_agent
 
 
 # 注册路由

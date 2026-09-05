@@ -27,7 +27,9 @@ class AgentPipeline:
     """AI Agent 流水线"""
 
     #初始化
-    def __init__(self, prompt_service=None, rag_mcp=None):
+    def __init__(self, prompt_service=None, rag_mcp=None, progress_cb=None):
+        # 可选进度回调（v3.1 Orchestrator 订阅；向后兼容，缺省为 None）
+        self.progress_cb = progress_cb
         # 延迟导入，避免循环依赖
         if prompt_service is None:
             from app.services.prompt_service import PromptService
@@ -40,6 +42,16 @@ class AgentPipeline:
             self.rag_mcp = RagMCP()
         else:
             self.rag_mcp = rag_mcp
+
+    async def _notify(self, step: int, message: str, status: AnalysisStatus):
+        """触发进度回调（若已注入）"""
+        if self.progress_cb is not None:
+            try:
+                r = self.progress_cb(step, message, status)
+                if hasattr(r, "__await__"):
+                    await r
+            except Exception as e:  # noqa: BLE001
+                logger.warning("进度回调异常: %s", e)
     
     #外部接口收到请求之后，调用执行，启动整条链路
     async def run(self, request: AnalysisRequest) -> AnalysisResponse:
@@ -65,21 +77,25 @@ class AgentPipeline:
             
             # Step 1: 语音识别 - 将音频转为文字
             logger.info("[Step 2] 开始语音识别")
+            await self._notify(1, "语音识别中", AnalysisStatus.ASR_COMPLETED)
             state.raw_transcript = await self.prompt_service.transcribe_interview(request.audio_file_path)
             logger.info(f"[Step 2] 语音识别完成, text_length={len(state.raw_transcript)}")
             
             # Step 2: 说话人分离 - 解析对话结构
             logger.info("[Step 3] 开始说话人分离")
+            await self._notify(2, "说话人分离中", AnalysisStatus.DIALOGUE_PARSED)
             state.dialogue_list = await self._parse_dialogue(state)
             logger.info(f"[Step 3] 说话人分离完成, dialogue_count={len(state.dialogue_list)}")
             
             # Step 3: 回答评估 - 评估面试者表现
             logger.info("[Step 4] 开始回答评估")
+            await self._notify(3, "评估回答中", AnalysisStatus.EVALUATION_COMPLETED)
             state.evaluation_list = await self._evaluate_answers(state)
             logger.info(f"[Step 4] 回答评估完成, evaluation_count={len(state.evaluation_list)}")
             
             # Step 4: 生成复盘报告
             logger.info("[Step 5] 开始生成复盘报告")
+            await self._notify(4, "生成复盘报告中", AnalysisStatus.COMPLETED)
             state.final_report = await self._generate_report(state)
             logger.info(f"[Step 5] 复盘报告生成完成, report_length={len(state.final_report)}")
             

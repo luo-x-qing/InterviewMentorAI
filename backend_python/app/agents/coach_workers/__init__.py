@@ -1,0 +1,1 @@
+"""Coach 内部 Worker：出题 / 反馈 / 画像（架构 §7 的 Coach 内部专职 Worker）"""

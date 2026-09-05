@@ -487,30 +487,32 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 
 > `backend_springai/` **已删除**（历史实现归档至 `docs/recycle_bin/` 文档），新架构代码落在 Python 单后端内渐进演进。
 
+> **骨架状态**：阶段 A/B/C/D 的核心接口与深模块骨架已落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`），实体/库/MCP/Coach/画像均有单测覆盖（`tests/test_agent_arch.py`，19 例）。以下编号勾选为本轮骨架完成项。
+
 ### 阶段 A：业务能力迁入（无 Java）
 
 1. 在 `backend_python/` 新增 `auth` / `user` / `interview` / `report` 业务模块与 JWT 认证。
-2. 新增 SQLite 业务表（原 `schema.sql` 7 表迁移为 SQLite 等价 schema；新增画像表、会话表）。
+2. ✅（骨架）新增 SQLite 业务表：`app/core/database.py`（user / interview / coach_session / coach_session_question / user_profile 五表 + 兼容补列），实体见 `app/models/entities.py`。
 3. 新增原生 WebSocket / SSE 实时推送模块，替换 STOMP。
 4. Flutter 前端切换 API 基址到 Python 单后端，WebSocket 适配原生协议。
 
 ### 阶段 B：流水线 Agent 化
 
-5. 将 `agent_pipeline.py` 5 步重构为 LangGraph Orchestrator + 各专职 Agent（保留既有状态容器与结果模型）。
-6. 新增反思回路（薄弱项 → 深度检索 → 知识点扩展）。
-7. 复用并虚拟化 `agentic_rag_service` 为检索 Agent。
+5. ✅（骨架）`app/agents/orchestrator.py`：对外 `run(request)` + `subscribe(progress_cb)`，默认委托既有 `AgentPipeline`（已注入可选 `progress_cb`）；`build_graph()` 预留 LangGraph 拓扑落点（作为阶段 B 迁移点）。
+6. ✅（骨架）`app/agents/reflexion.py`：反思回路（薄弱项 → 深度检索 → 知识点扩展）。
+7. ✅（骨架）`app/agents/retrieval_agent.py`：检索 Agent（包装 `AgenticRagService.answer`，`retrieve_candidates` 候选兜底）。
 
 ### 阶段 C：MCP 工具层
 
-8. 引入 mcp SDK，把既有 `rag_mcp.py` 逻辑迁为标准 MCP `retrieval` / `knowledge` 工具。
+8. ✅（骨架）`app/mcp/server.py`（`ToolRegistry`：`register / list_tools / call_tool`）+ `app/mcp/retrieval_tools.py`、`app/mcp/knowledge_tools.py`（浅适配器转发既有服务）。
 9. 业务服务（auth/interview/report）注册为 MCP 工具；REST 与 MCP 双通道共享实现。
-10. 复盘 Orchestrator 的检索/知识调用改走 `call_tool`。
+10. 复盘 Orchestrator 的检索/知识调用改走 `call_tool`（当前 Orchestrator 默认执行器内部仍走既有服务，改走工具为阶段 C 收尾项）。
 
 ### 阶段 D：AI 辅助面试（Coach）
 
-11. 落地 `coach_service` 会话状态机 + REST `/coach/*`（对应 v0：RAG 选题 + LLM 点评）。
-12. 新增画像表与 `profiling_service`（v1 统计聚合）→ 个性化选题（v2 Embedding 相似度）→ 难度自适应（v3）。
-13. Coach 经 MCP `coach.*` 工具接入 Orchestrator（复盘后可一键推荐针对性练习）。
+11. ✅（骨架）`app/services/coach_service.py` 会话状态机（idle→active→done）+ `app/mcp/coach_tools.py`（`coach.start / next_question / submit_answer / end`）；REST `/coach/*` 待补。
+12. ✅（骨架）`app/services/profiling_service.py`（v1 统计聚合 + v2 相似度选题 + v3 难度自适应，`suggest_difficulty`）+ 画像表。
+13. ✅（骨架）Coach 经 MCP `coach.*` 工具接入（`app/mcp/coach_tools.py` 已在 `main.py` 装配）；复盘后一键推荐针对性练习待接 Orchestrator。
 
 ### 阶段 E：收尾（✅ 已完成）
 
