@@ -7,7 +7,10 @@ uvicorn[standard]>=0.24.0
 # OpenAI 兼容接口（调用阿里云百炼 qwen3.5-omni-plus）
 openai>=1.0.0
 
-# HTTP 客户端（用于调用 Java 后端）
+# 配置加载（app/core/config.py 依赖；未显式声明会导致 CI 收集崩溃）
+pydantic-settings>=2.0.0
+
+# HTTP 客户端
 httpx>=0.25.0
 
 # 环境变量管理
@@ -43,3 +46,4 @@ langgraph>=1.0.0
 pytest>=7.0.0
 pytest-mock>=3.0.0
 pytest-cov>=4.0.0
+pytest-asyncio>=0.23.0

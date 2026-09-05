@@ -451,7 +451,6 @@ class _RecordPageState extends State<RecordPage>
 class _PulseRingBuilder extends AnimatedWidget {
   final int index;
   const _PulseRingBuilder({
-    super.key,
     required super.listenable,
     required this.index,
   });

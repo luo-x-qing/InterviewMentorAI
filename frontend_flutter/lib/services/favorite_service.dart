@@ -33,7 +33,7 @@ class FavoriteService {
   static Future<void> syncFavorites(List<dynamic> questions) async {
     final favorites = await getFavorites();
     for (final q in questions) {
-      if (q is dynamic && q.id != null) {
+      if (q.id != null) {
         (q as dynamic).isFavorite = favorites.contains(q.id as String);
       }
     }

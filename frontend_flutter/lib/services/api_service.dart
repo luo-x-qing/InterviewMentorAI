@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:frontend_flutter/services/auth_service.dart';
@@ -8,7 +7,7 @@ import 'package:frontend_flutter/utils/constants.dart';
 /// 统一 API 服务 —— 带 JWT 认证拦截器的 Dio 单例
 ///
 /// 拦截器职责：
-/// 1. 请求前自动注入 Authorization: Bearer <accessToken>
+/// 1. 请求前自动注入 Authorization: Bearer `accessToken`
 /// 2. 收到 401 时自动用 refreshToken 刷新，重试原请求（最多 1 次）
 /// 3. 刷新失败时清除本地 Token，通知 UI 层跳转登录
 class ApiService {

@@ -17,9 +17,9 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _loading = true;
 
   // 模拟统计数据
-  int _totalInterviews = 6;
-  double _averageScore = 80.5;
-  int _maxScore = 92;
+  final int _totalInterviews = 6;
+  final double _averageScore = 80.5;
+  final int _maxScore = 92;
 
   @override
   void initState() {

@@ -538,7 +538,7 @@ class _HomePageState extends State<HomePage>
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _steps.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
               itemBuilder: (context, index) {
                 final active = index == _currentStep;
                 final sr = _stepRecords[index];
