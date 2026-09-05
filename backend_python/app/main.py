@@ -58,38 +58,45 @@ async def lifespan(app: FastAPI):
     )
     rag_mcp = RagMCP(rag_service=rag_service, prompt_service=prompt_service)
     
-    # 4. 创建顶层服务
-    from app.services.agent_pipeline import AgentPipeline
-    from app.services.knowledge_service import KnowledgeService
-    
-    agent_pipeline = AgentPipeline(prompt_service=prompt_service, rag_mcp=rag_mcp)
-    knowledge_service = KnowledgeService(
-        vector_db=vector_db,
-        chunking_service=chunking_service,
-        embedding_service=embedding_service
-    )
-
-    # 5. v3.1 全 Agent 架构：Agentic RAG / 业务库 / MCP 工具 / Coach / Orchestrator
+    # 4. v3.1 全 Agent 架构：Agentic RAG / MCP 工具层（先于 AgentPipeline，供 call_tool 注入）
     from app.services.agentic_rag_service import AgenticRagService
-    from app.core.database import Database
     from app.mcp.server import ToolRegistry
     from app.mcp.retrieval_tools import RetrievalTools
     from app.mcp.knowledge_tools import KnowledgeTools
-    from app.services.coach_service import CoachService
-    from app.mcp.coach_tools import CoachTools
-    from app.agents.orchestrator import Orchestrator
     from app.agents.retrieval_agent import RetrievalAgent
 
     agentic_rag = AgenticRagService(
         retrieve_fn=lambda query: _retrieve_docs(rag_service, query),
     )
-    database = Database()
-    coach_service = CoachService(database=database)
     retrieval_agent = RetrievalAgent(agentic_rag=agentic_rag)
 
     tool_registry = ToolRegistry()
     RetrievalTools(rag_service=rag_service, agentic_rag=agentic_rag).register(tool_registry)
+
+    from app.services.agent_pipeline import AgentPipeline
+
+    agent_pipeline = AgentPipeline(
+        prompt_service=prompt_service,
+        rag_mcp=rag_mcp,
+        tool_registry=tool_registry,
+    )
+    from app.services.knowledge_service import KnowledgeService
+
+    knowledge_service = KnowledgeService(
+        vector_db=vector_db,
+        chunking_service=chunking_service,
+        embedding_service=embedding_service
+    )
     KnowledgeTools(knowledge_service=knowledge_service).register(tool_registry)
+
+    # 5. v3.1 业务库 / Coach / Orchestrator
+    from app.core.database import Database
+    from app.mcp.coach_tools import CoachTools
+    from app.services.coach_service import CoachService
+    from app.agents.orchestrator import Orchestrator
+
+    database = Database()
+    coach_service = CoachService(database=database)
     CoachTools(coach=coach_service).register(tool_registry)
 
     orchestrator = Orchestrator(pipeline=agent_pipeline)

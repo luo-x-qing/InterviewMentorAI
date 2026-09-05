@@ -506,7 +506,7 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 
 8. ✅（骨架）`app/mcp/server.py`（`ToolRegistry`：`register / list_tools / call_tool`）+ `app/mcp/retrieval_tools.py`、`app/mcp/knowledge_tools.py`（浅适配器转发既有服务）。
 9. 业务服务（auth/interview/report）注册为 MCP 工具；REST 与 MCP 双通道共享实现。
-10. 复盘 Orchestrator 的检索/知识调用改走 `call_tool`（当前 Orchestrator 默认执行器内部仍走既有服务，改走工具为阶段 C 收尾项）。
+10. ✅ `AgentPipeline` 装配 `tool_registry`，评估单题前的检索改走 `call_tool("retrieve.retrieve", ...)`（未装配时回落既有 `rag_mcp` 链路，向后兼容）；Orchestrator 默认执行器即此 AgentPipeline。
 
 ### 阶段 D：AI 辅助面试（Coach）
 

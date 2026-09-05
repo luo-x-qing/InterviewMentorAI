@@ -268,3 +268,72 @@ class TestOrchestrator:
         orch = Orchestrator(pipeline=_FakePipeline())
         with pytest.raises(NotImplementedError):
             orch.build_graph()
+
+
+# ── AgentPipeline × ToolRegistry（阶段 C：检索走 call_tool）──────
+
+class TestPipelineRetrievalViaTool:
+
+    @pytest.fixture
+    def stub_retrieve_registry(self):
+        """注册 retrieval.retrieve 桩工具，返回固定 docs"""
+        from app.mcp.server import ToolRegistry, ToolSpec
+
+        def _retrieve(question, top_k=6, use_hybrid=True, use_rerank=True):
+            return {
+                "question": question,
+                "docs": [
+                    {"doc_id": 1, "title": "基础", "content": "参考答案内容",
+                     "source": "s.md", "question_no": "1", "section": "a", "score": 0.9},
+                ],
+                "metrics": None,
+            }
+
+        reg = ToolRegistry()
+        reg.register(ToolSpec("retrieve.retrieve", "检索", _retrieve))
+        return reg
+
+    @pytest.mark.asyncio
+    async def test_evaluate_goes_through_call_tool(self, stub_retrieve_registry, mocker):
+        """装配 tool_registry 时，评估检索改走 call_tool + prompt_service.evaluate_answer"""
+        prompt = mocker.MagicMock()
+        prompt.evaluate_answer = mocker.AsyncMock(
+            return_value='{"score": 85, "level": "PROFICIENT", "strengths": "s", '
+                         '"weaknesses": "", "correction": "", "knowledge_points": ""}'
+        )
+        rag_mcp = mocker.MagicMock()
+        rag_mcp.build_rag_context = lambda res: "CTX:" + "".join(d.content for d in res.docs)
+        rag_mcp.limit_context_length = lambda raw: raw
+
+        from app.services.agent_pipeline import AgentPipeline
+
+        pipeline = AgentPipeline(prompt_service=prompt, rag_mcp=rag_mcp, tool_registry=stub_retrieve_registry)
+        result = await pipeline._evaluate_single("问题", "我的回答")
+
+        assert result is not None and result.score == 85
+        prompt.evaluate_answer.assert_awaited_once()
+        call_kwargs = prompt.evaluate_answer.await_args.kwargs
+        assert "参考答案内容" in call_kwargs["ref_text"]   # 上下文确实来自工具返回 docs
+        rag_mcp.rag_enhance_evaluate.assert_not_called()    # 未走旧链路
+
+    @pytest.mark.asyncio
+    async def test_evaluate_falls_back_without_tool_registry(self, mocker):
+        """未装配 tool_registry 时回退到既存 rag_mcp.rag_enhance_evaluate，不改旧行为"""
+        prompt = mocker.MagicMock()
+        prompt.evaluate_answer = mocker.AsyncMock(
+            return_value='{"score": 80, "level": "PROFICIENT", "strengths": "s", '
+                         '"weaknesses": "", "correction": "", "knowledge_points": ""}'
+        )
+        rag_mcp = mocker.MagicMock()
+        rag_mcp.rag_enhance_evaluate = mocker.AsyncMock(
+            return_value='{"score": 80, "level": "PROFICIENT", "strengths": "s", '
+                         '"weaknesses": "", "correction": "", "knowledge_points": ""}'
+        )
+
+        from app.services.agent_pipeline import AgentPipeline
+
+        pipeline = AgentPipeline(prompt_service=prompt, rag_mcp=rag_mcp)  # 无 tool_registry
+        result = await pipeline._evaluate_single("问题", "回答")
+        assert result.score == 80
+        rag_mcp.rag_enhance_evaluate.assert_awaited_once()
+        prompt.evaluate_answer.assert_not_called()

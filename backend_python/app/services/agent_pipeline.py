@@ -16,6 +16,8 @@ from app.models.schemas import (
     DialogueItem,
     EvaluationLevel,
     EvaluationResult,
+    RagDoc,
+    RagRetrievalResult,
     Speaker,
 )
 
@@ -27,9 +29,11 @@ class AgentPipeline:
     """AI Agent 流水线"""
 
     #初始化
-    def __init__(self, prompt_service=None, rag_mcp=None, progress_cb=None):
+    def __init__(self, prompt_service=None, rag_mcp=None, progress_cb=None, tool_registry=None):
         # 可选进度回调（v3.1 Orchestrator 订阅；向后兼容，缺省为 None）
         self.progress_cb = progress_cb
+        # 可选 MCP 工具层（v3.1 §6.4/§12-阶段C：评估前检索改走 call_tool；缺省回落 rag_mcp）
+        self.tool_registry = tool_registry
         # 延迟导入，避免循环依赖
         if prompt_service is None:
             from app.services.prompt_service import PromptService
@@ -215,13 +219,21 @@ class AgentPipeline:
     async def _evaluate_single(self, question: str, answer: str) -> EvaluationResult:
         """评估单个问答对"""
         try:
-            # 仅调用MCP层，不再直接操作rag_service
-            response = await self.rag_mcp.rag_enhance_evaluate(
-                question=question,
-                answer=answer,
-                use_hybrid=True,
-                use_rerank=True
-            )
+            # v3.1 阶段 C：优先经 MCP 工具层检索（call_tool），否则回落既有 rag_mcp 链路
+            if self.tool_registry is not None:
+                ref_text = await self._mcp_retrieve_context(question)
+                response = await self.prompt_service.evaluate_answer(
+                    question=question,
+                    answer=answer,
+                    ref_text=ref_text
+                )
+            else:
+                response = await self.rag_mcp.rag_enhance_evaluate(
+                    question=question,
+                    answer=answer,
+                    use_hybrid=True,
+                    use_rerank=True
+                )
             
             # 原有JSON解析逻辑完全不变
             json_str = response.strip()
@@ -243,6 +255,27 @@ class AgentPipeline:
         except Exception as e:
             logger.error(f"评估问答失败: {e}")
             return None
+
+    async def _mcp_retrieve_context(self, question: str) -> str:
+        """经 MCP 工具层检索并组装参考上下文（复用 rag_mcp 拼装/截断逻辑）"""
+        result = await self.tool_registry.call_tool(
+            "retrieve.retrieve",
+            {"question": question, "use_hybrid": True, "use_rerank": True},
+        )
+        docs = [
+            RagDoc(
+                doc_id=int(d.get("doc_id", 0)),
+                title=d.get("title", ""),
+                content=d.get("content", ""),
+                source=d.get("source", ""),
+                question_no=d.get("question_no", ""),
+                section=d.get("section", ""),
+                score=float(d.get("score", 0.0)),
+            )
+            for d in result.get("docs", [])
+        ]
+        retrieval_res = RagRetrievalResult(question=question, docs=docs)
+        return self.rag_mcp.limit_context_length(self.rag_mcp.build_rag_context(retrieval_res))
 
     
     # 把前面所有问答的评估结果汇总成一份复盘报告喂给LLM生成最终报告
