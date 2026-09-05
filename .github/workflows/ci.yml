@@ -38,7 +38,8 @@ jobs:
       - name: 运行 pytest（含覆盖率）
         # rag_eval_script 为手动评估脚本（非 pytest 用例）；
         # test_knowledge_e2e 引用已删除的旧入库 API（见文件头声明），由 test_import_pipeline 覆盖
-        run: pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --ignore=tests/rag_eval_script.py --ignore=tests/test_knowledge_e2e.py
+        # 用 python -m pytest 而非 pytest：确保项目根（含 app 包）进入 sys.path
+        run: python -m pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --ignore=tests/rag_eval_script.py --ignore=tests/test_knowledge_e2e.py
 
       - name: 上传覆盖率报告
         if: always()
