@@ -244,6 +244,7 @@ from app.api.user_api import router as user_router
 from app.api.interview_api import router as interview_router
 from app.api.report_api import router as report_router
 from app.api.coach_api import router as coach_router
+from app.api.audio_api import router as audio_router
 from app.api.ws_api import router as ws_router
 
 app.include_router(analysis_router)
@@ -255,6 +256,7 @@ app.include_router(user_router)
 app.include_router(interview_router)
 app.include_router(report_router)
 app.include_router(coach_router)
+app.include_router(audio_router)
 app.include_router(ws_router)
 
 

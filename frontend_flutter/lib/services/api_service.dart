@@ -13,6 +13,9 @@ import 'package:frontend_flutter/utils/constants.dart';
 class ApiService {
   static final Dio _dio = _createDio();
 
+  /// 供 Coach 等服务复用带 JWT 拦截器的 Dio 实例
+  static Dio get dio => _dio;
+
   /// 供外部监听认证失效（刷新也失败 → 跳转登录页）
   static void Function()? onAuthExpired;
 
@@ -68,18 +71,36 @@ class ApiService {
     return dio;
   }
 
-  /// 上传音频字节数据，交给后端 AI 分析
+  /// 上传音频字节数据，后端建面试记录，返回 interview_id
   static Future<Map<String, dynamic>> uploadAudioBytes(Uint8List bytes) async {
     try {
       FormData formData = FormData.fromMap({
         "audioFile": MultipartFile.fromBytes(bytes, filename: 'recording.wav'),
       });
       Response resp = await _dio.post(Constants.uploadAudioApi, data: formData);
-      return resp.data;
+      return resp.data as Map<String, dynamic>;
     } catch (e) {
       if (kDebugMode) print("上传音频异常：$e");
       rethrow;
     }
+  }
+
+  /// 触发指定面试的复盘分析（全链路编排；进度经 WS 推送）
+  static Future<Map<String, dynamic>> analyzeInterview(int interviewId) async {
+    Response resp = await _dio.post('${Constants.interviewAnalyzeApi}/$interviewId/analyze');
+    return resp.data as Map<String, dynamic>;
+  }
+
+  /// 获取面试报告正文（Markdown）
+  static Future<String> getReportContent(int interviewId) async {
+    Response resp = await _dio.get('${Constants.reportDetailApi}/$interviewId/report');
+    return (resp.data as Map<String, dynamic>)['content'] as String? ?? '';
+  }
+
+  /// 获取面试记录详情
+  static Future<Map<String, dynamic>> getInterviewDetail(int interviewId) async {
+    Response resp = await _dio.get('${Constants.interviewDetailApi}/$interviewId');
+    return resp.data as Map<String, dynamic>;
   }
 
   /// 获取历史面试记录列表
@@ -88,12 +109,39 @@ class ApiService {
     return resp.data;
   }
 
-  /// 获取报告列表（分页）
-  static Future<Map<String, dynamic>> getReportList({int page = 1, int size = 20}) async {
+  /// 获取报告列表（后端返回裸 list[ReportOut{interview_id, content, created_at}]）
+  static Future<List<Map<String, dynamic>>> getReportList({int page = 1, int size = 20}) async {
     Response resp = await _dio.get(Constants.reportListApi, queryParameters: {
       'page': page, 'size': size,
     });
-    return resp.data;
+    final data = resp.data;
+    if (data is List) {
+      return data.cast<Map<String, dynamic>>();
+    }
+    if (data is Map && data['data'] is List) {
+      return (data['data'] as List).cast<Map<String, dynamic>>();
+    }
+    return [];
+  }
+
+  /// 获取面试评测明细（含逐题得分）
+  static Future<List<Map<String, dynamic>>> getEvaluations(int interviewId) async {
+    Response resp = await _dio.get('${Constants.reportEvaluationsApi}/$interviewId/evaluations');
+    final data = resp.data;
+    if (data is List) {
+      return data.cast<Map<String, dynamic>>();
+    }
+    return [];
+  }
+
+  /// 获取我的面试记录列表（裸 list[InterviewOut]）
+  static Future<List<Map<String, dynamic>>> getInterviewList() async {
+    Response resp = await _dio.get(Constants.interviewMyListApi);
+    final data = resp.data;
+    if (data is List) {
+      return data.cast<Map<String, dynamic>>();
+    }
+    return [];
   }
 
   /// 获取用户个人信息

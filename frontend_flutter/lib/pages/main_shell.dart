@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend_flutter/pages/home_page.dart';
-import 'package:frontend_flutter/pages/community_page.dart';
+import 'package:frontend_flutter/pages/coach/coach_home_page.dart';
 import 'package:frontend_flutter/pages/question_bank_page.dart';
 import 'package:frontend_flutter/pages/notifications_page.dart';
 import 'package:frontend_flutter/pages/profile_page.dart';
@@ -8,7 +8,7 @@ import 'package:frontend_flutter/theme.dart';
 
 const _tabs = [
   _TabItem(Icons.home_outlined, Icons.home, '主页'),
-  _TabItem(Icons.group_outlined, Icons.group, '社区'),
+  _TabItem(Icons.record_voice_over_outlined, Icons.record_voice_over, '陪练'),
   _TabItem(Icons.library_books_outlined, Icons.library_books, '题库'),
   _TabItem(Icons.notifications_outlined, Icons.notifications, '通知'),
   _TabItem(Icons.person_outline, Icons.person, '我'),
@@ -88,7 +88,7 @@ class _MainShellState extends State<MainShell> {
 
   static const _pages = [
     HomePage(),
-    CommunityPage(),
+    CoachHomePage(),
     QuestionBankPage(),
     NotificationsPage(),
     ProfilePage(),

@@ -3,42 +3,47 @@ import 'package:flutter/material.dart';
 class AppTheme {
   AppTheme._();
 
-  static const Color brand50 = Color(0xFFEEF2FF);
-  static const Color brand100 = Color(0xFFE0E7FF);
-  static const Color brand200 = Color(0xFFC7D2FE);
-  static const Color brand400 = Color(0xFF818CF8);
-  static const Color brand500 = Color(0xFF4F46E5);
-  static const Color brand600 = Color(0xFF4338CA);
-  static const Color brand700 = Color(0xFF3730A3);
+  // ── 单一节制 accent：深墨青 teal（成长/专业，拒绝 AI 紫渐变）──
+  static const Color brand50 = Color(0xFFE8F3F1);
+  static const Color brand100 = Color(0xFFCDE7E4);
+  static const Color brand200 = Color(0xFFA5D4D0);
+  static const Color brand400 = Color(0xFF4F9E97);
+  static const Color brand500 = Color(0xFF23766F);
+  static const Color brand600 = Color(0xFF1B615B);
+  static const Color brand700 = Color(0xFF144A46);
 
-  static const Color purple400 = Color(0xFFC084FC);
-  static const Color purple500 = Color(0xFF7C3AED);
-  static const Color purple600 = Color(0xFF6D28D9);
+  // 兼容旧引用：purple* 并入 accent 同阶，杜绝第二色相
+  static const Color purple400 = brand400;
+  static const Color purple500 = brand500;
+  static const Color purple600 = brand600;
 
   static const Color gradientStart = brand500;
-  static const Color gradientEnd = purple500;
+  static const Color gradientEnd = brand600;
 
-  static const Color bgPage = Color(0xFFF8FAFC);
+  // ── 暖中性基底（off-white + 墨调，非纯黑）──
+  static const Color bgPage = Color(0xFFFAF9F7);
   static const Color bgCard = Color(0xFFFFFFFF);
-  static const Color bgHover = Color(0xFFF1F5F9);
+  static const Color bgHover = Color(0xFFF3F1ED);
 
-  static const Color textPrimary = Color(0xFF0F172A);
-  static const Color textSecondary = Color(0xFF475569);
-  static const Color textMuted = Color(0xFF94A3B8);
+  static const Color textPrimary = Color(0xFF1F2933);
+  static const Color textSecondary = Color(0xFF55606B);
+  static const Color textMuted = Color(0xFF8A939E);
 
-  static const Color borderLight = Color(0xFFE2E8F0);
-  static const Color borderMedium = Color(0xFFCBD5E1);
+  static const Color borderLight = Color(0xFFE7E4DF);
+  static const Color borderMedium = Color(0xFFD3CFC8);
 
-  static const Color success = Color(0xFF22C55E);
-  static const Color successBg = Color(0xFFDCFCE7);
-  static const Color warning = Color(0xFFD97706);
-  static const Color warningBg = Color(0xFFFEF3C7);
-  static const Color error = Color(0xFFEF4444);
+  // 语义色：低饱和哑光
+  static const Color success = Color(0xFF3F8C68);
+  static const Color successBg = Color(0xFFE3F1EA);
+  static const Color warning = Color(0xFFB98A2F);
+  static const Color warningBg = Color(0xFFF7EFDD);
+  static const Color error = Color(0xFFC0524A);
 
-  static const Color shadowColor = Color(0x0D000000);
+  static const Color shadowColor = Color(0x0A1F2933);
 
+  // 同色系主渐变（克制，仅胶囊/徽标用；主按钮用实色）
   static const LinearGradient gradientPrimary = LinearGradient(
-    colors: [brand500, purple500],
+    colors: [brand500, brand600],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -56,7 +61,7 @@ class AppTheme {
       scaffoldBackgroundColor: bgPage,
       colorScheme: const ColorScheme.light(
         primary: brand500,
-        secondary: purple500,
+        secondary: brand500,
         surface: bgCard,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
@@ -82,16 +87,17 @@ class AppTheme {
         ),
         margin: EdgeInsets.zero,
       ),
+      // 主按钮：克制圆角（弃 pill），实色 accent
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: brand500,
           foregroundColor: Colors.white,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(radiusFull),
+            borderRadius: BorderRadius.circular(radiusMd),
           ),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -99,16 +105,16 @@ class AppTheme {
           backgroundColor: brand500,
           foregroundColor: Colors.white,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(radiusFull),
+            borderRadius: BorderRadius.circular(radiusMd),
           ),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: bgPage,
+        fillColor: bgCard,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusMd),
           borderSide: const BorderSide(color: borderLight),
@@ -148,52 +154,42 @@ class AppTheme {
     );
   }
 
+  /// 卡片底：细边框 + 极轻投影（无重阴影）
   static BoxDecoration get cardDecoration => BoxDecoration(
     color: bgCard,
     borderRadius: BorderRadius.circular(radiusLg),
     border: Border.all(color: borderLight),
     boxShadow: const [
       BoxShadow(
-        color: Color(0x08000000),
-        blurRadius: 20,
-        offset: Offset(0, 4),
-      ),
-      BoxShadow(
-        color: Color(0x0A000000),
-        blurRadius: 6,
-        offset: Offset(0, 2),
+        color: Color(0x061F2933),
+        blurRadius: 14,
+        offset: Offset(0, 3),
       ),
     ],
   );
 
+  /// 主行动按钮：实色 accent，无渐变无霓虹
   static BoxDecoration get gradientButton => BoxDecoration(
-    gradient: const LinearGradient(
-      colors: [gradientStart, gradientEnd],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    borderRadius: BorderRadius.circular(radiusFull),
+    color: brand500,
+    borderRadius: BorderRadius.circular(radiusMd),
     boxShadow: const [
       BoxShadow(
-        color: Color(0x404F46E5),
-        blurRadius: 12,
-        offset: Offset(0, 4),
+        color: Color(0x1A1B615B),
+        blurRadius: 8,
+        offset: Offset(0, 3),
       ),
     ],
   );
 
+  /// 录音大圆：克制单色 + 微弱阴影（弃外扩光晕）
   static BoxDecoration get glowDecoration => BoxDecoration(
-    gradient: const LinearGradient(
-      colors: [gradientStart, gradientEnd],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
+    color: brand500,
     shape: BoxShape.circle,
     boxShadow: const [
       BoxShadow(
-        color: Color(0x1A4F46E5),
-        blurRadius: 32,
-        spreadRadius: 8,
+        color: Color(0x141B615B),
+        blurRadius: 22,
+        spreadRadius: 4,
       ),
     ],
   );

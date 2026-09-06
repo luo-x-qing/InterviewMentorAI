@@ -152,10 +152,9 @@ class _HomePageState extends State<HomePage>
   Future<void> _uploadStepAudio(int step, Uint8List bytes) async {
     try {
       final result = await ApiService.uploadAudioBytes(bytes);
-      final data = result['data'] as Map<String, dynamic>?;
       if (mounted) {
         setState(() {
-          _stepRecords[step].reportData = data;
+          _stepRecords[step].reportData = result;
           _stepRecords[step].status = _StepRecordStatus.completed;
         });
       }
@@ -201,12 +200,10 @@ class _HomePageState extends State<HomePage>
 
   Future<void> _loadReports() async {
     try {
-      final resp = await ApiService.getReportList();
-      if (resp['code'] == 200 && mounted) {
-        final data = resp['data'] as Map<String, dynamic>?;
-        final list = data?['records'] as List<dynamic>? ?? [];
+      final list = await ApiService.getReportList();
+      if (mounted) {
         setState(() {
-          _reports = list.cast<Map<String, dynamic>>();
+          _reports = list;
           _reportLoading = false;
         });
         return;
@@ -456,8 +453,8 @@ class _HomePageState extends State<HomePage>
   Widget _buildRecentReportEntry() {
     final report = _reports == null || _reports!.isEmpty
         ? ReportPage.mockData() : _reports!.last;
-    final score = report['score'] as int? ?? 0;
-    final grade = AppHelpers.gradeLabel(score);
+    final title = report['title'] as String? ?? '面试复盘报告';
+    final createdAt = report['created_at'] as String? ?? '';
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -481,11 +478,12 @@ class _HomePageState extends State<HomePage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('面试报告 — $score 分 ($grade)',
+                Text(title,
                     style: const TextStyle(fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary)),
-                Text('点击查看详细评估',
-                    style: TextStyle(fontSize: 12,
+                        color: AppTheme.textPrimary),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(createdAt.isEmpty ? '点击查看详细评估' : '$createdAt · 查看评估',
+                    style: const TextStyle(fontSize: 12,
                         color: AppTheme.textSecondary)),
               ],
             ),
@@ -978,8 +976,9 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildReportCard(int index, Map<String, dynamic> report) {
-    final score = report['score'] as int? ?? 0;
-    final grade = AppHelpers.gradeLabel(score);
+    final title = report['title'] as String? ?? '面试评估';
+    final createdAt = report['created_at'] as String? ?? '';
+    final score = report['score'] as int?;
     return Container(
       decoration: AppTheme.cardDecoration,
       child: Material(
@@ -1002,12 +1001,12 @@ class _HomePageState extends State<HomePage>
                 Container(
                   width: 44, height: 44,
                   decoration: BoxDecoration(
-                    gradient: AppTheme.gradientPrimary,
+                    color: AppTheme.brand50,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Center(
                     child: Text('${index + 1}',
-                        style: const TextStyle(color: Colors.white,
+                        style: const TextStyle(color: AppTheme.brand500,
                             fontWeight: FontWeight.w600, fontSize: 18)),
                   ),
                 ),
@@ -1016,11 +1015,14 @@ class _HomePageState extends State<HomePage>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('面试评估 #${index + 1}',
+                      Text(title,
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontWeight: FontWeight.w600,
                               color: AppTheme.textPrimary)),
                       const SizedBox(height: 4),
-                      Text('$score 分 · $grade',
+                      Text(score != null
+                          ? '$score 分 · ${AppHelpers.gradeLabel(score)}'
+                          : createdAt.isEmpty ? '查看详细评估' : createdAt,
                           style: const TextStyle(fontSize: 13,
                               color: AppTheme.textSecondary)),
                     ],

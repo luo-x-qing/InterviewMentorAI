@@ -16,15 +16,16 @@ class _ProfilePageState extends State<ProfilePage> {
   Map<String, dynamic>? _userInfo;
   bool _loading = true;
 
-  // 模拟统计数据
-  final int _totalInterviews = 6;
-  final double _averageScore = 80.5;
-  final int _maxScore = 92;
+  // 真实统计（来自 /interview/my + 逐份 evaluations）
+  int _totalInterviews = 0;
+  double _averageScore = 0;
+  int _maxScore = 0;
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _loadStats();
   }
 
   Future<void> _loadProfile() async {
@@ -37,6 +38,40 @@ class _ProfilePageState extends State<ProfilePage> {
       // 加载失败使用默认值
     }
     if (mounted) setState(() => _loading = false);
+  }
+
+  /// 我的页真实统计：面试次数 + 逐份评估求平均/最高分
+  Future<void> _loadStats() async {
+    try {
+      final interviews = await ApiService.getInterviewList();
+      var sum = 0;
+      var count = 0;
+      var maxScore = 0;
+      for (final iv in interviews) {
+        if (iv['status'] != 'COMPLETED') continue;
+        final id = iv['id'] as int;
+        try {
+          final evals = await ApiService.getEvaluations(id);
+          if (evals.isEmpty) continue;
+          final score = (evals.fold<int>(0, (a, e) => a + (e['score'] as int? ?? 0))
+              / evals.length).round();
+          sum += score;
+          count++;
+          if (score > maxScore) maxScore = score;
+        } catch (_) {
+          // 单个面试评估拉取失败忽略
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _totalInterviews = interviews.length;
+          _averageScore = count == 0 ? 0 : sum / count;
+          _maxScore = maxScore;
+        });
+      }
+    } catch (_) {
+      // 统计加载失败时保持默认值
+    }
   }
 
   Future<void> _logout() async {
@@ -132,9 +167,10 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           _statItem(Icons.mic, _totalInterviews.toString(), '总面试次数'),
           Container(width: 1, height: 36, color: AppTheme.borderLight),
-          _statItem(Icons.trending_up, _averageScore.toStringAsFixed(1), '平均得分'),
+          _statItem(Icons.trending_up,
+              _averageScore == 0 ? '--' : _averageScore.toStringAsFixed(1), '平均得分'),
           Container(width: 1, height: 36, color: AppTheme.borderLight),
-          _statItem(Icons.emoji_events, _maxScore.toString(), '最高得分'),
+          _statItem(Icons.emoji_events, _maxScore == 0 ? '--' : '$_maxScore', '最高得分'),
         ],
       ),
     );

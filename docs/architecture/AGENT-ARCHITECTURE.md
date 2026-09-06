@@ -403,17 +403,26 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 | 模块 | 方法 | 路径 | 说明 |
 |------|------|------|------|
 | Coach | POST | `/coach/session` | 开启模拟面试会话（拍mode） |
-| Coach | POST | `/coach/session/{id}/next` | 获取下一题 |
+| Coach | GET | `/coach/session/{id}/question` | 获取下一题（注：代码为 GET .../question，非早期文档的 POST .../next） |
 | Coach | POST | `/coach/session/{id}/answer` | 提交回答，获取即时反馈 |
 | Coach | POST | `/coach/session/{id}/end` | 结束会话，生成结课报告 |
 | Coach | GET | `/coach/profile` | 查看我的薄弱点画像（已落地，走 ProfilingService） |
 | Coach | GET | `/coach/recommend` | 复盘后一键推荐针对性练习（按画像弱项选题，无需会话） |
 
 > 注：`/coach/*` 面向 Flutter 直连；Agent 内部（例如复盘后自动推荐一次针对性练习）走 MCP `coach.*` 工具。二者共享同一 `coach_service`。
+>
+> **前端接入（已落地）**：底部导航 Tab2 社区 → 陪练；新建 `pages/coach/` 三页
+> （`coach_home_page.dart` 主页/薄弱点画像/推荐练习、`coach_session_page.dart` 会话/即时点评
+> 双入口、`coach_report_page.dart` 结课报告）+ `services/coach_service.dart`
+> （`startSession/nextQuestion/submitAnswer/endSession/recommend/getProfile`），
+> WS `coach.{sessionId}.feedback` 实时点评订阅。
 
 ### 9.4 文件上传与实时推送
 
-- **音频上传**：`POST /audio/upload`（分片/直传均可，复用 Dio 上传链路）。
+- **音频上传**：`POST /audio/upload`（multipart 字段 `audioFile`，已落地 `app/api/audio_api.py`）。
+  上传即建面试记录并返回 `{interview_id, id, title, status, created_at}`。前端链路：
+  `uploadAudioBytes` → 拿 `interview_id` → `WebSocketService.connect(interviewId:)` 订阅进度 →
+  `POST /interview/{id}/analyze` 触发复盘 → WS 实时进度 → `GET /report/interview/{id}/report` 拉报告。
 - **实时进度**：WebSocket（FastAPI 原生）替代原 STOMP：
 
 | 主题（message 类型） | 推送时机 |
@@ -424,7 +433,8 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 | `coach.{sessionId}.feedback` | Coach 即时点评 |
 | `user.{id}.notifications` | 通知 |
 
-> 前端 `websocket_service.dart` 需将 STOMP 订阅改为原生 WebSocket / SSE 订阅（迁移点）。
+> 前端 `websocket_service.dart` 已改为原生 WebSocket：`connect({int? interviewId, String? coachSessionId})`，
+> 按 `topic.suffix` 分发 `.progress/.complete/.error` 与 `.feedback`（STOMP 迁移已完成）。
 
 ---
 
@@ -495,7 +505,7 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 
 > `backend_springai/` **已删除**（历史实现归档至 `docs/recycle_bin/` 文档），新架构代码落在 Python 单后端内渐进演进。
 
-> **骨架状态**：阶段 A/B/C/D 的核心接口、深模块骨架与业务 REST 已全部落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`、`app/services/auth_service.py`、`app/services/ws_service.py`、`app/api/*`），实体/库/MCP/Coach/画像/认证/WS 均有单测覆盖（`tests/test_agent_arch.py` + `tests/test_api_stage_d.py` + `tests/test_review_closing.py` + 既有回归，全量 256 passed）。以下编号勾选为实际落地状态。
+> **骨架状态**：阶段 A/B/C/D 的核心接口、深模块骨架与业务 REST 已全部落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`、`app/services/auth_service.py`、`app/services/ws_service.py`、`app/api/*`），实体/库/MCP/Coach/画像/认证/WS 均有单测覆盖（`tests/test_agent_arch.py` + `tests/test_api_stage_d.py` + `tests/test_review_closing.py` + 既有回归，全量 260 passed（含 `/audio/upload` 用例；`test_knowledge_e2e.py` 6 例因 `LlmClient.api_key` 签名与既有实现不匹配在容器内 error，属既有环境差异、与上述落地无关））。以下编号勾选为实际落地状态。
 
 ### 阶段 A：业务能力迁入（无 Java）
 

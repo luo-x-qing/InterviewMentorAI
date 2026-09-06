@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketState
 
 from app.api.auth_api import router as auth_router
+from app.api.audio_api import router as audio_router
 from app.api.coach_api import router as coach_router
 from app.api.interview_api import router as interview_router
 from app.api.report_api import router as report_router
@@ -53,6 +54,7 @@ def client(tmp_path):
     app.include_router(interview_router)
     app.include_router(report_router)
     app.include_router(coach_router)
+    app.include_router(audio_router)
 
     with TestClient(app) as c:
         yield c
@@ -267,6 +269,35 @@ def test_coach_session_ownership_enforced(client):
 
     stolen = client.get(f"/coach/session/{sid}/question", headers=_auth_header(bob))
     assert stolen.status_code == 403
+
+
+# ── 音频上传（§9.4）────────────────────────────────────
+
+def test_audio_upload_creates_interview(client):
+    tokens = _register(client)
+    headers = _auth_header(tokens)
+
+    upload = client.post(
+        "/audio/upload",
+        headers=headers,
+        files={"audioFile": ("answer.wav", b"RIFFfakeaudio", "audio/wav")},
+    )
+    assert upload.status_code == 200, upload.text
+    body = upload.json()
+    assert body["interview_id"] > 0
+    assert body["status"] == "PENDING"
+    assert body["title"] == "answer"
+
+    my = client.get("/interview/my", headers=headers)
+    assert any(iv["id"] == body["interview_id"] for iv in my.json())
+
+
+def test_audio_upload_requires_auth(client):
+    upload = client.post(
+        "/audio/upload",
+        files={"audioFile": ("a.wav", b"RIFF", "audio/wav")},
+    )
+    assert upload.status_code == 401
 
 
 # ── Build_graph（阶段 B）────────────────────────────────

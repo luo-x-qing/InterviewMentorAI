@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend_flutter/theme.dart';
 import 'package:frontend_flutter/services/audio_service.dart';
 import 'package:frontend_flutter/services/api_service.dart';
+import 'package:frontend_flutter/services/websocket_service.dart';
 import 'package:frontend_flutter/utils/helpers.dart';
 
 class RecordPage extends StatefulWidget {
@@ -27,10 +28,15 @@ class _RecordPageState extends State<RecordPage>
   bool _isRecording = false;
   bool _isAnalyzing = false;
   bool _isUploading = false;
+  bool _failed = false;
+  String _failMessage = '';
   int _seconds = 0;
+  int _progressPercent = 0;
+  String _progressMessage = '正在上传音频...';
   Timer? _timer;
   Timer? _waveformTimer;
   late AnimationController _pulseCtrl;
+  final _ws = WebSocketService();
 
   final List<double> _waveformHeights = List.generate(48, (_) => 4.0);
 
@@ -48,6 +54,7 @@ class _RecordPageState extends State<RecordPage>
     _timer?.cancel();
     _waveformTimer?.cancel();
     _pulseCtrl.dispose();
+    _ws.dispose();
     AudioService.dispose();
     super.dispose();
   }
@@ -105,6 +112,7 @@ class _RecordPageState extends State<RecordPage>
     setState(() {
       _isRecording = false;
       _isUploading = true;
+      _failed = false;
     });
 
     final bytes = await AudioService.stopRecord();
@@ -114,34 +122,64 @@ class _RecordPageState extends State<RecordPage>
     }
 
     try {
+      // 1. 上传音频 → 后端建面试记录，返回 interview_id
       final result = await ApiService.uploadAudioBytes(bytes);
-      if (mounted) {
+      if (!mounted) return;
+      final interviewId = result['interview_id'] as int? ?? result['id'] as int? ?? 0;
+      if (interviewId == 0) {
+        throw Exception('上传成功但未返回面试记录');
+      }
+
+      setState(() {
+        _isUploading = false;
+        _isAnalyzing = true;
+        _progressPercent = 5;
+        _progressMessage = 'AI 分析中...';
+      });
+
+      // 2. 订阅 WS 实时进度（interview.{id}.progress/complete/error）
+      _ws.onProgressChanged = (status, message) {
+        if (!mounted) return;
         setState(() {
-          _isUploading = false;
-          _isAnalyzing = true;
+          _progressPercent = _ws.lastPercent;
+          if (message != null) _progressMessage = message;
         });
+      };
+      await _ws.connect(interviewId: interviewId);
 
-        await Future.delayed(const Duration(seconds: 2));
+      // 3. 触发复盘分析（与 WS 推送同步，await 返回最终状态）
+      final analysis = await ApiService.analyzeInterview(interviewId);
+      if (!mounted) return;
+      _ws.disconnect();
 
-        if (mounted) {
-          final reportData = result['data'] as Map<String, dynamic>? ?? {};
-          widget.onComplete?.call(reportData);
-          Navigator.pop(context);
-        }
+      if (analysis['status'] == 'COMPLETED') {
+        final reportContent = await ApiService.getReportContent(interviewId);
+        if (!mounted) return;
+        final reportData = <String, dynamic>{
+          'interview_id': interviewId,
+          'report': reportContent,
+          'recommendations': analysis['recommendations'] ?? const [],
+        };
+        widget.onComplete?.call(reportData);
+        Navigator.pop(context);
+      } else {
+        final msg = analysis['status'] == 'FAILED'
+            ? '分析失败，请重试'
+            : '分析结果异常，请重试';
+        setState(() {
+          _isAnalyzing = false;
+          _failed = true;
+          _failMessage = msg;
+        });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isUploading = false;
-          _isAnalyzing = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('上传失败: ${e.toString()}'),
-            backgroundColor: AppTheme.error,
-          ),
-        );
-      }
+      if (!mounted) return;
+      setState(() {
+        _isUploading = false;
+        _isAnalyzing = false;
+        _failed = true;
+        _failMessage = '分析失败: $e';
+      });
     }
   }
 
@@ -172,7 +210,9 @@ class _RecordPageState extends State<RecordPage>
             ? _buildUploadingState()
             : _isAnalyzing
                 ? _buildAnalyzingState()
-                : _buildRecordingState(),
+                : _failed
+                    ? _buildFailedState()
+                    : _buildRecordingState(),
       ),
     );
   }
@@ -232,12 +272,13 @@ class _RecordPageState extends State<RecordPage>
   }
 
   Widget _buildAnalyzingState() {
+    final percent = _progressPercent.clamp(0, 100).toDouble();
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(
-            width: 72, height: 72,
+            width: 64, height: 64,
             child: CircularProgressIndicator(
               strokeWidth: 3, color: AppTheme.brand500,
             ),
@@ -247,32 +288,75 @@ class _RecordPageState extends State<RecordPage>
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500,
                   color: AppTheme.textPrimary)),
           const SizedBox(height: 8),
-          const Text('请稍候，这可能需要 10-30 秒',
-              style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+          Text(_progressMessage,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
           const SizedBox(height: 12),
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: 0.85),
-            duration: const Duration(seconds: 3),
-            builder: (context, value, child) {
-              return Container(
-                width: 200, height: 4,
+          Container(
+            width: 220, height: 4,
+            decoration: BoxDecoration(
+              color: AppTheme.borderLight,
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: FractionallySizedBox(
+              widthFactor: percent / 100,
+              child: Container(
                 decoration: BoxDecoration(
-                  color: AppTheme.borderLight,
+                  color: AppTheme.brand500,
                   borderRadius: BorderRadius.circular(2),
                 ),
-                child: FractionallySizedBox(
-                  widthFactor: value,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.gradientPrimary,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-              );
-            },
+              ),
+            ),
           ),
+          const SizedBox(height: 8),
+          Text('${percent.toInt()}%',
+              style: const TextStyle(fontSize: 13, color: AppTheme.textMuted)),
         ],
+      ),
+    );
+  }
+
+  /// 分析失败/异常态：可返回或重试
+  Widget _buildFailedState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, size: 56, color: AppTheme.error),
+            const SizedBox(height: 20),
+            const Text('分析未完成',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary)),
+            const SizedBox(height: 8),
+            Text(_failMessage,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('返回'),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _failed = false;
+                      _isAnalyzing = false;
+                      _isUploading = false;
+                    });
+                  },
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('重新录音'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -421,17 +505,14 @@ class _RecordPageState extends State<RecordPage>
         height: _isRecording ? 130 : 144,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: _isRecording
-              ? const LinearGradient(
-                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)])
-              : AppTheme.gradientPrimary,
+          color: _isRecording ? AppTheme.error : AppTheme.brand500,
           boxShadow: [
             BoxShadow(
               color: _isRecording
-                  ? const Color(0x1AEF4444)
-                  : const Color(0x1A4F46E5),
-              blurRadius: _isRecording ? 40 : 32,
-              spreadRadius: _isRecording ? 12 : 8,
+                  ? const Color(0x1AC0524A)
+                  : const Color(0x141B615B),
+              blurRadius: 20,
+              spreadRadius: 4,
             ),
           ],
         ),
