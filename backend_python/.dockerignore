@@ -1,0 +1,11 @@
+# 排除构建上下文：避免把本地数据/模型/缓存卷入镜像（体积 + 泄露风险）
+models/
+data/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.env
+*.db
+*.log

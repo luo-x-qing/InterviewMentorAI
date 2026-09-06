@@ -239,6 +239,7 @@ from app.api.analysis import router as analysis_router
 from app.api.knowledge_api import router as knowledge_router
 from app.api.retrieval_api import router as retrieval_router
 from app.api.mcp_debug_api import router as mcp_debug_router
+from app.api.research_api import router as research_router
 from app.api.auth_api import router as auth_router
 from app.api.user_api import router as user_router
 from app.api.interview_api import router as interview_router
@@ -251,6 +252,7 @@ app.include_router(analysis_router)
 app.include_router(knowledge_router)
 app.include_router(retrieval_router)
 app.include_router(mcp_debug_router)
+app.include_router(research_router)
 app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(interview_router)

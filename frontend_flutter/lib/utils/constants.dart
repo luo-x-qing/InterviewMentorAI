@@ -1,9 +1,19 @@
 class Constants {
-  /// 后端 API 基础地址（Python Agent 单后端）
-  /// Docker 中 nginx 反向代理同源访问，留空表示同源
-  /// 本地开发时可改为 http://localhost:8000
-  static const String baseUrl = "http://localhost:8000";
-  static const String wsUrl = "ws://localhost:8000/ws";
+  /// 后端 API 基础地址（Python Agent 单后端）——单源配置。
+  /// 本地开发默认 http://localhost:8000；
+  /// 生产构建注入实际基址（nginx 已反代全部 API 与 WS，同源传站点基址即可）：
+  ///   flutter build web --release --dart-define=API_BASE_URL=http://<域名或服务器IP>
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8000',
+  );
+
+  /// WebSocket 基址：由 [baseUrl] 派生（http→ws、https→wss），保持同源。
+  static String get wsUrl {
+    final secure = baseUrl.startsWith('https://');
+    final withoutScheme = baseUrl.substring(secure ? 8 : 7);
+    return '${secure ? 'wss' : 'ws'}://$withoutScheme/ws';
+  }
 
   /// Auth
   static const String loginApi = "$baseUrl/auth/login";

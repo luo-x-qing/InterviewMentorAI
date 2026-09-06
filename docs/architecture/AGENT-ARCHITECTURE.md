@@ -220,6 +220,10 @@ retrieve ─▶ expand ─▶ assess ─┬─(相关/超限/无法改写)─▶
 
 Orchestrator 将评估 Agent 标出的「薄弱项 / 未能答出的考点」关键词反馈给检索 Agent，触发一轮针对性的**深度补充检索**，回灌给报告 Agent 生成「关联知识点扩展」章节——完善「针对语气不确定、回答不正确的部分进行补充，并延伸关联知识点」的核心产品诉求。
 
+> **公开导出**：该能力独立暴露为 `POST /research/deep`（§9.2，`app/api/research_api.py`），
+> 接收薄弱项关键词列表，复用 `Reflexion.deep_retrieve + RetrievalAgent.answer`，返回扩展参考与
+> 「关联知识点扩展」章节文本；单关键词检索失败降级跳过，端点不失败。
+
 ---
 
 ## 6. MCP 协议封装业务接口（业务能力即工具）
@@ -236,20 +240,19 @@ v2.x 时代业务接口 = 手写 REST Controller，Agent 只能「调用写死�
 
 ### 6.2 MCP 工具清单
 
+> **职责边界（v3.1 落地约定）**：`auth` / `interview` / `report` 三模块能力**仅由 REST 提供**（§9.1），**不封装为 MCP 工具**——当前 Agent 执行链路（复盘 Orchestrator、Coach、检索 Agent）只有「检索 / 入库 / 陪练」三类消费场景，且 REST 与工具共享同一业务实现（`coach_service` 等），无可信消费方需要它们经 `call_tool` 调用。若未来出现 Agent 化运营 / 后台场景再以浅适配器补齐（见实现要点）。
+
 | Tool | 输入 | 输出 | 用途 |
 |------|------|------|------|
-| `auth.login` / `auth.register` | 凭据 | Token | 登录注册（Agent 化运营/后台场景） |
-| `interview.create` | 元数据 | interview_id | 创建面试记录 |
-| `interview.get` | id | 面试详情 | 读取面试 |
-| `report.get` | interview_id | 报告 + 评估 | 读取复盘报告 |
 | `knowledge.import` | 文件/目录 | ImportReport | 入库知识库 |
 | `knowledge.stats` | - | 统计信息 | 知识库健康 |
 | `retrieve.retrieve` | 问题 + top_k | 候选 + metrics | 直接检索调试 |
 | `rag.answer` | 问题 | RagAnswerResult（完整候选） | Agentic RAG 合成答案 |
-| `coach.start_session` | mode / 目标 | 会话句柄 | 开启模拟面试（见 §7） |
+| `coach.start` | mode / 目标 | 会话句柄 | 开启模拟面试（见 §7） |
 | `coach.next_question` | 会话句柄 | 题目 + 考察点 | Coach 出题 |
 | `coach.submit_answer` | 会话句柄 + 回答 | 即时反馈 | Coach 点评 |
-| `coach.profile` | user_id | 画像标签 | 读取/更新薄弱点画像 |
+| `coach.end` | 会话句柄 | 结课报告 | 结束会话（画像更新） |
+| `coach.recommend` | 画像弱项 | 推荐题目 | 复盘后一键推荐练习 |
 
 ### 6.3 架构位置
 
@@ -259,12 +262,10 @@ Agent（复盘 Orchestrator / Coach / 出题 / 反馈）
         ▼
 ┌───────────────────────────────┐
 │     MCP 工具层 (app/mcp/)      │
-│  ├─ auth_tools.py              │  业务能力适配器
-│  ├─ interview_tools.py         │
-│  ├─ report_tools.py            │
-│  ├─ knowledge_tools.py         │
-│  ├─ retrieval_tools.py         │  （封装 rag_service / agentic_rag）
-│  └─ coach_tools.py             │  （封装 Coach 会话）
+│  ├─ knowledge_tools.py         │  入库/统计（封装 KnowledgeService）
+│  ├─ retrieval_tools.py         │  检索/合成（封装 rag_service / agentic_rag）
+│  └─ coach_tools.py             │  Coach 会话（封装 CoachService）
+│                                 │  auth/interview/report：REST-only（§6.2）
 └───────────────┬───────────────┘
                 │  同进程直接调用（进程内 MCP）／可选 Stdio Server
                 ▼
@@ -348,7 +349,7 @@ API 层:            auth / user / interview / report / knowledge / retrieval / a
    ↓
 Agent 编排层:      orchestrator.py（复盘 LangGraph）+ coach.py（陪练会话）+ 各专职 Agent
    ↓
-MCP 工具层:        app/mcp/*  (auth/interview/report/knowledge/retrieval/coach tools)
+MCP 工具层:        app/mcp/*  (knowledge/retrieval/coach tools；auth/interview/report 走 REST，§6.2)
    ↓
 业务服务层:        auth_service / interview_service / report_service / knowledge_service / coach_service / websocket_service
    ↓
@@ -520,7 +521,7 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 
 > `backend_springai/` **已删除**（历史实现归档至 `docs/recycle_bin/` 文档），新架构代码落在 Python 单后端内渐进演进。
 
-> **骨架状态**：阶段 A/B/C/D 的核心接口、深模块骨架与业务 REST 已全部落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`、`app/services/auth_service.py`、`app/services/ws_service.py`、`app/api/*`），实体/库/MCP/Coach/画像/认证/WS 均有单测覆盖（`tests/test_agent_arch.py` + `tests/test_api_stage_d.py` + `tests/test_review_closing.py` + `tests/test_error_observability.py` + 既有回归，全量 277 passed + 6 skipped（`test_knowledge_e2e.py` 基于已删除旧接口、按文件头意图 skip，新链路单测见 `test_import_pipeline.py`））。以下编号勾选为实际落地状态。
+> **骨架状态**：阶段 A/B/C/D 的核心接口、深模块骨架与业务 REST 已全部落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`、`app/services/auth_service.py`、`app/services/ws_service.py`、`app/api/*`），实体/库/MCP/Coach/画像/认证/WS 均有单测覆盖（`tests/test_agent_arch.py` + `tests/test_api_stage_d.py` + `tests/test_review_closing.py` + `tests/test_error_observability.py` + 既有回归，全量 281 passed + 6 skipped（`test_knowledge_e2e.py` 基于已删除旧接口、按文件头意图 skip，新链路单测见 `test_import_pipeline.py`；`test_research_api.py` 覆盖 `/research/deep` 反射深度检索端点））。以下编号勾选为实际落地状态。
 
 ### 阶段 A：业务能力迁入（无 Java）
 
@@ -537,7 +538,7 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 
 ### 阶段 C：MCP 工具层
 
-8. ✅（骨架）`app/mcp/server.py`（`ToolRegistry`：`register / list_tools / call_tool`）+ `app/mcp/retrieval_tools.py`、`app/mcp/knowledge_tools.py`（浅适配器转发既有服务）。
+8. ✅（骨架）`app/mcp/server.py`（`ToolRegistry`：`register / list_tools / call_tool`）+ `app/mcp/retrieval_tools.py`、`app/mcp/knowledge_tools.py`（浅适配器转发既有服务）。**职责边界**：`auth / interview / report` 仅 REST 提供（§6.2 约定），当前实际注册工具 = retrieval（2）+ knowledge（3）+ coach（5），共 10 个。
 9. ✅ Coach 业务服务注册为 MCP 工具（`app/mcp/coach_tools.py`）；REST（`app/api/coach_api.py`）与 MCP 双通道共享同一 `CoachService` 实现。
 10. ✅ `AgentPipeline` 装配 `tool_registry`，评估单题前的检索改走 `call_tool("retrieve.retrieve", ...)`（未装配时回落既有 `rag_mcp` 链路，向后兼容）；Orchestrator 默认执行器即此 AgentPipeline。
 
@@ -577,28 +578,23 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 backend_python/
 ├── app/
 │   ├── main.py                      # FastAPI 入口（含业务 Router + WS + MCP 注册）
-│   ├── api/                         # auth/user/interview/report/knowledge/retrieval/analysis/coach/ws
-│   ├── agents/                      # ★ 多 Agent 层（新增）
+│   ├── api/                         # auth/user/interview/report/knowledge/retrieval/analysis/coach/audio/ws/mcp/research
+│   ├── agents/                      # ★ 多 Agent 层
 │   │   ├── orchestrator.py          #   复盘 Orchestrator（LangGraph StateGraph）
-│   │   ├── asr_agent.py             #   ASR Agent
-│   │   ├── dialogue_agent.py        #   说话人分离 Agent
 │   │   ├── retrieval_agent.py       #   检索 Agent（封装 agentic_rag）
-│   │   ├── evaluator_agent.py       #   评估 Agent
-│   │   ├── report_agent.py          #   报告 Agent
-│   │   ├── reflexion.py             #   反思增强回路
+│   │   ├── reflexion.py             #   反思增强回路（§5.4；经 /research/deep 导出）
 │   │   ├── coach.py                 #   ★ Coach 会话编排（出题/反馈/画像）
 │   │   └── coach_workers/           #   ★ Coach 内部 Worker（出题/反馈/画像）
 │   │       ├── question_worker.py   #     出题（选题）
 │   │       ├── feedback_worker.py   #     即时点评
 │   │       └── profiling_worker.py  #     画像聚合
-│   ├── mcp/                         # ★ MCP 工具层（新增）
+│   │   （ASR/说话人分离/评估/报告不再单列 Agent 文件：能力在 agent_pipeline.py，
+│   │      build_graph 以 transcribe→separate→evaluate→report 节点复用，§3.4 渐进策略）
+│   ├── mcp/                         # ★ MCP 工具层
 │   │   ├── server.py                #   工具注册 + 进程内 ClientSession
-│   │   ├── auth_tools.py
-│   │   ├── interview_tools.py
-│   │   ├── report_tools.py
 │   │   ├── knowledge_tools.py
 │   │   ├── retrieval_tools.py
-│   │   └── coach_tools.py
+│   │   └── coach_tools.py           # （auth/interview/report：REST-only，§6.2）
 │   ├── services/                    # 业务服务（auth/interview/report/knowledge/coach/ws）
 │   │   ├── coach_service.py         #   ★ Coach 业务实现（深模块）
 │   │   ├── profiling_service.py     #   ★ 画像（统计聚合 + 相似度）
@@ -626,5 +622,6 @@ backend_python/
 |------|------|
 | [根 README](../../README.md) | 项目入口（本方案摘要） |
 | [文档索引](../README.md) | 全部文档索引 |
+| [部署指南](../DEPLOYMENT.md) | docker-compose 双容器部署 + 首次入库引导 + 验证清单 |
 | [回收站（旧方案）](../recycle_bin/README.md) | 旧 Java/Python 双后端设计文档归档 |
 | [Python 后端实现说明](../../backend_python/README.md) | 既有 Python AI 资产（将承载新架构） |
