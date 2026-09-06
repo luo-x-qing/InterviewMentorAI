@@ -14,6 +14,7 @@ from app.api.auth_api import router as auth_router
 from app.api.coach_api import router as coach_router
 from app.api.interview_api import router as interview_router
 from app.api.report_api import router as report_router
+from app.api.user_api import router as user_router
 from app.core.database import Database
 from app.core.exceptions import register_error_handlers
 from app.models.schemas import AnalysisResponse, AnalysisStatus, EvaluationLevel, EvaluationResult
@@ -90,6 +91,7 @@ def client(tmp_path):
 
     register_error_handlers(app)
     app.include_router(auth_router)
+    app.include_router(user_router)
     app.include_router(interview_router)
     app.include_router(report_router)
     app.include_router(coach_router)
@@ -274,3 +276,52 @@ def test_question_worker_recommend_prefers_weakness():
     # 无题库源 → 空列表降级
     empty = QuestionWorker(question_source=None)
     assert empty.recommend(profile) == []
+
+
+# ── §9.1 PUT /user/password 改密码 ───────────────────────
+
+def test_change_password_flow(client):
+    tokens = _register(client, "13911112222")
+    me = client.get("/auth/me", headers=_auth_header(tokens)).json()
+    user_id = me["id"]
+    db = client.app.state.database
+
+    # 旧密码错误 → 401
+    bad = client.put("/user/password", json={"old_password": "wrong123", "new_password": "newpass88"},
+                     headers=_auth_header(tokens))
+    assert bad.status_code == 401
+
+    # 新密码太短 → 422（Pydantic min_length=6 先拦截）
+    short = client.put("/user/password", json={"old_password": "secret123", "new_password": "abc"},
+                       headers=_auth_header(tokens))
+    assert short.status_code == 422
+
+    # 正常改密 → 旧密码登录失败、新密码登录成功
+    ok = client.put("/user/password", json={"old_password": "secret123", "new_password": "newpass88"},
+                    headers=_auth_header(tokens))
+    assert ok.status_code == 200 and ok.json()["status"] == "OK"
+
+    user = db.get_user_by_id(user_id)
+    assert user.hashed_password != "secret123"  # 落库为哈希
+
+    old_login = client.post("/auth/login", json={"phone": me["phone"], "password": "secret123"})
+    assert old_login.status_code == 401
+    new_login = client.post("/auth/login", json={"phone": me["phone"], "password": "newpass88"})
+    assert new_login.status_code == 200
+
+
+# ── §9.3 GET /coach/profile 查看画像 ─────────────────────
+
+def test_coach_profile_returns_weakness(client):
+    tokens = _register(client, "13922223333")
+    _ = client.app.state.profiling_service.ingest_review(
+        _me(client, tokens),
+        [EvaluationResult(question="Q1", answer="A", score=30, level=EvaluationLevel.WEAK,
+                          strengths="", weaknesses="不会", correction="再学", knowledge_points="索引")],
+    )
+    resp = client.get("/coach/profile", headers=_auth_header(tokens))
+    assert resp.status_code == 200
+    assert resp.json()["weaknesses"] == ["索引"]
+
+    # 未登录 → 401
+    assert client.get("/coach/profile").status_code == 401

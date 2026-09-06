@@ -97,6 +97,19 @@ class AuthService:
             raise AuthCredentialsError(detail="用户不存在")
         return self.create_token_pair(user)
 
+    def change_password(self, user_id: int, old_password: str, new_password: str) -> None:
+        """修改密码：校验旧密码正确后更新为新密码哈希（§9.1 PUT /user/password）"""
+        if not old_password or not new_password:
+            raise AuthCredentialsError(detail="旧密码和新密码不能为空")
+        if len(new_password) < 6:
+            raise RegisterError(detail="新密码至少 6 位")
+        user = self.db.get_user_by_id(user_id)
+        if user is None:
+            raise AuthCredentialsError(detail="用户不存在")
+        if not self._verify_password(old_password, user.hashed_password):
+            raise AuthCredentialsError(detail="旧密码错误")
+        self.db.update_user_password(user_id, self._hash_password(new_password))
+
     # ── JWT 签发 / 校验 ───────────────────────────────────
 
     def create_token_pair(self, user: User) -> TokenPair:

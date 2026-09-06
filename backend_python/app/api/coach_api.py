@@ -20,6 +20,7 @@ from app.models.entities import (
     CoachSessionHandle,
     CoachSessionReport,
     User,
+    UserProfileOut,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,21 @@ async def recommend_practice(
 ):
     """复盘后一键推荐针对性练习（按画像弱项选题，无需开启会话）"""
     return _get_coach(request).recommend_practice(user.id, limit=limit)
+
+
+@router.get("/profile", response_model=UserProfileOut)
+async def coach_profile(request: Request, user: User = Depends(get_current_user)):
+    """查看我的薄弱点/强项画像（Coach 侧，供陪练与推荐展示）"""
+    profiling = getattr(request.app.state, "profiling_service", None)
+    profile = profiling.get_profile(user.id) if profiling is not None else None
+    if profile is None:
+        return UserProfileOut(user_id=user.id)
+    return UserProfileOut(
+        user_id=profile.user_id,
+        strengths=profile.strengths,
+        weaknesses=profile.weaknesses,
+        mastery=profile.mastery,
+    )
 
 
 @router.post("/session/{session_id}/answer", response_model=CoachFeedbackOut)

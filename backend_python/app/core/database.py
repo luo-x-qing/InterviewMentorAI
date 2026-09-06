@@ -163,6 +163,14 @@ class Database:
         row = self.conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         return self._user_from_row(row)
 
+    def update_user_password(self, user_id: int, hashed_password: str) -> None:
+        """更新用户密码哈希（改密码场景）"""
+        self.conn.execute(
+            "UPDATE users SET hashed_password = ? WHERE id = ?",
+            (hashed_password, user_id),
+        )
+        self.conn.commit()
+
     @staticmethod
     def _user_from_row(row) -> Optional[User]:
         if row is None:

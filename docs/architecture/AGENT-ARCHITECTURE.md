@@ -379,7 +379,7 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 | Auth | POST | `/auth/register` | 注册 |
 | Auth | POST | `/auth/refresh` | 刷新 Token |
 | User | GET | `/user/profile` | 个人信息 |
-| User | PUT | `/user/password` | 改密码 |
+| User | PUT | `/user/password` | 改密码（校验旧密码，§9.1 已落地） |
 | Interview | POST | `/interview` | 创建面试 |
 | Interview | GET | `/interview/{id}` | 面试详情 |
 | Interview | GET | `/interview/my` | 我的面试列表 |
@@ -406,7 +406,7 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 | Coach | POST | `/coach/session/{id}/next` | 获取下一题 |
 | Coach | POST | `/coach/session/{id}/answer` | 提交回答，获取即时反馈 |
 | Coach | POST | `/coach/session/{id}/end` | 结束会话，生成结课报告 |
-| Coach | GET | `/coach/profile` | 查看我的薄弱点画像 |
+| Coach | GET | `/coach/profile` | 查看我的薄弱点画像（已落地，走 ProfilingService） |
 | Coach | GET | `/coach/recommend` | 复盘后一键推荐针对性练习（按画像弱项选题，无需会话） |
 
 > 注：`/coach/*` 面向 Flutter 直连；Agent 内部（例如复盘后自动推荐一次针对性练习）走 MCP `coach.*` 工具。二者共享同一 `coach_service`。
