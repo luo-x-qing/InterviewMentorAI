@@ -520,7 +520,7 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 
 > `backend_springai/` **已删除**（历史实现归档至 `docs/recycle_bin/` 文档），新架构代码落在 Python 单后端内渐进演进。
 
-> **骨架状态**：阶段 A/B/C/D 的核心接口、深模块骨架与业务 REST 已全部落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`、`app/services/auth_service.py`、`app/services/ws_service.py`、`app/api/*`），实体/库/MCP/Coach/画像/认证/WS 均有单测覆盖（`tests/test_agent_arch.py` + `tests/test_api_stage_d.py` + `tests/test_review_closing.py` + `tests/test_error_observability.py` + 既有回归，全量 275 passed + 6 skipped（`test_knowledge_e2e.py` 基于已删除旧接口、按文件头意图 skip，新链路单测见 `test_import_pipeline.py`））。以下编号勾选为实际落地状态。
+> **骨架状态**：阶段 A/B/C/D 的核心接口、深模块骨架与业务 REST 已全部落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`、`app/services/auth_service.py`、`app/services/ws_service.py`、`app/api/*`），实体/库/MCP/Coach/画像/认证/WS 均有单测覆盖（`tests/test_agent_arch.py` + `tests/test_api_stage_d.py` + `tests/test_review_closing.py` + `tests/test_error_observability.py` + 既有回归，全量 277 passed + 6 skipped（`test_knowledge_e2e.py` 基于已删除旧接口、按文件头意图 skip，新链路单测见 `test_import_pipeline.py`））。以下编号勾选为实际落地状态。
 
 ### 阶段 A：业务能力迁入（无 Java）
 

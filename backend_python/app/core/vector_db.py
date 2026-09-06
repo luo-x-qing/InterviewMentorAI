@@ -212,11 +212,14 @@ class VectorDB:
 
         按 (source, question_no) 聚合，每道题取首块的代表字段；无题目时返回 []。
         返回 [{question_no, title, content, source, section}]，供 QuestionWorker 出题源装配。
+
+        抽样策略：ORDER BY RANDOM() 无偏抽样——按 doc_id 排序会被先入库题库
+        （doc_id 靠前）垄断候选池，后入库题库（doc_id 更大）永远超出 LIMIT。
         """
         rows = self.conn.execute(
             "SELECT question_no, title, content, source, section FROM rag_docs "
             "WHERE question_no != '' GROUP BY source, question_no "
-            "ORDER BY doc_id LIMIT ?",
+            "ORDER BY RANDOM() LIMIT ?",
             (limit,),
         ).fetchall()
         out = []

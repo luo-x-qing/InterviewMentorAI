@@ -164,6 +164,38 @@ class TestInsertChunk:
         assert ids == [1, 2, 3]
 
 
+class TestGetQuestionsForCoach:
+    """教练出题候选池：聚合去重 + 无偏抽样（不得被 doc_id 靠前的旧题库垄断）"""
+
+    def test_returns_questions_with_metadata(self, vector_db):
+        emb = _fake_embedding()
+        for i in range(3):
+            vector_db.insert_chunk(
+                f"题{i}", f"内容{i}", "src.md", emb, question_no=str(i), section="Java"
+            )
+        vector_db.insert_chunk("无题号", "内容", "other.md", emb)
+        rows = vector_db.get_questions_for_coach(limit=10)
+        assert len(rows) == 3
+        assert {r["question_no"] for r in rows} == {"0", "1", "2"}
+        assert all(r["source"] == "src.md" for r in rows)
+        assert all({"question_no", "title", "content", "source", "section"} <= set(r) for r in rows)
+
+    def test_later_imported_source_reaches_pool(self, vector_db):
+        """回归：ORDER BY doc_id 会让后入库题库永远进不了候选池。
+
+        构造 doc_id 靠前的 40 组题 + 后入库 20 组题；取 50 时旧实现只会取到
+        前 40 组旧题；随机抽样下 50 > 40 必然覆盖新来源。
+        """
+        emb = _fake_embedding()
+        for i in range(40):
+            vector_db.insert_chunk(f"旧题{i}", f"旧内容{i}", "a.md", emb, question_no=f"a{i}")
+        for i in range(20):
+            vector_db.insert_chunk(f"新题{i}", f"新内容{i}", "b.md", emb, question_no=f"b{i}")
+        rows = vector_db.get_questions_for_coach(limit=50)
+        assert len(rows) == 50
+        assert {r["source"] for r in rows} == {"a.md", "b.md"}
+
+
 class TestSearchBm25:
     def test_basic_search(self, vector_db):
         vector_db.conn.executemany(
