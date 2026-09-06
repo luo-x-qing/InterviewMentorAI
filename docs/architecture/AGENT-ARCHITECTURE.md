@@ -367,6 +367,21 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 - **MCP 工具层 = 浅适配器**：工具只做「schema 声明 + 参数校验 + 转发业务服务」，不含业务逻辑；业务逻辑居于 Services，一次实现，REST 与 MCP 双通道复用。
 - **接口即测试面**：各 Agent 的对外方法即测试入口——Orchestrator 的 `run`、Coach 的 4 方法、检索 Agent 的 `answer`、评估 Agent 的单题评估方法，均可离线 mock 上游后直接测试。
 
+### 8.3 可观测错误契约（错误处理单一出口）
+
+> 所有异常统一经 `app/core/exceptions.py` `register_error_handlers` 出口（深度模块，`main.py` 与测试均装配同一份）。
+
+| 异常来源 | HTTP | 响应体 | 日志 |
+|----------|------|--------|------|
+| `AppError` 及其子类（业务/预期错误） | 由异常自身（401/403/409/429/504/…） | `{detail, error_code, trace_id}` | `ERROR`：`trace_id=… code=… method=… path=… message=…` + **完整调用栈**（定位抛出点） |
+| 未捕获 `Exception`（意外故障） | 500 | `{detail: 服务器内部错误, error_code: INTERNAL_SERVER_ERROR, trace_id}`（**不透出内部堆栈**） | `ERROR`：未捕获异常 + trace_id + method/path + **完整 traceback** |
+| `HTTPException`（路由/校验链路兼容层） | 原样透传 | `{detail}`（保持既有契约，5xx 亦原样） | 仅 **5xx** 补记 `ERROR` |
+
+- **`error_code`**：稳定机器码，默认 = 异常类名（如 `AuthCredentialsError`），可用 `error_code=` 显式覆盖（如 `KnowledgeImportError(..., error_code="KB_IMPORT_FAILED")`），便于前端/监控按码处理。
+- **`trace_id`**：响应体与日志的关联键。维护者拿到客户端报错即可 `grep "trace_id=xxxxxxxxxxxx"` 后端日志，一行锁定 method/path/异常类型与完整栈。
+- **单一出口纪律**：API 层不重复「记日志→转 HTTPException 500」兜底（`analysis.py` 的重复 catch 已并入本出口）；业务层按语义抛 `AppError` 子类即可，其余交给出口。MCP `call_tool` 失败另记「工具名 + 完整栈」（不记入参，避免敏感信息）。
+- **测试**：`tests/test_error_observability.py`（响应体字段 + 日志可追溯 + 未捕获不发散）；`tests/test_exceptions.py`（层次与状态码）。
+
 ---
 
 ## 9. API 设计
@@ -505,7 +520,7 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 
 > `backend_springai/` **已删除**（历史实现归档至 `docs/recycle_bin/` 文档），新架构代码落在 Python 单后端内渐进演进。
 
-> **骨架状态**：阶段 A/B/C/D 的核心接口、深模块骨架与业务 REST 已全部落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`、`app/services/auth_service.py`、`app/services/ws_service.py`、`app/api/*`），实体/库/MCP/Coach/画像/认证/WS 均有单测覆盖（`tests/test_agent_arch.py` + `tests/test_api_stage_d.py` + `tests/test_review_closing.py` + 既有回归，全量 260 passed（含 `/audio/upload` 用例；`test_knowledge_e2e.py` 6 例因 `LlmClient.api_key` 签名与既有实现不匹配在容器内 error，属既有环境差异、与上述落地无关））。以下编号勾选为实际落地状态。
+> **骨架状态**：阶段 A/B/C/D 的核心接口、深模块骨架与业务 REST 已全部落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`、`app/services/auth_service.py`、`app/services/ws_service.py`、`app/api/*`），实体/库/MCP/Coach/画像/认证/WS 均有单测覆盖（`tests/test_agent_arch.py` + `tests/test_api_stage_d.py` + `tests/test_review_closing.py` + `tests/test_error_observability.py` + 既有回归，全量 271 passed + 6 skipped（`test_knowledge_e2e.py` 基于已删除旧接口、按文件头意图 skip，新链路单测见 `test_import_pipeline.py`））。以下编号勾选为实际落地状态。
 
 ### 阶段 A：业务能力迁入（无 Java）
 

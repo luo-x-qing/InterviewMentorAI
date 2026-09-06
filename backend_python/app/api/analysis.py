@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from app.models.schemas import AnalysisRequest, AnalysisResponse, AnalysisStatus
 from app.services.agent_pipeline import AgentPipeline
 from app.main import get_agent_pipeline
-from app.core.exceptions import AppError, PipelineError
+from app.core.exceptions import PipelineError
 
 logger = logging.getLogger(__name__)
 
@@ -38,20 +38,14 @@ async def analyze_audio(
     try:
         # 执行 Agent 流水线
         response = await agent_pipeline.run(request)
-        
+
         if response.status == AnalysisStatus.FAILED:
             raise PipelineError(detail=response.error)
-        
+
         return response
-        
     except HTTPException:
+        # 路由层透传的 HTTPException 保持原样；其余异常统一交全局出口记录/兜底（§8.3）
         raise
-    except AppError as e:
-        logger.error(f"分析请求处理失败: {e}", exc_info=True)
-        raise e.to_http_exception()
-    except Exception as e:
-        logger.error(f"分析请求处理失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 #检查服务健康状态的接口

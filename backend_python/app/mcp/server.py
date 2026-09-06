@@ -106,11 +106,16 @@ class ToolRegistry:
         else:
             kwargs = dict(arguments or {})
 
-        result = spec.handler(**kwargs)
+        try:
+            result = spec.handler(**kwargs)
 
-        # 等待异步 handler
-        if inspect.isawaitable(result):
-            result = await result
+            # 等待异步 handler
+            if inspect.isawaitable(result):
+                result = await result
+        except Exception as e:
+            # 记录工具名与完整栈，便于维护者锁定失败工具与抛出点；不记录入参（避免敏感信息）
+            logger.error("MCP 工具调用失败 name=%s 错误=%s", spec.name, e, exc_info=True)
+            raise
 
         # 序列化：Pydantic / dataclass / 原生类型 → JSON 可表达
         return self._to_jsonable(result)
