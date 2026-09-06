@@ -210,6 +210,7 @@ InterviewMentorAI/
 │
 ├── docs/                              # 项目文档中心
 │   ├── README.md                      # 文档索引
+│   ├── TECH-DEPTH.md                  # ★ 技术深度与广度（决策/实现/取舍）
 │   ├── architecture/
 │   │   └── AGENT-ARCHITECTURE.md      # ★ 现行 Agent 架构设计
 │   ├── recycle_bin/                   # ★ 回收站（陈旧的 Java 双后端设计文档归档）
@@ -260,10 +261,43 @@ flutter run
 
 ---
 
+## 技术方向展望
+
+当前版本（全 Agent 驱动 v3）技术主线已经很明确，下表是计划的下一步——分为**近期可落地**、**中期拓展**、**长期愿景**三档。
+
+### 近期（已立项 / 可快速落地）
+
+- **评测集门禁**：为 RAG 与 Coach 建立 golden 问答集，跑分进入 CI 回归门禁——每次改动都用"检索命中率 / 回答质量"说话，而不是"没报错"。
+- **流式输出**：评估与报告改为 SSE / WebSocket 增量推送，前端边生成边渲染，替代"等 2 分钟看整篇"。
+- **异步任务队列**：ASR / 深度检索 / 批量报告改为任务队列（如 ARQ / Celery + Redis），长任务与 HTTP 生命周期解耦，支持并发复盘。
+- **GPU 加速可选**：本地 bge 推理支持 CUDA / ONNX Runtime FP16，嵌入与重排延迟进一步下降。
+- **模型路由与成本治理**：按问题难度/类型在 qwen 系列间路由，加 LLM-KV 缓存，把单次复盘成本压一个量级。
+
+### 中期（架构级拓展）
+
+- **多租户与数据权限**：从单用户演进到"房间 / 组织 + 行级可见性"，为真实用户规模与多人协作做准备。
+- **RAG 质量工程**：引入 RAGAS 式评测维度（忠实度 / 相关性 / 上下文召回），chunk 参数调优、增量索引（只向量化改动文件）、混合检索权重自动寻优。
+- **画像升级**：从"统计 + 相似度"升级为 LLM 标签抽取 + Embedding 融合的多轮记忆画像，Coach 出题真正做到"越练越懂你"。
+- **自主 Agent 闭环**：Agent 不再被 REST 被动调用，而是主动调度（自动催练、每日小测、弱项自动推送练习），编排与运营自动化。
+- **可观测性平台**：Prometheus 指标 + OpenTelemetry trace + Sentry 兜底，`trace_id` 从 HTTP 一路串到 Agent 节点与队列。
+
+### 长期（愿景 / 研究向）
+
+- **微调轻量模型**：基于用户弱项数据做低资源 LoRA / QLoRA 微调"面试画像模型"，替换统计画像，验证"数据积累 → 个性化模型"的完整闭环。
+- **向量体系演进**：万级向量量级升级到 pgvector / Milvus，支撑混合检索 + 时间衰减 + 用户级权重。
+- **独立 MCP Server 发布**：把 `retrieval/coach/knowledge` 组件发布为可被任意 MCP 客户端调用的独立服务，Agent 生态复用。
+- **流式 ASR**：移动端边录边转写，复盘从"录完再算"变成"十分钟后即得初稿"。
+
+> 每一步都延续相同的工程纪律：**可测、可回滚、可观测**。详细技术深读见 [技术深度与广度](docs/TECH-DEPTH.md)。
+
+---
+
 ## 相关文档
 
 | 文档 | 说明 |
 |------|------|
+| [技术深度与广度](docs/TECH-DEPTH.md) | ★ 技术决策/实现细节/取舍全景（演进入口 + 分层解剖 + 深度/广度索引） |
+| [技术方向展望](README.md#技术方向展望) | 本项目 Roadmap（近期/中期/长期） |
 | [Agent 架构设计](docs/architecture/AGENT-ARCHITECTURE.md) | 现行全 Agent 架构设计（多 Agent 协作/ML/RAG/MCP 工具层/Coach 陪练模块） |
 | [Python 后端架构](backend_python/README.md) | Python Agent 后端说明 |
 | [前端架构](frontend_flutter/README.md) | Flutter 移动端说明 |

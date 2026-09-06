@@ -4,6 +4,7 @@ import 'package:frontend_flutter/theme.dart';
 import 'package:frontend_flutter/utils/helpers.dart';
 import 'package:frontend_flutter/widgets/metric_bar.dart';
 import 'package:frontend_flutter/widgets/insight_card.dart';
+import 'package:frontend_flutter/widgets/empty_state.dart';
 import 'package:frontend_flutter/widgets/radar_chart.dart';
 
 class ReportPage extends StatelessWidget {
@@ -135,14 +136,42 @@ class ReportPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final args = data ?? mockData();
-    final reportContent = args['report'] as String? ?? mockReport;
-    final score = args['score'] as int? ?? 85;
-    final grade = AppHelpers.gradeLabel(score);
-    final metrics = args['metrics'] as Map<String, int>? ?? {
-      '表达清晰度': 88, '技术深度': 82, '逻辑思维': 90,
-      '沟通能力': 85, '应变能力': 78, '专业知识': 80,
-    };
+    final reportContent = data?['report'] as String? ?? '';
+    final score = (data?['score'] as num?)?.toInt();
+    final metrics = data?['metrics'] as Map<String, Object?>?;
+    final isEmpty = data == null || reportContent.trim().isEmpty;
+
+    Widget body;
+    if (isEmpty) {
+      body = const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: EmptyStateWidget(
+            icon: Icons.description_outlined,
+            title: '暂无报告内容',
+            subtitle: '完成一次面试复盘后，报告将生成在这里',
+          ),
+        ),
+      );
+    } else if (score != null && metrics != null) {
+      final grade = AppHelpers.gradeLabel(score);
+      final scoreMetrics =
+          metrics.map((k, v) => MapEntry(k, (v as num).toInt()));
+      body = LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 600;
+          if (isWide) {
+            return _buildWideLayout(
+                reportContent, score, grade, scoreMetrics);
+          }
+          return _buildNarrowLayout(
+              reportContent, score, grade, scoreMetrics);
+        },
+      );
+    } else {
+      // 后端只提供报告正文（无结构化评分维度）时，展示纯报告布局
+      body = _buildReportOnly(reportContent);
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.bgPage,
@@ -153,16 +182,47 @@ class ReportPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 600;
-          if (isWide) {
-            return _buildWideLayout(
-                reportContent, score, grade, metrics);
-          }
-          return _buildNarrowLayout(
-              reportContent, score, grade, metrics);
-        },
+      body: body,
+    );
+  }
+
+  Widget _buildReportOnly(String reportContent) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('评估报告',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2, color: AppTheme.brand500)),
+          const SizedBox(height: 8),
+          const Text('面试表现分析',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary)),
+          const SizedBox(height: 4),
+          const Text('基于 AI 多维评估模型，全面分析你的面试表现',
+              style: TextStyle(fontSize: 14,
+                  color: AppTheme.textSecondary)),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: AppTheme.cardDecoration,
+            child: MarkdownBody(
+              data: reportContent,
+              styleSheet: MarkdownStyleSheet(
+                h1: const TextStyle(fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary),
+                h2: const TextStyle(fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary),
+                p: const TextStyle(fontSize: 14,
+                    color: AppTheme.textSecondary, height: 1.6),
+              ),
+            ),
+          ),
+          const SizedBox(height: 28),
+        ],
       ),
     );
   }

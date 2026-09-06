@@ -55,7 +55,7 @@ async def retrieve_documents(
     try:
         logger.info(f"执行RAG检索: {request.question}")
         
-        result = rag_service.retrieve_by_question(
+        result = await rag_service.retrieve_by_question(
             request.question, 
             request.use_hybrid,
             request.use_rerank

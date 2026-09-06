@@ -29,6 +29,9 @@ pdfplumber>=0.10.0
 python-docx>=1.0.0
 beautifulsoup4>=4.12.0
 
+# pdfplumber.page.to_image() 的渲染引擎（图片 OCR / CID 整页 OCR 依赖；纯 wheel 无系统依赖）
+pymupdf>=1.24.0
+
 # PDF 图片 OCR（离线，RapidOCR；onnxruntime 需 1.19.x，1.23+ 在本机缺 VC++ 运行库）
 rapidocr-onnxruntime>=1.4.0
 onnxruntime==1.19.2
