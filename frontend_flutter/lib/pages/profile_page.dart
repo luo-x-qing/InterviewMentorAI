@@ -124,8 +124,7 @@ class _ProfilePageState extends State<ProfilePage> {
           Container(
             width: 64, height: 64,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppTheme.gradientStart, AppTheme.gradientEnd]),
+              color: AppTheme.brand500,
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Icon(Icons.person, size: 32, color: Colors.white),

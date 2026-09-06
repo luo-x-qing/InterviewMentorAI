@@ -89,8 +89,7 @@ class _CommunityPageState extends State<CommunityPage> {
               duration: const Duration(milliseconds: 240),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                gradient: active ? AppTheme.gradientPrimary : null,
-                color: active ? null : AppTheme.bgCard,
+                color: active ? AppTheme.brand500 : AppTheme.bgCard,
                 borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                 border: active ? null : Border.all(color: AppTheme.borderLight),
               ),
@@ -163,7 +162,7 @@ class _PostCard extends StatelessWidget {
                     Container(
                       width: 32, height: 32,
                       decoration: BoxDecoration(
-                        gradient: AppTheme.gradientPrimary,
+                      color: AppTheme.brand500,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Center(

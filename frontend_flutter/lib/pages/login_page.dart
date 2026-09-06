@@ -109,11 +109,10 @@ class _LoginPageState extends State<LoginPage>
         Container(
           width: 72, height: 72,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppTheme.gradientStart, AppTheme.gradientEnd]),
+            color: AppTheme.brand500,
             borderRadius: BorderRadius.circular(20),
             boxShadow: const [
-              BoxShadow(color: Color(0x334F46E5), blurRadius: 16, offset: Offset(0, 4)),
+              BoxShadow(color: Color(0x2B23766F), blurRadius: 16, offset: Offset(0, 4)),
             ],
           ),
           child: const Icon(Icons.psychology, size: 36, color: Colors.white),
@@ -144,8 +143,7 @@ class _LoginPageState extends State<LoginPage>
             child: TabBar(
               controller: _tabCtrl,
               indicator: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppTheme.gradientStart, AppTheme.gradientEnd]),
+                color: AppTheme.brand500,
                 borderRadius: BorderRadius.circular(10),
               ),
               indicatorSize: TabBarIndicatorSize.tab,
@@ -209,28 +207,20 @@ class _LoginPageState extends State<LoginPage>
 
           SizedBox(
             width: double.infinity, height: 48,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppTheme.gradientStart, AppTheme.gradientEnd]),
-                borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-                boxShadow: const [
-                  BoxShadow(color: Color(0x334F46E5), blurRadius: 12, offset: Offset(0, 4)),
-                ],
+            child: FilledButton(
+              onPressed: _loading ? null : _submit,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.brand500,
+                disabledBackgroundColor: AppTheme.brand500.withValues(alpha: 0.6),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMd)),
               ),
-              child: FilledButton(
-                onPressed: _loading ? null : _submit,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.transparent, shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusFull)),
-                ),
-                child: _loading
-                    ? const SizedBox(width: 22, height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : Text(_isRegister ? '注 册' : '登 录',
-                        style: const TextStyle(fontSize: 16)),
-              ),
+              child: _loading
+                  ? const SizedBox(width: 22, height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(_isRegister ? '注 册' : '登 录',
+                      style: const TextStyle(fontSize: 16)),
             ),
           ),
           const SizedBox(height: 14),

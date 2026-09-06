@@ -217,8 +217,7 @@ class _QuestionBankPageState extends State<QuestionBankPage> {
               duration: const Duration(milliseconds: 240),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                gradient: active ? AppTheme.gradientPrimary : null,
-                color: active ? null : AppTheme.bgCard,
+                color: active ? AppTheme.brand500 : AppTheme.bgCard,
                 borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                 border: active ? null : Border.all(color: AppTheme.borderLight),
               ),

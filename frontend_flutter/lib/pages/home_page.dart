@@ -331,8 +331,7 @@ class _HomePageState extends State<HomePage>
                   duration: const Duration(milliseconds: 240),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
-                    gradient:
-                        active ? AppTheme.gradientPrimary : null,
+                    color: active ? AppTheme.brand500 : Colors.transparent,
                     borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                   ),
                   child: Text(

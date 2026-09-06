@@ -123,7 +123,7 @@ class _InterviewHistoryPageState extends State<InterviewHistoryPage> {
                 Container(
                   width: 44, height: 44,
                   decoration: BoxDecoration(
-                    gradient: AppTheme.gradientPrimary,
+                    color: AppTheme.brand500,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Center(
