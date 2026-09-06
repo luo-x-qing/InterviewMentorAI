@@ -207,6 +207,26 @@ class VectorDB:
             "SELECT source, COUNT(*) FROM rag_docs GROUP BY source"
         ).fetchall()
 
+    def get_questions_for_coach(self, limit: int = 50) -> list[dict]:
+        """向 Coach 出题/推荐投影候选题目（浅适配层：由已入库题目块无参取候选）。
+
+        按 (source, question_no) 聚合，每道题取首块的代表字段；无题目时返回 []。
+        返回 [{question_no, title, content, source, section}]，供 QuestionWorker 出题源装配。
+        """
+        rows = self.conn.execute(
+            "SELECT question_no, title, content, source, section FROM rag_docs "
+            "WHERE question_no != '' GROUP BY source, question_no "
+            "ORDER BY doc_id LIMIT ?",
+            (limit,),
+        ).fetchall()
+        out = []
+        for r in rows:
+            out.append({
+                "question_no": r[0], "title": r[1], "content": r[2],
+                "source": r[3], "section": r[4] or "",
+            })
+        return out
+
     def clear_all(self) -> None:
         """清空全部文档、向量与指纹索引（知识库清空）"""
         self.conn.execute("DELETE FROM rag_vectors")

@@ -53,8 +53,14 @@ async def get_report(interview_id: int, request: Request, user: User = Depends(g
 async def get_evaluations(interview_id: int, request: Request, user: User = Depends(get_current_user)):
     db = request.app.state.database
     _require_owned(db, interview_id, user.id)
-    # 评估明细持久化（interview_evaluations 表）属阶段 B 深化落点，当前骨架返回空
-    return []
+    rows = db.get_interview_evaluations(interview_id)
+    return [
+        EvaluationBrief(
+            question=r["question"], answer=r["answer"], score=r["score"],
+            level=r["level"], strengths=r["strengths"], weaknesses=r["weaknesses"],
+        )
+        for r in rows
+    ]
 
 
 @router.get("/list", response_model=list[ReportOut])

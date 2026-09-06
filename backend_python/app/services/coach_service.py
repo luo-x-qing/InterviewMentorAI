@@ -76,6 +76,23 @@ class CoachService:
             difficulty=question.difficulty,
         )
 
+    # ── recommend_practice（复盘后一键推荐针对性练习）────
+
+    def recommend_practice(self, user_id: int, limit: int = 3) -> list:
+        """按画像弱项为用户推荐针对性练习（不开启会话，适用于复盘后）。
+
+        复用出题 Worker 的题库源与弱项优先逻辑；无画像/无题目时返回空列表。
+        """
+        profile = self._profiling.get_profile(user_id)
+        questions = self.question_worker.recommend(profile, limit=limit)
+        return [
+            CoachQuestionOut(
+                question_no=q.question_no, title=q.title, question=q.question,
+                evaluation_points=q.evaluation_points, difficulty=q.difficulty,
+            )
+            for q in questions
+        ]
+
     # ── submit_answer ─────────────────────────────────
 
     def submit_answer(self, session_id: str, answer: str) -> CoachFeedbackOut:

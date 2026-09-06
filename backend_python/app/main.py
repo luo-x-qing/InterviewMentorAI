@@ -94,11 +94,16 @@ async def lifespan(app: FastAPI):
     from app.mcp.coach_tools import CoachTools
     from app.services.auth_service import AuthService
     from app.services.coach_service import CoachService
+    from app.services.profiling_service import ProfilingService
     from app.agents.orchestrator import Orchestrator
+    from app.agents.coach_workers.question_worker import QuestionWorker, build_knowledge_question_source
 
     database = Database()
     auth_service = AuthService(database=database)
+    profiling_service = ProfilingService(database=database)
     coach_service = CoachService(database=database)
+    # 生产题库源：从知识库投影候选（无题库 → 空列表降级），Coach 出题/推荐可用
+    coach_service.question_worker.set_question_source(build_knowledge_question_source(vector_db))
     CoachTools(coach=coach_service).register(tool_registry)
 
     orchestrator = Orchestrator(pipeline=agent_pipeline)
@@ -123,6 +128,7 @@ async def lifespan(app: FastAPI):
     app.state.database = database
     app.state.auth_service = auth_service
     app.state.coach_service = coach_service
+    app.state.profiling_service = profiling_service
     app.state.retrieval_agent = retrieval_agent
     app.state.tool_registry = tool_registry
     app.state.orchestrator = orchestrator

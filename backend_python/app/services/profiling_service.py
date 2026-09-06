@@ -63,6 +63,49 @@ class ProfilingService:
             self.db.save_profile(profile)
         return profile
 
+    def ingest_review(self, user_id: int, evaluations) -> UserProfile:
+        """把一次复盘（interview evaluation_list）的薄弱知识点合并进画像。
+
+        与 build_profile 区别：增量合并而非整体覆盖——保留 Coach 会话积累的
+        历史画像，仅把本次复盘评估中 <WEAK_THRESHOLD 的知识点按掌握度聚合进来。
+        """
+        if not evaluations:
+            existing = self.get_profile(user_id)
+            return existing if existing is not None else UserProfile(user_id=user_id)
+
+        # 聚合本次评估：知识点 → (次数, 平均分)
+        counter: Dict[str, Tuple[int, float]] = {}
+        n: Dict[str, int] = defaultdict(int)
+        total: Dict[str, float] = defaultdict(float)
+        for e in evaluations:
+            kps = [k.strip() for k in (e.knowledge_points or "").split(",") if k.strip()]
+            if not kps:
+                continue
+            for kp in kps:
+                n[kp] += 1
+                total[kp] += float(e.score or 0)
+        for kp in n:
+            counter[kp] = (n[kp], round(total[kp] / n[kp], 1))
+
+        # 与既有画像合并（历史权重 = 历史次数，简单平均）
+        existing = self.get_profile(user_id)
+        history_mastery = dict(existing.mastery) if existing and existing.mastery else {}
+        merged: Dict[str, float] = {}
+        for kp, (count, avg) in counter.items():
+            if kp in history_mastery:
+                merged[kp] = round((history_mastery[kp] + avg) / 2, 1)
+            else:
+                merged[kp] = avg
+        for kp, v in history_mastery.items():
+            merged.setdefault(kp, v)
+
+        strengths = [kp for kp, v in merged.items() if v >= _STRONG_THRESHOLD]
+        weaknesses = [kp for kp, v in merged.items() if v < _WEAK_THRESHOLD]
+        profile = UserProfile(user_id=user_id, strengths=strengths, weaknesses=weaknesses, mastery=merged)
+        if self.db is not None:
+            self.db.save_profile(profile)
+        return profile
+
     def get_profile(self, user_id: int) -> Optional[UserProfile]:
         if self.db is None:
             return None

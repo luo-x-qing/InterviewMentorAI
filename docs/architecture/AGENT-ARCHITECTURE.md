@@ -407,6 +407,7 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 | Coach | POST | `/coach/session/{id}/answer` | 提交回答，获取即时反馈 |
 | Coach | POST | `/coach/session/{id}/end` | 结束会话，生成结课报告 |
 | Coach | GET | `/coach/profile` | 查看我的薄弱点画像 |
+| Coach | GET | `/coach/recommend` | 复盘后一键推荐针对性练习（按画像弱项选题，无需会话） |
 
 > 注：`/coach/*` 面向 Flutter 直连；Agent 内部（例如复盘后自动推荐一次针对性练习）走 MCP `coach.*` 工具。二者共享同一 `coach_service`。
 
@@ -418,7 +419,7 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 | 主题（message 类型） | 推送时机 |
 |----------------------|----------|
 | `interview.{id}.progress` | 每个 Agent 完成时（0-100%） |
-| `interview.{id}.complete` | 全链路完成 |
+| `interview.{id}.complete` | 全链路完成（payload 携带 `report` + `recommendations`） |
 | `interview.{id}.error` | 失败 |
 | `coach.{sessionId}.feedback` | Coach 即时点评 |
 | `user.{id}.notifications` | 通知 |
@@ -440,8 +441,15 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
   → 评估 Agent 逐题评估（并发）
   → RAG 反思增强（薄弱项深度检索）
   → 报告 Agent 汇总生成 Markdown 报告
-  → Orchestrator 归并 → 持久化 → WebSocket 推送 → Flutter 展示
+  → Orchestrator 归并 → 持久化（interviews 状态/报告 +
+        interview_evaluations 逐题明细）→ 画像回写（薄弱项）→
+        一键推荐针对性练习（CoachService 按画像弱项选题）→
+        WebSocket 推送（complete 携带 report + recommendations）→ Flutter 展示
 ```
+
+> **持久化落点**：`POST /interview/{id}/analyze` 完成编排层收尾（§8.1 API 层）——
+> COMPLETED 写 `interviews.status/final_report` 与逐题评估表；FAILED 写状态。画像回写
+> 与推荐降级为「尽力而为」，失败不阻断复盘主流程。
 
 ### 10.2 AI 辅助面试（Coach 陪练）
 
@@ -487,7 +495,7 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 
 > `backend_springai/` **已删除**（历史实现归档至 `docs/recycle_bin/` 文档），新架构代码落在 Python 单后端内渐进演进。
 
-> **骨架状态**：阶段 A/B/C/D 的核心接口、深模块骨架与业务 REST 已全部落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`、`app/services/auth_service.py`、`app/services/ws_service.py`、`app/api/*`），实体/库/MCP/Coach/画像/认证/WS 均有单测覆盖（`tests/test_agent_arch.py` 21 例 + `tests/test_api_stage_d.py` 12 例 + 既有回归，全量 249 passed）。以下编号勾选为实际落地状态。
+> **骨架状态**：阶段 A/B/C/D 的核心接口、深模块骨架与业务 REST 已全部落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`、`app/services/auth_service.py`、`app/services/ws_service.py`、`app/api/*`），实体/库/MCP/Coach/画像/认证/WS 均有单测覆盖（`tests/test_agent_arch.py` + `tests/test_api_stage_d.py` + `tests/test_review_closing.py` + 既有回归，全量 256 passed）。以下编号勾选为实际落地状态。
 
 ### 阶段 A：业务能力迁入（无 Java）
 
@@ -512,7 +520,9 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 
 11. ✅ `app/services/coach_service.py` 会话状态机（idle→active→done）+ `app/mcp/coach_tools.py` + REST `/coach/session|{id}/question|{id}/answer|{id}/end`（`app/api/coach_api.py`，Bearer 认证 + 归属校验）。
 12. ✅（骨架）`app/services/profiling_service.py`（v1 统计聚合 + v2 相似度选题 + v3 难度自适应，`suggest_difficulty`）+ 画像表。
-13. ✅ Coach 经 MCP `coach.*` 工具接入（已在 `main.py` 装配）；复盘后一键推荐针对性练习待接 Orchestrator（阶段 B 深化落点）。
+13. ✅ Coach 经 MCP `coach.*` 工具接入（已在 `main.py` 装配）；复盘后一键推荐针对性练习已接 Orchestrator（`/coach/recommend` REST + `coach.recommend` MCP + 复盘响应/WS complete 携带 `recommendations`，按画像弱项选题）。进度：`/interview/{id}/analyze` 收尾完成持久化 / 画像回写 / 推荐（§10.1）。
+
+13.5. ✅（缺口补齐）复盘闭环：`interview_evaluations` 逐题明细表 + `update_interview_status(COMPLETED/FAILED)` 状态流转；`ProfilingService.ingest_review` 复盘薄弱项合并画像（§7.5）；`QuestionWorker` 生产题库源（`build_knowledge_question_source`，从知识库投影候选，Coach 出题/推荐生产可用）。
 
 ### 阶段 E：收尾（✅ 已完成）
 

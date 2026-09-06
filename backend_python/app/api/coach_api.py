@@ -75,6 +75,16 @@ async def next_question(session_id: str, request: Request, user: User = Depends(
         raise HTTPException(status_code=409, detail=str(e))
 
 
+@router.get("/recommend", response_model=list[CoachQuestionOut])
+async def recommend_practice(
+    request: Request,
+    user: User = Depends(get_current_user),
+    limit: int = 3,
+):
+    """复盘后一键推荐针对性练习（按画像弱项选题，无需开启会话）"""
+    return _get_coach(request).recommend_practice(user.id, limit=limit)
+
+
 @router.post("/session/{session_id}/answer", response_model=CoachFeedbackOut)
 async def submit_answer(
     session_id: str,

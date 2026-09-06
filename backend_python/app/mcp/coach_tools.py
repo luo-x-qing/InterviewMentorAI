@@ -39,6 +39,12 @@ class CoachEndArgs(BaseModel):
     session_id: str
 
 
+class CoachRecommendArgs(BaseModel):
+    """coach.recommend 入参（复盘后一键推荐针对性练习）"""
+    user_id: int
+    limit: int = Field(default=3, ge=1, le=10)
+
+
 class CoachTools:
     """Coach 工具注册集合"""
 
@@ -71,8 +77,14 @@ class CoachTools:
                 handler=self._end,
                 input_model=CoachEndArgs,
             ),
+            ToolSpec(
+                name="coach.recommend",
+                description="复盘后按画像弱项推荐针对性练习（无需开启会话）",
+                handler=self._recommend,
+                input_model=CoachRecommendArgs,
+            ),
         ])
-        logger.info("已注册 Coach 工具: coach.start / next_question / submit_answer / end")
+        logger.info("已注册 Coach 工具: coach.start / next_question / submit_answer / end / recommend")
 
     async def _start(self, user_id: int, mode: str, difficulty: str):
         if self.coach is None:
@@ -93,3 +105,8 @@ class CoachTools:
         if self.coach is None:
             raise ValueError("Coach 工具未装配 coach_service")
         return self.coach.end_session(session_id)
+
+    async def _recommend(self, user_id: int, limit: int):
+        if self.coach is None:
+            raise ValueError("Coach 工具未装配 coach_service")
+        return self.coach.recommend_practice(user_id, limit=limit)

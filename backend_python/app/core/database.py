@@ -100,6 +100,20 @@ class Database:
             mastery TEXT DEFAULT '{}',
             updated_at TEXT DEFAULT (datetime('now', 'localtime'))
         );
+
+        CREATE TABLE IF NOT EXISTS interview_evaluations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            interview_id INTEGER NOT NULL,
+            question TEXT DEFAULT '',
+            answer TEXT DEFAULT '',
+            score INTEGER DEFAULT 0,
+            level TEXT DEFAULT 'WEAK',
+            strengths TEXT DEFAULT '',
+            weaknesses TEXT DEFAULT '',
+            correction TEXT DEFAULT '',
+            knowledge_points TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        );
         """)
 
     def _migrate(self):
@@ -194,6 +208,34 @@ class Database:
             (status, final_report, interview_id),
         )
         self.conn.commit()
+
+    def save_interview_evaluations(self, interview_id: int, evaluations: list) -> None:
+        """落盘一份复盘的全部逐题评估明细（表 interview_evaluations）"""
+        for e in evaluations:
+            self.conn.execute(
+                "INSERT INTO interview_evaluations (interview_id, question, answer, score, "
+                "level, strengths, weaknesses, correction, knowledge_points) VALUES (?,?,?,?,?,?,?,?,?)",
+                (interview_id, (e.question or "")[:2000], (e.answer or "")[:4000], int(e.score or 0),
+                 getattr(e, "level", None) and str(getattr(e, "level").value if hasattr(getattr(e, "level"), "value") else e.level) or "WEAK",
+                 (e.strengths or ""), (e.weaknesses or ""), (e.correction or ""),
+                 (e.knowledge_points or "")),
+            )
+        self.conn.commit()
+
+    def get_interview_evaluations(self, interview_id: int) -> List[dict]:
+        rows = self.conn.execute(
+            "SELECT question, answer, score, level, strengths, weaknesses, "
+            "correction, knowledge_points FROM interview_evaluations "
+            "WHERE interview_id = ? ORDER BY id", (interview_id,),
+        ).fetchall()
+        return [
+            {
+                "question": r["question"], "answer": r["answer"], "score": r["score"],
+                "level": r["level"], "strengths": r["strengths"], "weaknesses": r["weaknesses"],
+                "correction": r["correction"], "knowledge_points": r["knowledge_points"],
+            }
+            for r in rows
+        ]
 
     # ── Coach 会话 ────────────────────────────────────
 
