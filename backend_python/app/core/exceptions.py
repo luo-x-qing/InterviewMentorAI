@@ -2,7 +2,7 @@
 应用异常层次结构（错误处理的单一出口 · 深度模块）
 
 所有自定义异常继承自 AppError，支持精确捕获和分层处理。
-API 层根据异常类型映射到不同的 HTTP 状态码。
+全局异常处理器（register_error_handlers）根据异常类型映射 HTTP 状态码——错误响应的唯一出口。
 
 层次结构:
     AppError (base)
@@ -17,6 +17,7 @@ API 层根据异常类型映射到不同的 HTTP 状态码。
     ├── KnowledgeError     # 知识库管理相关
     │   └── KnowledgeImportError
     ├── PipelineError      # 流水线相关
+    ├── ConflictError      # 请求冲突：会话不在进行中 / 无可用题目 → 409
     └── AuthError          # 认证/授权（阶段 D）
         ├── AuthCredentialsError  → 401
         ├── RegisterError         → 409
@@ -177,11 +178,20 @@ class RegisterError(AuthError):
 
 class ForbiddenError(AuthError):
     """资源归属校验失败（用户无权访问他人资源）"""
-    def __init__(self, message: str = "无权访问该资源", detail: str = None):
-        super().__init__(message, detail)
+    def __init__(self, message: str = "无权访问该资源", detail: str = None, error_code: str = None):
+        super().__init__(message, detail, error_code)
 
     def to_http_exception(self) -> HTTPException:
         return HTTPException(status_code=403, detail=self.detail)
+
+
+class ConflictError(AppError):
+    """请求冲突：资源状态不允许本次操作（会话不在进行中 / 无可用题目）→ 409"""
+    def __init__(self, message: str = "请求冲突", detail: str = None, error_code: str = None):
+        super().__init__(message, detail, error_code)
+
+    def to_http_exception(self) -> HTTPException:
+        return HTTPException(status_code=409, detail=self.detail)
 
 
 def _new_trace_id() -> str:

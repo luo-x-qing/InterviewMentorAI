@@ -4,13 +4,13 @@ MCP调试 API 路由
 """
 import logging
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 
 from app.services.rag_service import RagService
 from app.services.rag_mcp import RagMCP
 from app.main import get_rag_service, get_rag_mcp
 from app.models.schemas import McpEvalRequest, McpRetrievalRequest
-from app.core.exceptions import AppError
+from app.core.exceptions import AppError, PipelineError
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +44,10 @@ async def mcp_rag_eval_test(
             "question": request.question,
             "answer": request.answer
         }
-    except AppError as e:
-        logger.error(f"MCP测试失败: {e}", exc_info=True)
-        raise e.to_http_exception()
+    except AppError:
+        raise
     except Exception as e:
-        logger.error(f"MCP测试失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"MCP测试失败: {str(e)}")
+        raise PipelineError(detail=f"MCP测试失败: {str(e)}") from e
 
 
 @router.post("/context-preview")
@@ -92,9 +90,7 @@ async def mcp_context_preview(
                 for doc in retrieval_res.docs
             ]
         }
-    except AppError as e:
-        logger.error(f"MCP上下文预览失败: {e}", exc_info=True)
-        raise e.to_http_exception()
+    except AppError:
+        raise
     except Exception as e:
-        logger.error(f"MCP上下文预览失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"预览失败: {str(e)}")
+        raise PipelineError(detail=f"预览失败: {str(e)}") from e

@@ -75,6 +75,6 @@ async def change_password(
     auth = request.app.state.auth_service
     try:
         auth.change_password(user.id, body.old_password, body.new_password)
-    except AuthError as e:
-        raise e.to_http_exception()
+    except AuthError:
+        raise
     return {"status": "OK"}

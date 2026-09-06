@@ -379,7 +379,7 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 
 - **`error_code`**：稳定机器码，默认 = 异常类名（如 `AuthCredentialsError`），可用 `error_code=` 显式覆盖（如 `KnowledgeImportError(..., error_code="KB_IMPORT_FAILED")`），便于前端/监控按码处理。
 - **`trace_id`**：响应体与日志的关联键。维护者拿到客户端报错即可 `grep "trace_id=xxxxxxxxxxxx"` 后端日志，一行锁定 method/path/异常类型与完整栈。
-- **单一出口纪律**：API 层不重复「记日志→转 HTTPException 500」兜底（`analysis.py` 的重复 catch 已并入本出口）；业务层按语义抛 `AppError` 子类即可，其余交给出口。MCP `call_tool` 失败另记「工具名 + 完整栈」（不记入参，避免敏感信息）。
+- **单一出口纪律**：API 层不重复「记日志→转 HTTPException 500」兜底（`analysis.py` 的重复 catch 已并入本出口）；业务层按语义抛 `AppError` 子类即可，其余交给出口。API 层一律**纯 `raise`（不调 `to_http_exception()` 翻译）**——翻译会把 `AppError` 抹成裸 `HTTPException` 而丢 `error_code`/`trace_id`；`to_http_exception()` 仅由出口 handler 内部取状态码/头。`auth/deps/user/interview/coach/knowledge/retrieval/mcp_debug` 已验证该契约（冒烟：coach 无题库 409 且带 `error_code=QUESTION_BANK_EMPTY`）。MCP `call_tool` 失败另记「工具名 + 完整栈」（不记入参，避免敏感信息）。
 - **测试**：`tests/test_error_observability.py`（响应体字段 + 日志可追溯 + 未捕获不发散）；`tests/test_exceptions.py`（层次与状态码）。
 
 ---
@@ -520,7 +520,7 @@ RAG 层:            rag_service / agentic_rag / rag_mcp / chunking_service / cle
 
 > `backend_springai/` **已删除**（历史实现归档至 `docs/recycle_bin/` 文档），新架构代码落在 Python 单后端内渐进演进。
 
-> **骨架状态**：阶段 A/B/C/D 的核心接口、深模块骨架与业务 REST 已全部落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`、`app/services/auth_service.py`、`app/services/ws_service.py`、`app/api/*`），实体/库/MCP/Coach/画像/认证/WS 均有单测覆盖（`tests/test_agent_arch.py` + `tests/test_api_stage_d.py` + `tests/test_review_closing.py` + `tests/test_error_observability.py` + 既有回归，全量 271 passed + 6 skipped（`test_knowledge_e2e.py` 基于已删除旧接口、按文件头意图 skip，新链路单测见 `test_import_pipeline.py`））。以下编号勾选为实际落地状态。
+> **骨架状态**：阶段 A/B/C/D 的核心接口、深模块骨架与业务 REST 已全部落地（`app/models/entities.py`、`app/core/database.py`、`app/mcp/*`、`app/agents/*`、`app/services/coach_service.py`、`app/services/profiling_service.py`、`app/services/auth_service.py`、`app/services/ws_service.py`、`app/api/*`），实体/库/MCP/Coach/画像/认证/WS 均有单测覆盖（`tests/test_agent_arch.py` + `tests/test_api_stage_d.py` + `tests/test_review_closing.py` + `tests/test_error_observability.py` + 既有回归，全量 275 passed + 6 skipped（`test_knowledge_e2e.py` 基于已删除旧接口、按文件头意图 skip，新链路单测见 `test_import_pipeline.py`））。以下编号勾选为实际落地状态。
 
 ### 阶段 A：业务能力迁入（无 Java）
 

@@ -56,8 +56,8 @@ async def register(body: RegisterRequest, request: Request):
     try:
         tokens = auth.register(body.phone, body.password, body.nickname)
         return TokenPairOut(**tokens)
-    except RegisterError as e:
-        raise e.to_http_exception()
+    except RegisterError:
+        raise
 
 
 @router.post("/login", response_model=TokenPairOut)
@@ -66,8 +66,8 @@ async def login(body: LoginRequest, request: Request):
     try:
         tokens = auth.login(body.phone, body.password)
         return TokenPairOut(**tokens)
-    except AuthError as e:
-        raise e.to_http_exception()
+    except AuthError:
+        raise
 
 
 @router.post("/refresh", response_model=TokenPairOut)
@@ -76,8 +76,8 @@ async def refresh(body: RefreshRequest, request: Request):
     try:
         tokens = auth.refresh(body.refresh_token)
         return TokenPairOut(**tokens)
-    except AuthError as e:
-        raise e.to_http_exception()
+    except AuthError:
+        raise
 
 
 @router.get("/me", response_model=UserOut)

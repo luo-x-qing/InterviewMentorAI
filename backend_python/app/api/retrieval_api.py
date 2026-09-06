@@ -5,14 +5,14 @@
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.services.rag_service import RagService
 from app.services.chunking_service import ChunkingService
 from app.models.schemas import RagRetrievalResult
 from app.main import get_rag_service, get_chunking_service
-from app.core.exceptions import AppError
+from app.core.exceptions import AppError, PipelineError
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -78,12 +78,10 @@ async def retrieve_documents(
             total_count=len(docs_dict),
             metrics=result.metrics.model_dump() if result.metrics else None
         )
-    except AppError as e:
-        logger.error(f"检索失败: {e}", exc_info=True)
-        raise e.to_http_exception()
+    except AppError:
+        raise
     except Exception as e:
-        logger.error(f"检索失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"检索失败: {str(e)}")
+        raise PipelineError(detail=f"检索失败: {str(e)}") from e
 
 
 @router.post("/chunks/preview", response_model=ChunkPreviewResponse)
@@ -106,9 +104,7 @@ async def preview_chunks(
             total_chunks=len(chunks),
             avg_length=round(avg_length, 2)
         )
-    except AppError as e:
-        logger.error(f"分块预览失败: {e}", exc_info=True)
-        raise e.to_http_exception()
+    except AppError:
+        raise
     except Exception as e:
-        logger.error(f"分块预览失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"预览失败: {str(e)}")
+        raise PipelineError(detail=f"预览失败: {str(e)}") from e

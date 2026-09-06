@@ -4,6 +4,7 @@
 import pytest
 from app.core.exceptions import (
     AppError,
+    ConflictError,
     LlmError, LlmTimeoutError, LlmRateLimitError,
     VectorDbError, VectorDbInsertError, VectorDbSearchError,
     EmbeddingError,
@@ -134,3 +135,22 @@ class TestPipelineError:
         http_err = err.to_http_exception()
         assert http_err.status_code == 500
         assert http_err.detail == "详细信息"
+
+
+class TestConflictError:
+    def test_inheritance(self):
+        assert issubclass(ConflictError, AppError)
+
+    def test_default_message(self):
+        err = ConflictError()
+        assert err.message == "请求冲突"
+
+    def test_to_http_exception(self):
+        err = ConflictError("会话不在进行中", "会话不是 ACTIVE 状态")
+        http_err = err.to_http_exception()
+        assert http_err.status_code == 409
+        assert http_err.detail == "会话不是 ACTIVE 状态"
+
+    def test_error_code_default_and_override(self):
+        assert ConflictError().error_code == "ConflictError"
+        assert ConflictError(error_code="QUESTION_BANK_EMPTY").error_code == "QUESTION_BANK_EMPTY"

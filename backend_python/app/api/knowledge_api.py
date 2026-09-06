@@ -6,12 +6,12 @@ import logging
 import os
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.services.knowledge_service import KnowledgeService
 from app.main import get_knowledge_service
-from app.core.exceptions import AppError
+from app.core.exceptions import AppError, KnowledgeError, KnowledgeImportError
 
 logger = logging.getLogger(__name__)
 
@@ -82,12 +82,10 @@ async def import_knowledge(
             imported_count=len(reports),
             reports=reports,
         )
-    except AppError as e:
-        logger.error(f"知识库导入失败: {e}", exc_info=True)
-        raise e.to_http_exception()
+    except AppError:
+        raise
     except Exception as e:
-        logger.error(f"知识库导入失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"导入失败: {str(e)}")
+        raise KnowledgeImportError(detail=f"导入失败: {str(e)}") from e
 
 
 @router.post("/reconcile")
@@ -98,12 +96,10 @@ async def reconcile_knowledge(
     try:
         removed = knowledge_service.reconcile_directory()
         return {"success": True, "removed": removed, "message": f"目录对账完成，清理 {removed} 个已消失题库"}
-    except AppError as e:
-        logger.error(f"目录对账失败: {e}", exc_info=True)
-        raise e.to_http_exception()
+    except AppError:
+        raise
     except Exception as e:
-        logger.error(f"目录对账失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"目录对账失败: {str(e)}")
+        raise KnowledgeError(detail=f"目录对账失败: {str(e)}") from e
 
 
 @router.get("/stats")
@@ -117,12 +113,10 @@ async def get_knowledge_stats(
     """
     try:
         return knowledge_service.get_stats()
-    except AppError as e:
-        logger.error(f"获取统计信息失败: {e}", exc_info=True)
-        raise e.to_http_exception()
+    except AppError:
+        raise
     except Exception as e:
-        logger.error(f"获取统计信息失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"获取统计失败: {str(e)}")
+        raise KnowledgeError(detail=f"获取统计失败: {str(e)}") from e
 
 
 @router.delete("/clear")
@@ -137,12 +131,10 @@ async def clear_knowledge(
     try:
         knowledge_service.clear_all()
         return {"success": True, "message": "知识库已清空"}
-    except AppError as e:
-        logger.error(f"清空知识库失败: {e}", exc_info=True)
-        raise e.to_http_exception()
+    except AppError:
+        raise
     except Exception as e:
-        logger.error(f"清空知识库失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"清空失败: {str(e)}")
+        raise KnowledgeError(detail=f"清空失败: {str(e)}") from e
 
 
 @router.delete("/{source}")
@@ -154,9 +146,7 @@ async def delete_document(
     try:
         knowledge_service.delete_document(source)
         return {"success": True, "message": f"已删除题库 {source}"}
-    except AppError as e:
-        logger.error(f"删除题库失败: {e}", exc_info=True)
-        raise e.to_http_exception()
+    except AppError:
+        raise
     except Exception as e:
-        logger.error(f"删除题库失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+        raise KnowledgeError(detail=f"删除失败: {str(e)}") from e

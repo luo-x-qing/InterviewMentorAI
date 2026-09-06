@@ -134,8 +134,9 @@ class TestCoachService:
         assert session.question_index == 1
         assert db.list_answer_records(handle.session_id) != []
 
-        # 错误顺序守卫
-        with pytest.raises(KeyError):
+        # 错误顺序守卫：会话不存在 → 业务 403
+        from app.core.exceptions import ForbiddenError
+        with pytest.raises(ForbiddenError):
             coach.submit_answer("no-such-session", "x")
 
         report = coach.end_session(handle.session_id)
@@ -144,11 +145,13 @@ class TestCoachService:
         assert db.get_coach_session(handle.session_id).status == CoachSessionStatus.DONE.value
 
     def test_next_on_done_session_raises(self, db):
+        from app.core.exceptions import ConflictError
+
         coach = CoachService(database=db)
         coach.question_worker.set_question_source(_questions)
         handle = coach.start_session(user_id=1)
         report = coach.end_session(handle.session_id)
-        with pytest.raises(ValueError):
+        with pytest.raises(ConflictError):
             coach.next_question(handle.session_id)
 
 

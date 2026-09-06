@@ -17,6 +17,7 @@ import logging
 from typing import Optional
 
 from app.core.database import Database
+from app.core.exceptions import ConflictError, ForbiddenError
 from app.models.entities import (
     CoachSession,
     CoachSessionHandle,
@@ -135,9 +136,9 @@ class CoachService:
     def _require_active(self, session_id: str) -> CoachSession:
         session = self.db.get_coach_session(session_id)
         if session is None:
-            raise KeyError(f"会话不存在: {session_id}")
+            raise ForbiddenError(detail=f"会话不存在: {session_id}")
         if session.status != CoachSessionStatus.ACTIVE.value:
-            raise ValueError(f"会话不在进行中: {session.status}")
+            raise ConflictError(detail=f"会话不在进行中: {session.status}")
         return session
 
     def _set_status(self, session: CoachSession, status: CoachSessionStatus) -> None:
@@ -158,4 +159,4 @@ class CoachService:
         try:
             return self.question_worker.select(profile, session.difficulty)
         except RuntimeError as e:
-            raise ValueError(str(e)) from e
+            raise ConflictError(detail=str(e), error_code="QUESTION_BANK_EMPTY") from e

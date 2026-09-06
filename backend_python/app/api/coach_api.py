@@ -57,8 +57,8 @@ async def start_session(
     try:
         handle = _get_coach(request).start_session(user.id, mode=body.mode, difficulty=body.difficulty)
         return handle
-    except AppError as e:
-        raise e.to_http_exception()
+    except AppError:
+        raise
 
 
 @router.get("/session/{session_id}/question", response_model=CoachQuestionOut)
@@ -67,13 +67,8 @@ async def next_question(session_id: str, request: Request, user: User = Depends(
     _require_owned_session(coach, request.app.state.database, session_id, user.id)
     try:
         return coach.next_question(session_id)
-    except AppError as e:
-        raise e.to_http_exception()
-    except KeyError as e:
-        raise ForbiddenError(detail=str(e)).to_http_exception()
-    except ValueError as e:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=409, detail=str(e))
+    except AppError:
+        raise
 
 
 @router.get("/recommend", response_model=list[CoachQuestionOut])
@@ -121,13 +116,8 @@ async def submit_answer(
                 "correct_answer": feedback.correct_answer,
             })
         return feedback
-    except AppError as e:
-        raise e.to_http_exception()
-    except KeyError as e:
-        raise ForbiddenError(detail=str(e)).to_http_exception()
-    except ValueError as e:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=409, detail=str(e))
+    except AppError:
+        raise
 
 
 @router.post("/session/{session_id}/end", response_model=CoachSessionReport)
@@ -136,10 +126,5 @@ async def end_session(session_id: str, request: Request, user: User = Depends(ge
     _require_owned_session(coach, request.app.state.database, session_id, user.id)
     try:
         return coach.end_session(session_id)
-    except AppError as e:
-        raise e.to_http_exception()
-    except KeyError as e:
-        raise ForbiddenError(detail=str(e)).to_http_exception()
-    except ValueError as e:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=409, detail=str(e))
+    except AppError:
+        raise

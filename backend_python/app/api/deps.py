@@ -30,5 +30,5 @@ def get_current_user(
     auth = request.app.state.auth_service
     try:
         return auth.parse_access(credentials.credentials)
-    except AuthCredentialsError as e:
-        raise e.to_http_exception()
+    except AuthCredentialsError:
+        raise

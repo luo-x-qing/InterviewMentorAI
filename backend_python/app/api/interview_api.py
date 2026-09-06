@@ -123,7 +123,7 @@ async def analyze_interview(
         if hub is not None:
             await hub.broadcast(f"{topic}.error", {"message": str(e)})
         db.update_interview_status(interview_id, InterviewStatus.FAILED.value)
-        raise e.to_http_exception()
+        raise
 
     # ── 收尾：持久化 + 画像回写 + 推荐 + 推送 ──────────────
     recommendations = []
