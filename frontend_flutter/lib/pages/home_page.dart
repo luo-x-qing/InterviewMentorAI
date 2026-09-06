@@ -450,8 +450,7 @@ class _HomePageState extends State<HomePage>
   }
 
   Widget _buildRecentReportEntry() {
-    final report = _reports == null || _reports!.isEmpty
-        ? ReportPage.mockData() : _reports!.last;
+    final report = _reports!.last;
     final title = report['title'] as String? ?? '面试复盘报告';
     final createdAt = report['created_at'] as String? ?? '';
     return Container(

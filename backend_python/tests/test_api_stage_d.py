@@ -271,6 +271,36 @@ def test_coach_session_ownership_enforced(client):
     assert stolen.status_code == 403
 
 
+def test_coach_question_without_knowledge_base(client):
+    """知识库无题目时出题降级为 409 业务错误（而非 500）"""
+    from app.agents.coach_workers.question_worker import QuestionWorker
+
+    client.app.state.coach_service.question_worker = QuestionWorker(question_source=lambda _limit: [])
+    tokens = _register(client, "13800138200")
+
+    started = client.post("/coach/session", json={}, headers=_auth_header(tokens))
+    sid = started.json()["session_id"]
+
+    q = client.get(f"/coach/session/{sid}/question", headers=_auth_header(tokens))
+    assert q.status_code == 409
+    assert "题目" in q.json()["detail"]
+
+
+def test_coach_answer_without_knowledge_base(client):
+    """无题库时作答判定也降级为 409 业务错误"""
+    from app.agents.coach_workers.question_worker import QuestionWorker
+
+    client.app.state.coach_service.question_worker = QuestionWorker(question_source=lambda _limit: [])
+    tokens = _register(client, "13800138201")
+
+    started = client.post("/coach/session", json={}, headers=_auth_header(tokens))
+    sid = started.json()["session_id"]
+
+    fb = client.post(f"/coach/session/{sid}/answer",
+                     json={"answer": "测试答案"}, headers=_auth_header(tokens))
+    assert fb.status_code == 409
+
+
 # ── 音频上传（§9.4）────────────────────────────────────
 
 def test_audio_upload_creates_interview(client):

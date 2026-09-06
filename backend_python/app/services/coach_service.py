@@ -66,8 +66,7 @@ class CoachService:
 
     def next_question(self, session_id: str) -> CoachQuestionOut:
         session = self._require_active(session_id)
-        profile = self._profiling.get_profile(session.user_id)
-        question = self.question_worker.select(profile, session.difficulty)
+        question = self._select_question(session)
         return CoachQuestionOut(
             question_no=question.question_no,
             title=question.title,
@@ -151,5 +150,12 @@ class CoachService:
         骨架阶段使用占位实现（从知识库取难度对应的一道题作参考）；接入
         真实出题路线后替换为按 session.question_index 从会话追问队列取题。
         """
+        return self._select_question(session)
+
+    def _select_question(self, session: CoachSession):
+        """出题（含无题库可用时的降级）：知识库无题时给业务可读错误而非 500"""
         profile = self._profiling.get_profile(session.user_id)
-        return self.question_worker.select(profile, session.difficulty)
+        try:
+            return self.question_worker.select(profile, session.difficulty)
+        except RuntimeError as e:
+            raise ValueError(str(e)) from e
